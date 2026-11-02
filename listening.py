@@ -159,22 +159,24 @@ def summary(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
 
 
 def top_tracks(start: datetime, end: datetime, limit: int = 10, artist_key: str | None = None,
-               db_path: Path = DB_PATH) -> list[dict]:
-    """Most played tracks of the period, optionally of one artist only."""
+               album: str | None = None, db_path: Path = DB_PATH) -> list[dict]:
+    """Most played tracks of the period, optionally of one artist or one album (an album_key) only."""
+    where, params = _filter(ALBUM, album) if album else ("(? IS NULL OR artist_key = ?)", (artist_key, artist_key))
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
             "SELECT track_key AS key, MAX(name) AS name, MAX(artist) AS artist, MAX(album) AS album, "
             "COUNT(*) AS plays, COALESCE(SUM(ms_played), 0) / 60000 AS minutes, MAX(played_at) AS last_played "
-            "FROM listens WHERE played_at >= ? AND played_at < ? AND (? IS NULL OR artist_key = ?) "
+            f"FROM listens WHERE played_at >= ? AND played_at < ? AND {where} "
             "GROUP BY track_key ORDER BY plays DESC, last_played DESC LIMIT ?",
-            (*_range(start, end), artist_key, artist_key, limit))]
+            (*_range(start, end), *params, limit))]
 
 
 def top_albums(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
     """Most played albums of the period; plays without an album name are left out."""
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
-            "SELECT artist_key, MAX(artist) AS artist, MAX(album) AS album, MAX(name) AS name, COUNT(*) AS plays, "
+            "SELECT artist_key, LOWER(album) AS album_lower, MAX(artist) AS artist, MAX(album) AS album, "
+            "MAX(name) AS name, COUNT(*) AS plays, "
             "MAX(played_at) AS last_played "
             "FROM listens WHERE played_at >= ? AND played_at < ? AND COALESCE(album, '') != '' "
             "GROUP BY artist_key, LOWER(album) ORDER BY plays DESC, last_played DESC LIMIT ?",
@@ -263,17 +265,14 @@ def ranks(start: datetime, end: datetime, column: str, db_path: Path = DB_PATH) 
 
 def timeline(start: datetime, end: datetime, bucket: str, column: str | None = None, key: str | None = None,
              db_path: Path = DB_PATH) -> dict[str, int]:
-    """Plays per local day ('%Y-%m-%d') or month ('%Y-%m'), optionally of one track or artist."""
+    """Plays per local day ('%Y-%m-%d') or month ('%Y-%m'), optionally of one track, artist or album."""
     pattern = "%Y-%m-%d" if bucket == "day" else "%Y-%m"
-    where = ""
-    if column:
-        _check_column(column)
-        where = f" AND {column} = ?"
+    where, params = _filter(column, key) if column else ("1", ())
     with open_db(db_path) as db:
         return {r[0]: r[1] for r in db.execute(
             "SELECT strftime(?, played_at, 'localtime') AS bucket, COUNT(*) FROM listens "
-            f"WHERE played_at >= ? AND played_at < ?{where} GROUP BY bucket",
-            (pattern, *_range(start, end), *([key] if column else [])))}
+            f"WHERE played_at >= ? AND played_at < ? AND {where} GROUP BY bucket",
+            (pattern, *_range(start, end), *params))}
 
 
 def _check_column(column: str) -> None:
@@ -281,15 +280,35 @@ def _check_column(column: str) -> None:
         raise ValueError(column)
 
 
-def detail(column: str, key: str, db_path: Path = DB_PATH) -> dict | None:
-    """All time totals of one track (column "track_key") or artist ("artist_key")."""
+# The "column" of an album for detail() and timeline(); its key comes from album_key()
+ALBUM = "album"
+_ALBUM_SEPARATOR = "\x1f"
+
+
+def album_key(artist_key: str, album_lower: str) -> str:
+    """The key of an album: its artist and its name as SQLite's LOWER() writes it (see top_albums)."""
+    return f"{artist_key}{_ALBUM_SEPARATOR}{album_lower}"
+
+
+def _filter(column: str, key: str) -> tuple[str, tuple]:
+    """The WHERE condition picking the plays of one track, artist or album."""
+    if column == ALBUM:
+        artist_key, album = key.split(_ALBUM_SEPARATOR, 1)
+        return "artist_key = ? AND LOWER(album) = ?", (artist_key, album)
     _check_column(column)
+    return f"{column} = ?", (key,)
+
+
+def detail(column: str, key: str, db_path: Path = DB_PATH) -> dict | None:
+    """All time totals of one track (column "track_key"), artist ("artist_key") or album (ALBUM)."""
+    where, params = _filter(column, key)
     with open_db(db_path) as db:
         row = db.execute(
             "SELECT MAX(name) AS name, MAX(artist) AS artist, MAX(album) AS album, MAX(artist_key) AS artist_key, "
+            "LOWER(MAX(album)) AS album_lower, "
             "COUNT(*) AS plays, COALESCE(SUM(ms_played), 0) / 60000 AS minutes, COUNT(DISTINCT track_key) AS tracks, "
             "MIN(played_at) AS first_played, MAX(played_at) AS last_played "
-            f"FROM listens WHERE {column} = ?", (key,)).fetchone()
+            f"FROM listens WHERE {where}", params).fetchone()
     return dict(row) if row and row["plays"] else None
 
 

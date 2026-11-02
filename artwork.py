@@ -109,6 +109,56 @@ def _find_artist_photo(artist: str) -> str | None:
     return None
 
 
+TRACKLISTS_PATH = ART_DIR / "tracklists.json"
+_tracklists: dict | None = None
+_tracklists_lock = threading.Lock()
+
+
+def _load_tracklists() -> dict:
+    global _tracklists
+    if _tracklists is None:
+        try:
+            _tracklists = json.loads(TRACKLISTS_PATH.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            _tracklists = {}
+    return _tracklists
+
+
+def cached_tracklist(artist: str, album: str) -> list[dict] | None:
+    """The tracks of an album looked up before ([] when Deezer did not have it), or None when not yet."""
+    with _tracklists_lock:
+        entry = _load_tracklists().get(f"{key(artist)}|{key(album)}")
+    if entry is None or (entry.get("missing") and time.time() - entry["missing"] > RETRY_SECONDS):
+        return None
+    return entry.get("tracks", [])
+
+
+def fetch_tracklist(artist: str, album: str) -> None:
+    """Look up the tracks of an album on Deezer (title and length, in album order) and cache them."""
+    tracks = None
+    for title in dict.fromkeys((album, _plain_title(album))):
+        results = (_search("/search/album", f'artist:"{artist}" album:"{title}"')
+                   or _search("/search/album", f"{artist} {title}"))
+        for result in results:
+            if (key((result.get("artist") or {}).get("name", "")) == key(artist)
+                    and key(_plain_title(result.get("title", ""))) == key(_plain_title(album))):
+                data = _get(f"{SEARCH_URL}/album/{result['id']}/tracks?limit=200").get("data") or []
+                tracks = [{"title": t["title"], "ms": (t.get("duration") or 0) * 1000} for t in data]
+                break
+        if tracks:
+            break
+    entry = {"tracks": tracks} if tracks else {"missing": time.time()}
+    with _tracklists_lock:
+        _load_tracklists()[f"{key(artist)}|{key(album)}"] = entry
+        TRACKLISTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        TRACKLISTS_PATH.write_text(json.dumps(_tracklists, ensure_ascii=False), encoding="utf-8")
+
+
+def same_title(a: str, b: str) -> bool:
+    """Whether two track titles are the same song, apart from version notes."""
+    return key(_plain_title(a)) == key(_plain_title(b))
+
+
 def find_length(artist: str, name: str) -> int | None:
     """The length of a track in milliseconds from Deezer, or None."""
     for title in dict.fromkeys((name, _plain_title(name))):

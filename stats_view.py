@@ -139,6 +139,8 @@ class Hero(tk.Canvas):
         self._about = ""
         self._action = None
         self._subtitle_action = None
+        # A line under the subtitle leading somewhere else: (text, action)
+        self._link: tuple[str, object] | None = None
         self._hovered = False
         self._images = []
         self.bind("<Configure>", lambda e: self._draw())
@@ -173,6 +175,11 @@ class Hero(tk.Canvas):
         """Make the subtitle line a link of its own (the artist of a track)."""
         self._subtitle_action = action
 
+    def set_link(self, text: str, action):
+        """A line under the subtitle that opens something of its own (the album of a track); "" removes it."""
+        self._link = (text, action) if text else None
+        self._draw()
+
     # Mouse
 
     def _hover(self, on: bool):
@@ -180,19 +187,22 @@ class Hero(tk.Canvas):
             self._hovered = on
             self._draw()
 
-    def _over_subtitle(self, event) -> bool:
-        box = self.bbox("subtitle")
-        return bool(self._subtitle_action and box and box[0] <= event.x <= box[2] and box[1] <= event.y <= box[3])
+    def _link_at(self, event):
+        """The action of the subtitle or link line under the mouse, if it has one."""
+        for tag, action in (("subtitle", self._subtitle_action), ("link", self._link and self._link[1])):
+            box = self.bbox(tag)
+            if action and box and box[0] <= event.x <= box[2] and box[1] <= event.y <= box[3]:
+                return action
+        return None
 
     def _on_motion(self, event):
-        if self._subtitle_action:
-            self.configure(cursor="hand2" if self._over_subtitle(event) or self._action else "")
+        if self._subtitle_action or self._link:
+            self.configure(cursor="hand2" if self._link_at(event) or self._action else "")
 
     def _on_click(self, event):
-        if self._over_subtitle(event):
-            self._subtitle_action()
-        elif self._action:
-            self._action()
+        action = self._link_at(event) or self._action
+        if action:
+            action()
 
     # Drawing
 
@@ -248,6 +258,8 @@ class Hero(tk.Canvas):
         line(self.caption, self.CAPTION_FONT, P.muted)
         line(content["title"], self.TITLE_FONT, P.text, px(4))
         line(content["subtitle"], self.SUBTITLE_FONT, P.muted, tags=("content", "subtitle"))
+        if self._link:
+            line(self._link[0], self.SUBTITLE_FONT, P.muted, px(2), tags=("content", "link"))
         line(content["detail"], self.TEXT_FONT, P.text, px(10))
         if content["change"]:
             line(content["change"][0], self.TEXT_FONT, content["change"][1], px(4))
@@ -640,7 +652,8 @@ class StatsTab(ttk.Frame):
         column, row = int(event.x // cell), int(event.y // cell)
         index = row * collage.COLUMNS + column
         if 0 <= column < collage.COLUMNS and index < len(self.collage_albums):
-            self.open_detail("artist_key", self.collage_albums[index]["artist_key"])
+            album = self.collage_albums[index]
+            self.open_detail(listening.ALBUM, listening.album_key(album["artist_key"], album["album_lower"]))
 
     def _genre_arrived(self):
         # Genres arrive one artist at a time, so redraw only this section, at most every few seconds

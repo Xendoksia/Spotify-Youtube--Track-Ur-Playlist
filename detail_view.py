@@ -6,6 +6,7 @@ with back / forward buttons between the pages visited and a close button back to
 
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timedelta
 from tkinter import ttk
 
@@ -18,9 +19,19 @@ from stats_view import Hero, ScrollFrame, duration_text, month_name, plays_text,
 from theme import P, icon, px
 
 ARTIST_TRACKS = 15
+# Plays of tracks of an album fetched at most (the album's own tracks come from Deezer)
+ALBUM_TRACKS = 100
 # Up to this many days of history the chart shows days, after that months
 DAILY_LIMIT = 62
 MIN_DAYS = 14
+
+
+def format_length(ms: int) -> str:
+    """A track length as m:ss, or "" when unknown."""
+    if not ms:
+        return ""
+    seconds = round(ms / 1000)
+    return f"{seconds // 60}:{seconds % 60:02d}"
 
 
 def date_text(iso: str) -> str:
@@ -90,6 +101,8 @@ class DetailPage(ttk.Frame):
         self.column, self.key = column, key
         self.open_page = open_page
         self.is_artist = column == "artist_key"
+        self.is_album = column == listening.ALBUM
+        self._looking_up = False
         self.fetcher = artwork.Fetcher(self)
         self._images = []
         self._refresh_pending = False
@@ -100,7 +113,7 @@ class DetailPage(ttk.Frame):
         page.pack(fill="both", expand=True, pady=(px(12), 0))
         content = page.content
 
-        caption = t("detail.artist" if self.is_artist else "detail.track")
+        caption = t("detail.artist" if self.is_artist else "detail.album" if self.is_album else "detail.track")
         self.hero = Hero(content, caption, round_image=self.is_artist)
         self.hero.pack(fill="x")
 
@@ -122,9 +135,9 @@ class DetailPage(ttk.Frame):
         self.timeline = ColumnChart(content, 170, t("stats.empty"))
         self.timeline.pack(fill="x")
 
-        if self.is_artist:
-            ttk.Label(content, text=t("detail.artist_tracks"), style="Section.TLabel"
-                      ).pack(anchor="w", pady=(px(24), px(8)))
+        if self.is_artist or self.is_album:
+            self.tracks_title = ttk.Label(content, text=t("detail.artist_tracks"), style="Section.TLabel")
+            self.tracks_title.pack(anchor="w", pady=(px(24), px(8)))
             self.tracks = BarList(content, t("stats.empty"), 1)
             self.tracks.pack(fill="x")
 
@@ -158,7 +171,7 @@ class DetailPage(ttk.Frame):
             self.hero.show_empty(t("stats.empty"))
             return
 
-        title = info["artist"] if self.is_artist else info["name"]
+        title = info["artist"] if self.is_artist else info["album"] if self.is_album else info["name"]
         self.view.title_label.configure(text=title)
         if self.is_artist:
             self.hero.show(title, tracks_text(info["tracks"]), summary_text(plays_text(info["plays"]),
@@ -167,12 +180,15 @@ class DetailPage(ttk.Frame):
             facts = artist_info.request(title, self.key, self, self._artwork_arrived)
             self.hero.set_about(artist_info.describe(facts) if facts else "")
         else:
-            subtitle = info["artist"] + (f"  ·  {info['album']}" if info["album"] else "")
-            self.hero.show(title, subtitle, summary_text(plays_text(info["plays"]), minutes=info["minutes"]),
+            self.hero.show(title, info["artist"], summary_text(plays_text(info["plays"]), minutes=info["minutes"]),
                            self.fetcher.cover(info["artist"], info["album"] or "", info["name"],
                                               self._artwork_arrived))
-            # The artist line leads to the artist's own page
+            # The artist line leads to the artist's own page, and on a track the album line to the album's
             self.hero.on_subtitle_click(lambda: self.open_page("artist_key", info["artist_key"]))
+            if not self.is_album and info["album"]:
+                album = listening.album_key(info["artist_key"], info["album_lower"])
+                self.hero.set_link(f"{t('detail.album')}: {info['album']}",
+                                   lambda: self.open_page(listening.ALBUM, album))
 
         count_up(self.tiles["plays"], info["plays"], number)
         count_up(self.tiles["time"], info["minutes"], lambda minutes: duration_text(minutes) if minutes else "—")
@@ -180,7 +196,9 @@ class DetailPage(ttk.Frame):
         self.tiles["last"].configure(text=date_text(info["last_played"]))
         self._fill_timeline(info)
 
-        if self.is_artist:
+        if self.is_album:
+            self._fill_album_tracks(info)
+        elif self.is_artist:
             start, end = listening.period_range("all")
             rows = listening.top_tracks(start, end, ARTIST_TRACKS, artist_key=self.key)
             self.tracks.configure(height=px(BarList.ROW_HEIGHT * max(1, len(rows))))
@@ -191,6 +209,49 @@ class DetailPage(ttk.Frame):
                 "image": self._cover(r, BarList.IMAGE_SIZE, 4),
                 "on_click": lambda key=r["key"]: self.open_page("track_key", key),
             } for r in rows])
+
+    def _fill_album_tracks(self, info: dict):
+        """The album's tracks in album order with how often each was played; only the played ones until
+        (or unless) Deezer has the album."""
+        start, end = listening.period_range("all")
+        played = listening.top_tracks(start, end, ALBUM_TRACKS, album=self.key)
+        tracklist = artwork.cached_tracklist(info["artist"], info["album"])
+        if tracklist is None and not self._looking_up:
+            self._looking_up = True
+
+            def look_up():
+                try:
+                    artwork.fetch_tracklist(info["artist"], info["album"])
+                except Exception:  # offline: the played tracks stay
+                    return
+                self.after(0, self._artwork_arrived)
+            threading.Thread(target=look_up, name="tracklist", daemon=True).start()
+
+        rows, left = [], list(played)
+        for track in tracklist or []:
+            match = next((p for p in left if artwork.same_title(p["name"], track["title"])), None)
+            length = format_length(track["ms"])
+            if match:
+                left.remove(match)
+                rows.append(self._track_row(match, length))
+            else:
+                rows.append({"title": track["title"], "subtitle": length, "value": 0, "value_text": "—",
+                             "tooltip": f"{track['title']}\n{t('detail.not_heard')}"})
+        # Played tracks Deezer does not list (bonus tracks, other editions) come after
+        rows += [self._track_row(track) for track in left]
+        heard = sum(1 for row in rows if row["value"])
+        self.tracks_title.configure(text=t("detail.album_tracks", heard=number(heard), total=number(len(rows)))
+                                    if tracklist else t("detail.artist_tracks"))
+        self.tracks.images = False
+        self.tracks.configure(height=px(BarList.ROW_HEIGHT * max(1, len(rows))))
+        self.tracks.set_rows(rows)
+
+    def _track_row(self, track: dict, length: str = "") -> dict:
+        return {
+            "title": track["name"], "subtitle": length, "value": track["plays"], "value_text": number(track["plays"]),
+            "tooltip": f"{track['name']}\n" + summary_text(plays_text(track["plays"]), minutes=track["minutes"]),
+            "on_click": lambda key=track["key"]: self.open_page("track_key", key),
+        }
 
     def _fill_timeline(self, info: dict):
         first = listening.from_utc(info["first_played"]).astimezone()

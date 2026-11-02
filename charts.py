@@ -308,21 +308,29 @@ class BarList(Chart):
                 placeholder(self, rank_width, middle - size / 2, size, row["title"], self.round_images,
                             self.small_font)
             text_width = label_width - text_left
+            # A row with nothing to count (an album track not heard yet) has no bar and a muted name
+            silent = not row["value"]
+            title_color = P.muted if silent else P.text
             if row.get("subtitle"):
                 self.create_text(text_left, middle - above, text=self._fit(row["title"], self.font, text_width),
-                                 anchor="w", fill=P.text, font=self.font)
+                                 anchor="w", fill=title_color, font=self.font)
                 self.create_text(text_left, middle + below,
                                  text=self._fit(row["subtitle"], self.small_font, text_width),
                                  anchor="w", fill=P.muted, font=self.small_font)
             else:
                 self.create_text(text_left, middle, text=self._fit(row["title"], self.font, text_width),
-                                 anchor="w", fill=P.text, font=self.font)
-            length = max(2, bar_space * self._value_now(self._row_key(row)) / top_value)
-            bar = rounded_bar(self, bar_left, middle - thickness / 2, bar_left + length, middle + thickness / 2,
-                              "right", fill=P.chart)
-            self.create_text(bar_left + length + px(6), middle, text=row["value_text"], anchor="w", fill=P.text,
-                             font=self.small_font)
-            self.add_hit_area(0, middle - row_height / 2, width, middle + row_height / 2, row["tooltip"], [bar],
+                                 anchor="w", fill=title_color, font=self.font)
+            if silent:
+                self.create_text(bar_left, middle, text=row["value_text"], anchor="w", fill=P.muted,
+                                 font=self.small_font)
+                marks = []
+            else:
+                length = max(2, bar_space * self._value_now(self._row_key(row)) / top_value)
+                marks = [rounded_bar(self, bar_left, middle - thickness / 2, bar_left + length,
+                                     middle + thickness / 2, "right", fill=P.chart)]
+                self.create_text(bar_left + length + px(6), middle, text=row["value_text"], anchor="w",
+                                 fill=P.text, font=self.small_font)
+            self.add_hit_area(0, middle - row_height / 2, width, middle + row_height / 2, row["tooltip"], marks,
                               row.get("on_click"), background)
         return True
 
