@@ -470,16 +470,16 @@ class App(tk.Tk):
     def _set_busy(self, busy):
         self.busy = busy
         state = "disabled" if busy else "normal"
-        for panel in (*self.panels.values(), self.listening):
+        for panel in self.panels.values():
             for button in panel.buttons:
                 button.configure(state=state)
         self.configure(cursor="watch" if busy else "")
 
-    def run_in_background(self, panel, task, on_success, needs_credentials=True):
+    def run_in_background(self, panel, task, on_success):
         """Run network work on a worker thread so the window stays responsive."""
         if self.busy:
             return
-        if needs_credentials and not panel.service.has_credentials(tracker.load_config()):
+        if not panel.service.has_credentials(tracker.load_config()):
             self.open_settings(panel.service)
             return
         self._set_busy(True)
@@ -653,7 +653,7 @@ class App(tk.Tk):
                 self.restart = True
                 self.destroy()
                 return
-            for panel in (*self.panels.values(), self.listening):
+            for panel in self.panels.values():
                 panel.update_login_status()
             self.set_status(t("status.saved"))
 

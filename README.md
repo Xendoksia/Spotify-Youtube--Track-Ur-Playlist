@@ -24,7 +24,7 @@ and compares it with the previous one, so the title, artist and original add dat
 - Export the history to a CSV file that opens in Excel
 - **Listening history** in its own section, without the Spotify API: what the Spotify desktop app plays on
   this computer is recorded with the time actually listened, so your most played tracks and artists are
-  counted from your own plays. Plays from your phone and from before can be imported from Spotify's data export.
+  counted from your own plays.
 - English and Turkish interface, light and dark theme (or follow the Windows setting), under **Settings → General**
 - Only the Python standard library is needed. On Windows, `pip install -r requirements.txt` lets listening
   history read the album and playback position too; without it the Spotify window title is used.
@@ -105,7 +105,7 @@ python youtube.py check https://www.youtube.com/playlist?list=...
 python youtube.py history
 python youtube.py export youtube_history.csv
 
-python listening.py import my_spotify_data.zip                   # import a Spotify data export
+python listening.py recent                                       # last recorded plays
 python listening.py stats month                                  # most played this week/month/year/all
 ```
 
@@ -132,8 +132,7 @@ your Client ID and Client Secret.
 - **Check frequency:** the app only checks when you run it. A removal is reported as having happened
   "between the previous check and this one".
 - **Listening history:** only the Spotify desktop app on Windows is recorded, and only while this app is open.
-  A song counts after 30 seconds of listening. For your phone and earlier plays, request your data at
-  spotify.com/account/privacy (the "Extended streaming history" covers your whole account) and import the zip.
+  A song counts after 30 seconds of listening. Plays on other devices, such as your phone, are not recorded.
 - **YouTube:** "Watch later" and automatic Mixes cannot be read through the API. The free API quota
   (10,000 units per day) is enough for thousands of checks. While your Google OAuth app is in testing mode,
   Google ends the session after 7 days and you need to log in again.
@@ -163,7 +162,7 @@ Spotify and Google / YouTube.
 | `i18n.py` | English and Turkish interface texts |
 | `tracker.py` | Spotify client, diff logic, database and command line |
 | `youtube.py` | YouTube client and command line |
-| `listening.py` | Listening history: storage, data export import, statistics and command line |
+| `listening.py` | Listening history: storage, statistics and command line |
 | `nowplaying.py` | Records what the Spotify desktop app plays, without the API |
 | `listening_view.py` | Listening section of the interface |
 | `Spotify Playlist Tracker.bat` | Double-click launcher for Windows |

@@ -37,19 +37,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "listening.column.listened": "Listened",
         "listening.column.source": "Source",
         "listening.source.local": "This computer",
-        "listening.source.export": "Spotify export",
         "listening.source.spotify": "Spotify (earlier)",
-        "listening.note": "Songs played in the Spotify desktop app are recorded after 30 seconds while this app "
-                          "is open.\nFor plays on your phone and from before, import your Spotify data export. "
-                          "A play is never counted twice.",
-        "listening.request_export": "Request your Spotify data ↗",
-        "listening.import": "Import Spotify data…",
-        "listening.export_files": "Spotify data export",
-        "listening.importing": "Importing Spotify data…",
-        "listening.imported": "{stored} plays imported, {skipped} were already recorded.",
-        "listening.import_failed": "The file could not be read: {error}",
-        "listening.import_nothing": "No listening history found. Choose the .zip file of your Spotify data export, "
-                                    "or the Streaming_History_Audio… / StreamingHistory… JSON files inside it.",
 
         "panel.load_playlists": "Load my {service} playlists",
         "panel.or_link": "or playlist link:",
@@ -237,19 +225,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "listening.column.listened": "Dinlenen",
         "listening.column.source": "Kaynak",
         "listening.source.local": "Bu bilgisayar",
-        "listening.source.export": "Spotify dökümü",
         "listening.source.spotify": "Spotify (önceki)",
-        "listening.note": "Spotify masaüstü uygulamasında çalan şarkılar, bu uygulama açıkken 30 saniye dinlenince "
-                          "kaydedilir.\nTelefondaki ve daha önceki dinlemelerin için Spotify veri dökümünü içe aktar. "
-                          "Aynı çalma iki kez sayılmaz.",
-        "listening.request_export": "Spotify verilerini iste ↗",
-        "listening.import": "Spotify verilerini içe aktar…",
-        "listening.export_files": "Spotify veri dökümü",
-        "listening.importing": "Spotify verileri içe aktarılıyor…",
-        "listening.imported": "{stored} çalma içe aktarıldı, {skipped} tanesi zaten kayıtlıydı.",
-        "listening.import_failed": "Dosya okunamadı: {error}",
-        "listening.import_nothing": "Dinleme geçmişi bulunamadı. Spotify veri dökümünün .zip dosyasını veya "
-                                    "içindeki Streaming_History_Audio… / StreamingHistory… JSON dosyalarını seç.",
 
         "panel.load_playlists": "{service} listelerimi yükle",
         "panel.or_link": "veya liste linki:",

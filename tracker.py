@@ -405,12 +405,12 @@ def check_playlist(client, playlist_id: str, db_path: Path = DB_PATH) -> dict:
             r["key"]: dict(r)
             for r in db.execute("SELECT * FROM tracks WHERE playlist_id = ? AND in_playlist = 1", (playlist_id,))
         }
-        current_by_key = {t["key"]: t for t in current}
-        for k, t in current_by_key.items():
+        current_by_key = {track["key"]: track for track in current}
+        for k, track in current_by_key.items():
             # Unavailable items may lose their metadata (YouTube shows "Deleted video"), keep the last known one
-            if k in previous and not t["playable"]:
-                t.update({f: previous[k][f] for f in ("name", "artist", "album")})
-        kept = [(previous[k], t) for k, t in current_by_key.items() if k in previous]
+            if k in previous and not track["playable"]:
+                track.update({f: previous[k][f] for f in ("name", "artist", "album")})
+        kept = [(previous[k], track) for k, track in current_by_key.items() if k in previous]
 
         result = {
             "playlist_id": playlist_id,
@@ -418,26 +418,26 @@ def check_playlist(client, playlist_id: str, db_path: Path = DB_PATH) -> dict:
             "total": len(current),
             "checked_at": now,
             "first_check": first_check,
-            "added": [t for k, t in current_by_key.items() if k not in previous],
-            "removed": [t for k, t in previous.items() if k not in current_by_key],
-            "unplayable": [t for old, t in kept if old["playable"] and not t["playable"]],
-            "playable_again": [t for old, t in kept if not old["playable"] and t["playable"]],
-            "unavailable": [t for t in current if not t["playable"]],
+            "added": [track for k, track in current_by_key.items() if k not in previous],
+            "removed": [track for k, track in previous.items() if k not in current_by_key],
+            "unplayable": [track for old, track in kept if old["playable"] and not track["playable"]],
+            "playable_again": [track for old, track in kept if not old["playable"] and track["playable"]],
+            "unavailable": [track for track in current if not track["playable"]],
         }
 
-        for t in current:
+        for track in current:
             db.execute(
                 "INSERT INTO tracks (playlist_id, key, uri, name, artist, album, added_at, added_by, "
                 "playable, first_seen, last_seen, in_playlist) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1) "
                 "ON CONFLICT(playlist_id, key) DO UPDATE SET name = excluded.name, artist = excluded.artist, "
                 "album = excluded.album, playable = excluded.playable, "
                 "last_seen = excluded.last_seen, in_playlist = 1",
-                (playlist_id, t["key"], t["uri"], t["name"], t["artist"], t["album"], t["added_at"],
-                 t["added_by"], t["playable"], now, now),
+                (playlist_id, track["key"], track["uri"], track["name"], track["artist"], track["album"],
+                 track["added_at"], track["added_by"], track["playable"], now, now),
             )
-        for t in result["removed"]:
+        for track in result["removed"]:
             db.execute("UPDATE tracks SET in_playlist = 0 WHERE playlist_id = ? AND key = ?",
-                       (playlist_id, t["key"]))
+                       (playlist_id, track["key"]))
 
         if first_check:
             _write_event(db, playlist_id, now, EVENT_INITIAL, {"name": f"{len(current)} tracks recorded"})
@@ -445,8 +445,8 @@ def check_playlist(client, playlist_id: str, db_path: Path = DB_PATH) -> dict:
         else:
             for event, field in ((EVENT_ADDED, "added"), (EVENT_REMOVED, "removed"),
                                  (EVENT_UNPLAYABLE, "unplayable"), (EVENT_PLAYABLE, "playable_again")):
-                for t in result[field]:
-                    _write_event(db, playlist_id, now, event, t)
+                for track in result[field]:
+                    _write_event(db, playlist_id, now, event, track)
     return result
 
 
@@ -468,20 +468,20 @@ def print_result(result: dict, unavailable_label: str) -> None:
     print(f"Playlist: {result['name']}  ({result['total']} items)")
     if result["first_check"]:
         print("Initial snapshot recorded. Changes will be tracked from the next check on.")
-        for t in result["unavailable"]:
-            print(f"   ! {unavailable_label}: {track_label(t)}")
+        for track in result["unavailable"]:
+            print(f"   ! {unavailable_label}: {track_label(track)}")
         return
     if not any(result[k] for k in ("added", "removed", "unplayable", "playable_again")):
         print("No changes.")
-    for t in result["added"]:
-        print(f"  + ADDED        {track_label(t)}   (added: {format_date(t['added_at'])})")
-    for t in result["removed"]:
-        print(f"  - REMOVED      {track_label(t)}   (added: {format_date(t['added_at'])}, "
-              f"last seen: {format_date(t['last_seen'])})")
-    for t in result["unplayable"]:
-        print(f"  ! UNPLAYABLE   {track_label(t)}")
-    for t in result["playable_again"]:
-        print(f"  ✓ PLAYABLE      {track_label(t)}")
+    for track in result["added"]:
+        print(f"  + ADDED        {track_label(track)}   (added: {format_date(track['added_at'])})")
+    for track in result["removed"]:
+        print(f"  - REMOVED      {track_label(track)}   (added: {format_date(track['added_at'])}, "
+              f"last seen: {format_date(track['last_seen'])})")
+    for track in result["unplayable"]:
+        print(f"  ! UNPLAYABLE   {track_label(track)}")
+    for track in result["playable_again"]:
+        print(f"  ✓ PLAYABLE      {track_label(track)}")
 
 
 def run_cli(usage: str, connect_client, parse_id, db_path: Path, unavailable_label, default_csv: str) -> None:

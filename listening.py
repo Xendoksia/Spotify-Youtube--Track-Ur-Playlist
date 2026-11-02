@@ -1,38 +1,30 @@
 """
 Listening history (core + command line).
 
-Plays are stored in listening.db and come from:
-  - this computer: nowplaying.py records what the Spotify desktop app plays, no API involved
-  - Spotify's data export (my_spotify_data.zip): plays from other devices and from before tracking started
-A play found in both sources is stored once. All statistics are counted from these plays.
+nowplaying.py records what the Spotify desktop app plays on this computer, without the Spotify API,
+and stores the plays in listening.db. All statistics are counted from these plays.
 
 Command line usage:
-    python listening.py import <zip or json> [...]    Import a Spotify data export
     python listening.py recent                        Show the last recorded plays
     python listening.py stats [week|month|year|all]   Show the most played tracks and artists
 """
 
 from __future__ import annotations
 
-import json
 import sqlite3
 import sys
-import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterable
 
 import tracker
-from i18n import t
-from tracker import BASE_DIR, TrackerError, load_config
+from tracker import BASE_DIR, TrackerError
 
 DB_PATH = BASE_DIR / "listening.db"
 PERIODS = ("week", "month", "year", "all")
 UTC_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 SOURCE_LOCAL = "local"
-SOURCE_EXPORT = "export"
 SOURCE_SPOTIFY = "spotify"  # plays read from Spotify's recently played list by an earlier version
-# Spotify counts a stream as a play after 30 seconds; shorter export entries are skips
+# Like Spotify, a track counts as played after 30 seconds
 MIN_PLAY_MS = 30_000
 # Sources record slightly different times for the same play (its start or end), so plays of the same
 # track closer than its length plus this margin are matched
@@ -108,7 +100,7 @@ def _insert(db: sqlite3.Connection, play: dict, source: str) -> bool:
 
 
 def record_local(play: dict, db_path: Path = DB_PATH) -> int | None:
-    """Store a play detected on this computer; return its id, or None if the export already has it."""
+    """Store a play detected on this computer; return its id, or None if it is already recorded."""
     with open_db(db_path) as db:
         if _insert(db, {**play, "ms_played": play["ms"]}, SOURCE_LOCAL):
             return db.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -118,57 +110,6 @@ def record_local(play: dict, db_path: Path = DB_PATH) -> int | None:
 def update_local(play_id: int, ms_played: int, db_path: Path = DB_PATH) -> None:
     with open_db(db_path) as db:
         db.execute("UPDATE listens SET ms_played = ? WHERE id = ?", (ms_played, play_id))
-
-
-def _export_records(paths: Iterable[str]) -> Iterable[dict]:
-    """Read streaming history entries from export zips or the JSON files inside them."""
-    def wanted(name: str) -> bool:
-        base = Path(name).name
-        return base.endswith(".json") and base.startswith(("Streaming_History_Audio", "StreamingHistory")) \
-            and "podcast" not in base.lower() and "video" not in base.lower()
-
-    for path in paths:
-        if zipfile.is_zipfile(path):
-            with zipfile.ZipFile(path) as archive:
-                for name in sorted(n for n in archive.namelist() if wanted(n)):
-                    yield from json.loads(archive.read(name).decode("utf-8"))
-        else:
-            yield from json.loads(Path(path).read_text(encoding="utf-8"))
-
-
-def _export_play(record: dict) -> dict | None:
-    # Extended streaming history uses ts/ms_played, the yearly account data endTime/msPlayed
-    if "ts" in record:
-        name, artist = record.get("master_metadata_track_name"), record.get("master_metadata_album_artist_name")
-        album, ms, end = record.get("master_metadata_album_album_name"), record.get("ms_played"), record["ts"]
-        ended = datetime.fromisoformat(end.replace("Z", "+00:00"))
-    elif "endTime" in record:
-        name, artist, album, ms = record.get("trackName"), record.get("artistName"), "", record.get("msPlayed")
-        ended = datetime.strptime(record["endTime"], "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
-    else:
-        return None
-    if not name or not artist or (ms or 0) < MIN_PLAY_MS:
-        return None
-    # The export stores when a stream ended, Last.fm when it started
-    return {"played_at": to_utc(ended - timedelta(milliseconds=ms)), "artist": artist, "name": name,
-            "album": album or "", "ms_played": ms}
-
-
-def import_export(paths: Iterable[str], db_path: Path = DB_PATH) -> tuple[int, int]:
-    """Import a Spotify data export; return (stored, skipped as already recorded)."""
-    stored = found = 0
-    try:
-        with open_db(db_path) as db:
-            for record in _export_records(paths):
-                play = _export_play(record) if isinstance(record, dict) else None
-                if play:
-                    found += 1
-                    stored += _insert(db, play, SOURCE_EXPORT)
-    except (ValueError, KeyError, OSError, zipfile.BadZipFile) as error:
-        raise TrackerError(t("listening.import_failed", error=error))
-    if not found:
-        raise TrackerError(t("listening.import_nothing"))
-    return stored, found - stored
 
 
 def counts(db_path: Path = DB_PATH) -> dict[str, int]:
@@ -253,10 +194,7 @@ def main() -> None:
         return
     command, args = sys.argv[1].lower(), sys.argv[2:]
     try:
-        if command == "import" and args:
-            stored, skipped = import_export(args)
-            print(f"{stored} plays imported, {skipped} were already recorded.")
-        elif command == "recent":
+        if command == "recent":
             for p in reversed(recent_plays(30)):
                 print(f"{tracker.format_date(p['played_at'])}  [{p['source']}]  {tracker.track_label(p)}")
         elif command == "stats" and (not args or args[0] in PERIODS):

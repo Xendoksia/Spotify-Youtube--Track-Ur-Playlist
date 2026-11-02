@@ -1,14 +1,11 @@
 """
-Listening section of the interface: plays recorded on this computer and imported from the
-Spotify data export, kept apart from playlist tracking.
+Listening section of the interface: plays recorded on this computer, kept apart from playlist tracking.
 """
 
 from __future__ import annotations
 
 import tkinter as tk
-import webbrowser
-from tkinter import filedialog, messagebox, ttk
-from types import SimpleNamespace
+from tkinter import ttk
 
 import listening
 import nowplaying
@@ -17,7 +14,6 @@ from i18n import t
 from theme import P
 from tracker import format_date
 
-PRIVACY_URL = "https://www.spotify.com/account/privacy/"
 STATUS_INTERVAL_MS = 1000
 
 
@@ -34,9 +30,6 @@ def tracking_enabled(config: dict) -> bool:
 
 class ListeningView(ttk.Frame):
     """Sub-tabs for listening data; statistics are added next to “Recently played”."""
-
-    # Importing needs no account and raises no login errors (an empty tuple matches no exception)
-    service = SimpleNamespace(login_required=())
 
     def __init__(self, parent, app, local_tracker: nowplaying.LocalTracker):
         super().__init__(parent)
@@ -59,10 +52,8 @@ class ListeningView(ttk.Frame):
         self.tracking = tk.BooleanVar(value=tracking_enabled(tracker.load_config()))
         ttk.Checkbutton(toolbar, text=t("listening.track_toggle"), variable=self.tracking,
                         command=self._toggle_tracking, style="Card.TCheckbutton").pack(side="left")
-        self.import_button = ttk.Button(toolbar, text=t("listening.import"), command=self.import_export)
-        self.import_button.pack(side="right")
         self.info_label = ttk.Label(toolbar, style="CardMuted.TLabel")
-        self.info_label.pack(side="right", padx=12)
+        self.info_label.pack(side="right")
 
         self.now_label = ttk.Label(tab, style="Card.TLabel")
         self.now_label.pack(anchor="w", pady=(10, 0))
@@ -80,21 +71,6 @@ class ListeningView(ttk.Frame):
         self.table.configure(yscrollcommand=scrollbar.set)
         self.table.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-
-        footer = ttk.Frame(tab, style="Card.TFrame")
-        footer.pack(fill="x", pady=(8, 0))
-        ttk.Label(footer, text=t("listening.note"), style="CardMuted.TLabel", justify="left").pack(side="left")
-        export_link = ttk.Label(footer, text=t("listening.request_export"), style="Card.TLabel",
-                                foreground=P.focus, cursor="hand2")
-        export_link.pack(side="right", anchor="n")
-        export_link.bind("<Button-1>", lambda e: webbrowser.open(PRIVACY_URL))
-
-    @property
-    def buttons(self):
-        return (self.import_button,)
-
-    def update_login_status(self):
-        pass
 
     def _toggle_tracking(self):
         config = tracker.load_config()
@@ -133,20 +109,3 @@ class ListeningView(ttk.Frame):
                 format_date(p["played_at"]), p["name"], p["artist"], p["album"], format_length(p["ms_played"]),
                 t(f"listening.source.{p['source']}")))
         self.info_label.configure(text=t("listening.info", count=sum(listening.counts().values())))
-
-    def import_export(self):
-        paths = filedialog.askopenfilenames(parent=self, title=t("listening.import"), filetypes=[
-            (t("listening.export_files"), "*.zip *.json"), ("ZIP", "*.zip"), ("JSON", "*.json")])
-        if not paths:
-            return
-        self.app.set_status(t("listening.importing"))
-
-        def on_success(result):
-            stored, skipped = result
-            self.refresh()
-            message = t("listening.imported", stored=stored, skipped=skipped)
-            self.app.set_status(message)
-            messagebox.showinfo(t("listening.import"), message, parent=self)
-
-        self.app.run_in_background(self, lambda: listening.import_export(paths), on_success,
-                                   needs_credentials=False)
