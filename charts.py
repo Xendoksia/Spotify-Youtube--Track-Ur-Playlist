@@ -139,6 +139,8 @@ class Chart(tk.Canvas):
         self.small_font = tkfont.Font(font=SMALL_FONT)
         self._marks: dict[int, tuple[str, list[int]]] = {}
         self._clicks: dict[int, Callable[[], None]] = {}
+        # A shape behind a mark's whole row that lights up under the mouse
+        self._backgrounds: dict[int, int] = {}
         self._hovered: int | None = None
         # Values drawn now by item key, and the ones the running animation started from
         self._shown: dict = {}
@@ -172,6 +174,7 @@ class Chart(tk.Canvas):
         self.delete("all")
         self._marks.clear()
         self._clicks.clear()
+        self._backgrounds.clear()
         self._hovered = None
         width, height = self.winfo_width(), self.winfo_height()
         if width < 50 or height < 30:
@@ -184,12 +187,15 @@ class Chart(tk.Canvas):
         raise NotImplementedError
 
     def add_hit_area(self, x0, y0, x1, y1, tooltip: str, highlight: list[int],
-                     on_click: Callable[[], None] | None = None):
-        """Register an invisible area bigger than the mark that triggers its tooltip (and on_click)."""
+                     on_click: Callable[[], None] | None = None, background: int | None = None):
+        """Register an invisible area bigger than the mark that triggers its tooltip (and on_click);
+        background is a shape drawn behind the area, filled while the mouse is over it."""
         area = self.create_rectangle(x0, y0, x1, y1, outline="", fill="", tags="hit")
         self._marks[area] = (tooltip, highlight)
         if on_click:
             self._clicks[area] = on_click
+        if background is not None:
+            self._backgrounds[area] = background
 
     def _area_at(self, x, y):
         items = [i for i in self.find_overlapping(x, y, x, y) if i in self._marks]
@@ -210,12 +216,16 @@ class Chart(tk.Canvas):
         if self._hovered is not None and self._hovered != item:
             for mark in self._marks[self._hovered][1]:
                 self.itemconfigure(mark, fill=P.chart)
+            if self._hovered in self._backgrounds:
+                self.itemconfigure(self._backgrounds[self._hovered], fill="")
         self._hovered = item
         if item is None:
             return
         tooltip, highlight = self._marks[item]
         for mark in highlight:
             self.itemconfigure(mark, fill=P.chart_hover)
+        if item in self._backgrounds:
+            self.itemconfigure(self._backgrounds[item], fill=P.hover)
         text = self.create_text(0, 0, text=tooltip, anchor="nw", fill=P.text, font=FONT, tags="tooltip")
         x0, y0, x1, y1 = self.bbox(text)
         box_width, box_height = x1 - x0 + px(20), y1 - y0 + px(14)
@@ -283,6 +293,9 @@ class BarList(Chart):
         for index, row in enumerate(self.rows):
             middle = index * row_height + row_height / 2
             change = row.get("change")
+            # Drawn first, so it stays behind the row; filled while the mouse is over the row
+            background = rounded_rect(self, 0, middle - row_height / 2 + 2, width, middle + row_height / 2 - 2,
+                                      px(6), fill="")
             self.create_text(rank_width - px(6), middle - above if change else middle,
                              text=str(self.first_rank + index),
                              anchor="e", fill=P.muted, font=self.small_font)
@@ -310,7 +323,7 @@ class BarList(Chart):
             self.create_text(bar_left + length + px(6), middle, text=row["value_text"], anchor="w", fill=P.text,
                              font=self.small_font)
             self.add_hit_area(0, middle - row_height / 2, width, middle + row_height / 2, row["tooltip"], [bar],
-                              row.get("on_click"))
+                              row.get("on_click"), background)
         return True
 
 
