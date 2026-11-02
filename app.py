@@ -422,6 +422,8 @@ class App(tk.Tk):
         self.attributes("-topmost", True)
         self.after(100, lambda: self.attributes("-topmost", False))
         self.focus_force()
+        # Brought back from the tray on the first days of a month: the summary of the month before
+        self.after(500, self._open_monthly_summary)
 
     def quit_app(self):
         self.restart = False
@@ -473,8 +475,8 @@ class App(tk.Tk):
         self.show_section("playlists")
 
     def _open_monthly_summary(self, force: bool = False):
-        """On the first opening in a new month, show the summary of the month before (see wrapped_view.AUTO_OPEN);
-        force shows the last month with plays now."""
+        """On the first days of a month, show the summary of the month before once (see wrapped_view.SHOW_DAYS);
+        force shows the last month with plays on any day."""
         import wrapped_view
         due = wrapped_view.month_to_show() if force else wrapped_view.auto_open_due()
         if due:

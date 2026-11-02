@@ -208,8 +208,9 @@ class StatsTab(ttk.Frame):
         self.next_button.pack(side="left", padx=(px(4), 0))
         self.title_label = ttk.Label(toolbar, style="Period.TLabel")
         self.title_label.pack(side="left", padx=px(12))
-        ttk.Button(toolbar, text=t("wrapped.button"), style="Accent.TButton",
-                   command=self.open_wrapped).pack(side="right")
+        # Shown only on the days the monthly summary is there (see wrapped_view.SHOW_DAYS)
+        self.wrapped_button = ttk.Button(toolbar, text=t("wrapped.button"), style="Accent.TButton",
+                                         command=self.open_wrapped)
 
         page = ScrollFrame(self.overview)
         page.pack(fill="both", expand=True, pady=(px(12), 0))
@@ -335,14 +336,24 @@ class StatsTab(ttk.Frame):
         self.detail.open(column, key)
 
     def open_wrapped(self, month: tuple[datetime, datetime] | None = None):
-        """Show the monthly summary of the given month, by default the last one with plays."""
+        """Show the monthly summary of the given month, by default the one available today."""
         # Imported here because the summary builds on this module
         import wrapped_view
+        month = month or wrapped_view.available_month()
+        if month is None:
+            return
         if self.wrapped is None:
             self.wrapped = wrapped_view.WrappedView(self, on_close=self.show_overview)
             self._bind_keys()
         self._show_layer(self.wrapped)
-        self.wrapped.show(*(month or wrapped_view.month_to_show()))
+        self.wrapped.show(*month)
+
+    def _update_wrapped_button(self):
+        import wrapped_view
+        if wrapped_view.available_month():
+            self.wrapped_button.pack(side="right")
+        else:
+            self.wrapped_button.pack_forget()
 
     def _bind_keys(self):
         if getattr(self, "_keys_bound", False):
@@ -393,6 +404,7 @@ class StatsTab(ttk.Frame):
             self.detail.refresh()
         self._refresh_pending = False
         self._images = []
+        self._update_wrapped_button()
         for period, button in self.period_buttons.items():
             button.configure(style="NavSelected.TButton" if period == self.period else "Nav.TButton")
         has_steps = self.period != "all"

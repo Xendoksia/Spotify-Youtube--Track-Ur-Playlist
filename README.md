@@ -35,7 +35,8 @@ and compares it with the previous one, so the title, artist and original add dat
   where and when it started and who its members are (from MusicBrainz, no account needed). Pages open in the statistics tab, with back / forward buttons (Alt+← / Alt+→) and
   a close button (Esc).
 - **Monthly summary:** a month in review, slide by slide: time listened, song and artist of the month, top
-  fives, discoveries, busiest day and hour, genres and a closing overview (the **Monthly summary** button).
+  fives, discoveries, busiest day and hour, genres and a closing overview. It is there on the 1st and 2nd of
+  each month for the month before: it opens by itself once, and from the **Monthly summary** button.
 - **Mini player:** a strip along the bottom of the window shows the song playing in Spotify with its cover and
   progress; clicking it opens the song's page.
 - **Runs in the background:** closing the window keeps the app in the system tray, where recording can be

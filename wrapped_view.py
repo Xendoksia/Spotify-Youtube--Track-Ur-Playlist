@@ -2,8 +2,8 @@
 A month in review, shown slide by slide in the statistics tab: time listened, the song and artist of the
 month, the top five of each, discoveries, the busiest day and hour, genres and a closing summary.
 
-It is meant to open by itself on the first of each month for the month before (AUTO_OPEN); until that is
-switched on it opens from the "Monthly summary" button, for the last month with plays.
+It is there only on the first days of a month (SHOW_DAYS), for the month before: it opens by itself the first
+time the window is shown on one of those days (AUTO_OPEN), and from the "Monthly summary" button.
 """
 
 from __future__ import annotations
@@ -26,8 +26,10 @@ try:
 except ImportError:  # artwork.picture() then gives no pictures, so these are not needed
     pass
 
-# Open the summary of the previous month when the app is first opened in a new month
-AUTO_OPEN = False
+# Days of the month on which the summary of the previous month can be seen
+SHOW_DAYS = (1, 2)
+# Open it by itself the first time the window is shown on one of those days
+AUTO_OPEN = True
 TOP = 5
 IMAGE = 200
 LIST_WIDTH = 620
@@ -44,22 +46,27 @@ REVEAL_STEP_MS = 110
 PICTURE_FRAMES = 10
 
 
-def month_to_show() -> tuple[datetime, datetime]:
-    """The previous month, or this one while the previous has no plays (recording started this month)."""
+def available_month() -> tuple[datetime, datetime] | None:
+    """The previous month on the first days of a month, if it has plays; otherwise there is no summary."""
+    if datetime.now().day not in SHOW_DAYS:
+        return None
     previous = listening.period_range("month", 1)
-    if listening.summary(*previous)["plays"]:
-        return previous
-    return listening.period_range("month")
+    return previous if listening.summary(*previous)["plays"] else None
+
+
+def month_to_show() -> tuple[datetime, datetime]:
+    """For looking at the summary on any day (app.py --summary): the previous month, or this one while the
+    previous has no plays."""
+    previous = listening.period_range("month", 1)
+    return previous if listening.summary(*previous)["plays"] else listening.period_range("month")
 
 
 def auto_open_due() -> tuple[datetime, datetime] | None:
-    """The previous month, when its summary has not been shown yet and it has plays (needs AUTO_OPEN)."""
-    if not AUTO_OPEN:
+    """The month to open the summary of by itself, once (needs AUTO_OPEN)."""
+    month = available_month() if AUTO_OPEN else None
+    if month is None or tracker.load_config().get("WRAPPED_SHOWN") == month[0].strftime("%Y-%m"):
         return None
-    start, end = listening.period_range("month", 1)
-    if tracker.load_config().get("WRAPPED_SHOWN") == start.strftime("%Y-%m") or not listening.summary(start, end)["plays"]:
-        return None
-    return start, end
+    return month
 
 
 def mark_shown(start: datetime) -> None:
