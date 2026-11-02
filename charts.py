@@ -9,6 +9,7 @@ text colors (never the mark color) and a hover tooltip on every mark.
 from __future__ import annotations
 
 import math
+import time
 import tkinter as tk
 from collections.abc import Callable
 from tkinter import font as tkfont
@@ -20,6 +21,54 @@ RADIUS = 4
 MAX_THICKNESS = 24
 GAP = 2
 SMALL_FONT = ("Segoe UI", 9)
+# New values slide in from the old ones (or from zero) over this long
+ANIMATION_MS = 450
+FRAME_MS = 16
+
+
+def ease_out(progress: float) -> float:
+    return 1 - (1 - progress) ** 3
+
+
+class Animation:
+    """Calls step(progress) on every frame, progress easing from 0 to 1; starting again restarts it."""
+
+    def __init__(self, widget: tk.Misc, step: Callable[[float], None]):
+        self.widget, self.step = widget, step
+        self._job = None
+        self._started = 0.0
+
+    def start(self):
+        self.stop()
+        self._started = time.monotonic()
+        self._frame()
+
+    def stop(self):
+        if self._job is not None:
+            self.widget.after_cancel(self._job)
+            self._job = None
+
+    def _frame(self):
+        progress = min(1.0, (time.monotonic() - self._started) * 1000 / ANIMATION_MS)
+        self._job = None
+        self.step(ease_out(progress))
+        if progress < 1:
+            self._job = self.widget.after(FRAME_MS, self._frame)
+
+
+def count_up(label, value: int, text: Callable[[int], str]) -> None:
+    """Show a number on a label, counting from the one shown before (or zero) to the new one."""
+    previous = getattr(label, "_count_value", 0)
+    label._count_value = value
+    animation = getattr(label, "_count_animation", None)
+    if animation is None:
+        animation = label._count_animation = Animation(label, lambda progress: None)
+    if previous == value:
+        animation.stop()
+        label.configure(text=text(value))
+        return
+    animation.step = lambda progress: label.configure(text=text(round(previous + (value - previous) * progress)))
+    animation.start()
 
 
 def rounded_bar(canvas: tk.Canvas, x0: float, y0: float, x1: float, y1: float, end: str, **options) -> int:
@@ -84,10 +133,33 @@ class Chart(tk.Canvas):
         self._marks: dict[int, tuple[str, list[int]]] = {}
         self._clicks: dict[int, Callable[[], None]] = {}
         self._hovered: int | None = None
+        # Values drawn now by item key, and the ones the running animation started from
+        self._shown: dict = {}
+        self._from: dict = {}
+        self._progress = 1.0
+        self._animation = Animation(self, self._animate)
         self.bind("<Configure>", lambda e: self.redraw())
         self.bind("<Motion>", self._on_motion)
         self.bind("<Leave>", lambda e: self._hover(None, 0, 0))
         self.bind("<Button-1>", self._on_click)
+
+    def _animate(self, progress: float):
+        self._progress = progress
+        self.redraw()
+
+    def _set_values(self, values: dict):
+        """Start sliding from the values drawn so far to the new ones, unless nothing changed."""
+        if values == self._shown and self._progress >= 1:
+            self.redraw()
+            return
+        self._from = {item: self._value_now(item) for item in values}
+        self._shown = values
+        self._animation.start()
+
+    def _value_now(self, item) -> float:
+        """The value an item is drawn with at this moment of the animation."""
+        start, end = self._from.get(item, 0), self._shown.get(item, 0)
+        return start + (end - start) * self._progress
 
     def redraw(self):
         self.delete("all")
@@ -170,7 +242,11 @@ class BarList(Chart):
         and change: (text, color) shown under the rank, such as the move since the previous period,
         and on_click: called when the row is clicked."""
         self.rows = rows
-        self.redraw()
+        self._set_values({self._row_key(row): row["value"] for row in rows})
+
+    @staticmethod
+    def _row_key(row: dict):
+        return row.get("key") or (row["title"], row.get("subtitle"))
 
     def _fit(self, text: str, font: tkfont.Font, width: float) -> str:
         if font.measure(text) <= width:
@@ -221,7 +297,7 @@ class BarList(Chart):
             else:
                 self.create_text(text_left, middle, text=self._fit(row["title"], self.font, text_width),
                                  anchor="w", fill=P.text, font=self.font)
-            length = max(2, bar_space * row["value"] / top_value)
+            length = max(2, bar_space * self._value_now(self._row_key(row)) / top_value)
             bar = rounded_bar(self, bar_left, middle - thickness / 2, bar_left + length, middle + thickness / 2,
                               "right", fill=P.chart)
             self.create_text(bar_left + length + px(6), middle, text=row["value_text"], anchor="w", fill=P.text,
@@ -241,7 +317,7 @@ class ColumnChart(Chart):
     def set_buckets(self, buckets: list[dict]):
         """buckets: dicts with label, value and tooltip."""
         self.buckets = buckets
-        self.redraw()
+        self._set_values({(index, b["label"]): b["value"] for index, b in enumerate(buckets)})
 
     def draw(self, width, height):
         if not self.buckets or not any(b["value"] for b in self.buckets):
@@ -266,8 +342,9 @@ class ColumnChart(Chart):
         for index, bucket in enumerate(self.buckets):
             center = axis_width + slot * index + slot / 2
             marks = []
-            if bucket["value"]:
-                bar_top = bottom - (bottom - top) * bucket["value"] / axis_max
+            value = self._value_now((index, bucket["label"]))
+            if value > 0:
+                bar_top = bottom - (bottom - top) * value / axis_max
                 marks.append(rounded_bar(self, center - thickness / 2, bar_top, center + thickness / 2, bottom,
                                          "top", fill=P.chart))
             if index % label_every == 0:

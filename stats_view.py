@@ -12,7 +12,7 @@ from tkinter import ttk
 import artist_info
 import artwork
 import listening
-from charts import BarList, ColumnChart, placeholder, rounded_rect
+from charts import BarList, ColumnChart, count_up, placeholder, rounded_rect
 from i18n import number, t
 from theme import P, px
 from tracker import format_date
@@ -535,7 +535,7 @@ class StatsTab(ttk.Frame):
         for name, key, text in (("plays", "plays", number), ("time", "minutes", duration_text),
                                 ("tracks", "tracks", number), ("artists", "artists", number)):
             value_label, delta_label = self.tiles[name]
-            value_label.configure(text=text(current[key]))
+            count_up(value_label, current[key], text)
             delta = ""
             if previous and previous[key]:
                 change = round((current[key] - previous[key]) * 100 / previous[key])

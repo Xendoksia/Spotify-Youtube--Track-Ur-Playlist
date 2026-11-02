@@ -12,7 +12,7 @@ from tkinter import ttk
 import artist_info
 import artwork
 import listening
-from charts import BarList, ColumnChart
+from charts import BarList, ColumnChart, count_up
 from i18n import number, t
 from stats_view import Hero, ScrollFrame, duration_text, month_name, plays_text, summary_text, tracks_text
 from theme import P, px
@@ -174,8 +174,8 @@ class DetailPage(ttk.Frame):
             self.hero.subtitle.configure(cursor="hand2")
             self.hero.subtitle.bind("<Button-1>", lambda e: self.open_page("artist_key", info["artist_key"]))
 
-        self.tiles["plays"].configure(text=number(info["plays"]))
-        self.tiles["time"].configure(text=duration_text(info["minutes"]) if info["minutes"] else "—")
+        count_up(self.tiles["plays"], info["plays"], number)
+        count_up(self.tiles["time"], info["minutes"], lambda minutes: duration_text(minutes) if minutes else "—")
         self.tiles["first"].configure(text=date_text(info["first_played"]))
         self.tiles["last"].configure(text=date_text(info["last_played"]))
         self._fill_timeline(info)
