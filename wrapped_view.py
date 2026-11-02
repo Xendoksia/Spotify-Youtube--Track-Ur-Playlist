@@ -15,7 +15,7 @@ import artist_info
 import artwork
 import listening
 import tracker
-from charts import BarList, ColumnChart, count_up
+from charts import Animation, BarList, ColumnChart, count_up
 from i18n import number, t
 from stats_view import duration_text, month_name, period_title, plays_text
 from theme import P, px
@@ -29,6 +29,10 @@ BIG_FONT = ("Segoe UI Semibold", 44)
 NAME_FONT = ("Segoe UI Semibold", 24)
 BODY_FONT = ("Segoe UI", 13)
 CAPTION_FONT = ("Segoe UI Semibold", 11)
+# A new slide slides in from this far (a share of the width) and its parts appear one after another
+SLIDE_SHIFT = 0.35
+REVEAL_DELAY_MS = 120
+REVEAL_STEP_MS = 130
 
 
 def month_to_show() -> tuple[datetime, datetime]:
@@ -79,6 +83,10 @@ class WrappedView(ttk.Frame):
         self.stage = ttk.Frame(self, style="Card.TFrame")
         self.stage.pack(fill="both", expand=True)
         self.slide = None
+        self._leaving = None
+        self._slide_animation = None
+        # Animations of a slide's parts, started when the part appears
+        self._on_reveal: dict = {}
 
     # Data
 
@@ -131,21 +139,66 @@ class WrappedView(ttk.Frame):
         index = self.index + direction
         if 0 <= index < len(self.slides):
             self.index = index
-            self._render()
+            self._render(direction)
 
     def close(self):
         self.on_close()
 
-    def _render(self):
-        if self.slide is not None:
-            self.slide.destroy()
+    def _render(self, direction: int = 0, animate: bool = True):
+        """Build the current slide; with animate it slides in from the side of direction and its parts
+        appear one by one, without it (a picture arrived) it is simply redrawn."""
+        if self._slide_animation is not None:
+            self._slide_animation.stop()
+        if self._leaving is not None:
+            self._leaving.destroy()
+        self._leaving, old = None, self.slide
         self._images = []
+        self._on_reveal = {}
         self.slide = ttk.Frame(self.stage, style="Card.TFrame")
-        self.slide.pack(expand=True)
         self.slides[self.index](self.slide)
         self.dots.configure(text=" ".join("●" if i == self.index else "○" for i in range(len(self.slides))))
         self.back_button.configure(state="normal" if self.index > 0 else "disabled")
         self.next_button.configure(state="normal" if self.index < len(self.slides) - 1 else "disabled")
+
+        if old is not None and (not animate or not direction):
+            old.destroy()
+        if not animate:
+            self.slide.place(relx=0.5, rely=0.5, anchor="center")
+            for action in self._on_reveal.values():
+                action()
+            self._on_reveal = {}
+            return
+
+        parts = []
+        for widget in self.slide.pack_slaves():
+            info = widget.pack_info()
+            info["in_"] = info.pop("in")
+            parts.append((widget, info))
+            widget.pack_forget()
+        self.slide.place(relx=0.5 + SLIDE_SHIFT * direction, rely=0.5, anchor="center")
+        if direction:
+            self._leaving = old
+
+            def move(progress):
+                self.slide.place_configure(relx=0.5 + SLIDE_SHIFT * direction * (1 - progress))
+                if old is not None and old.winfo_exists():
+                    old.place_configure(relx=0.5 - SLIDE_SHIFT * direction * progress)
+                    if progress >= 1:
+                        old.destroy()
+            self._slide_animation = Animation(self, move)
+            self._slide_animation.start()
+        slide = self.slide
+        for index, (widget, info) in enumerate(parts):
+            self.after(REVEAL_DELAY_MS + index * REVEAL_STEP_MS,
+                       lambda widget=widget, info=info: self._reveal(slide, widget, info))
+
+    def _reveal(self, slide, widget, info):
+        if slide is not self.slide or not widget.winfo_exists():
+            return
+        widget.pack(**info)
+        action = self._on_reveal.pop(widget, None)
+        if action:
+            action()
 
     # Building blocks
 
@@ -154,9 +207,9 @@ class WrappedView(ttk.Frame):
                   font=CAPTION_FONT).pack(pady=(0, px(12)))
 
     def _big(self, parent, value: int, text, pady=0):
-        label = ttk.Label(parent, style="Card.TLabel", font=BIG_FONT)
+        label = ttk.Label(parent, text=text(0), style="Card.TLabel", foreground=P.chart, font=BIG_FONT)
         label.pack(pady=pady)
-        count_up(label, value, text)
+        self._on_reveal[label] = lambda: count_up(label, value, text)
 
     def _heading(self, parent, text: str):
         ttk.Label(parent, text=text, style="Card.TLabel", font=NAME_FONT, justify="center",
@@ -166,15 +219,28 @@ class WrappedView(ttk.Frame):
         ttk.Label(parent, text=text, style="CardMuted.TLabel" if muted else "Card.TLabel", font=BODY_FONT,
                   justify="center", wraplength=px(LIST_WIDTH)).pack(pady=pady)
 
-    def _picture(self, parent, image):
-        if image is not None:
-            self._images.append(image)
-            ttk.Label(parent, image=image, style="Card.TLabel").pack(pady=(0, px(16)))
+    def _picture(self, parent, make):
+        """make(size) gives the picture at a size in pixels; it grows into place when it appears."""
+        side = px(IMAGE)
+        if make(side) is None:
+            return
+        box = ttk.Frame(parent, style="Card.TFrame", width=side, height=side)
+        box.pack_propagate(False)
+        box.pack(pady=(0, px(16)))
+        label = ttk.Label(box, style="Card.TLabel")
+        label.place(relx=0.5, rely=0.5, anchor="center")
+
+        def grow(progress):
+            if label.winfo_exists():
+                # Tk shows an image only while Python holds a reference to it
+                label.image = make(max(1, round(side * (0.5 + 0.5 * progress))))
+                label.configure(image=label.image)
+        self._on_reveal[box] = lambda: Animation(label, grow).start()
 
     def _refresh_later(self):
         # A picture finished downloading: draw the slide again with it
         if self.winfo_exists() and self.slides:
-            self.after(300, self._render)
+            self.after(300, lambda: self._render(animate=False))
 
     def _cover(self, row: dict, size: int, radius: int):
         path = self.fetcher.cover(row["artist"], row["album"] or "", row["name"], self._refresh_later)
@@ -189,11 +255,20 @@ class WrappedView(ttk.Frame):
             self._images.append(image)
         return image
 
+    def _cover_maker(self, row: dict, radius: int):
+        path = self.fetcher.cover(row["artist"], row["album"] or "", row["name"], self._refresh_later)
+        return lambda size: artwork.photo(path, size, P.surface, radius=px(radius))
+
+    def _photo_maker(self, name: str):
+        path = self.fetcher.artist(name, self._refresh_later)
+        return lambda size: artwork.photo(path, size, P.surface, round_=True)
+
     def _list(self, parent, rows: list[dict], round_images: bool = False):
         chart = BarList(parent, "", len(rows), round_images=round_images)
         chart.configure(width=px(LIST_WIDTH))
         chart.pack()
-        chart.set_rows(rows)
+        # The bars grow from zero once the list appears
+        self._on_reveal[chart] = lambda: chart.set_rows(rows)
 
     # Slides
 
@@ -211,7 +286,7 @@ class WrappedView(ttk.Frame):
     def _top_track(self, slide):
         track = self.data["tracks"][0]
         self._caption(slide, "wrapped.track.caption")
-        self._picture(slide, self._cover(track, IMAGE, 12))
+        self._picture(slide, self._cover_maker(track, 12))
         self._heading(slide, track["name"])
         self._body(slide, track["artist"])
         self._body(slide, t("wrapped.times", count=number(track["plays"])), muted=False, pady=(px(16), 0))
@@ -219,7 +294,7 @@ class WrappedView(ttk.Frame):
     def _top_artist(self, slide):
         artist = self.data["artists"][0]
         self._caption(slide, "wrapped.artist.caption")
-        self._picture(slide, self._artist_photo(artist["name"], IMAGE))
+        self._picture(slide, self._photo_maker(artist["name"]))
         self._heading(slide, artist["name"])
         detail = plays_text(artist["plays"])
         if artist["minutes"]:
@@ -268,8 +343,9 @@ class WrappedView(ttk.Frame):
         chart = ColumnChart(slide, 140)
         chart.configure(width=px(LIST_WIDTH))
         chart.pack()
-        chart.set_buckets([{"label": f"{hour:02d}", "value": count,
-                            "tooltip": f"{hour:02d}:00\n{plays_text(count)}"} for hour, count in enumerate(hours)])
+        buckets = [{"label": f"{hour:02d}", "value": count, "tooltip": f"{hour:02d}:00\n{plays_text(count)}"}
+                   for hour, count in enumerate(hours)]
+        self._on_reveal[chart] = lambda: chart.set_buckets(buckets)
         days = (min(self.data["end"], datetime.now().astimezone()) - self.data["start"]).days + 1
         self._body(slide, t("wrapped.days_listened", active=number(self.data["days_listened"]),
                             days=number(max(days, self.data["days_listened"]))), pady=(px(16), 0))
@@ -277,9 +353,15 @@ class WrappedView(ttk.Frame):
     def _genres(self, slide):
         self._caption(slide, "wrapped.genres.caption")
         for index, (name, share) in enumerate(self.data["genres"]):
-            ttk.Label(slide, text=f"{name[:1].upper() + name[1:]}  {t('stats.percent', value=round(share))}",
-                      style="Card.TLabel" if index == 0 else "CardMuted.TLabel",
-                      font=BIG_FONT if index == 0 else NAME_FONT).pack(pady=(0, px(8)))
+            name = name[:1].upper() + name[1:]
+
+            def text(value, name=name):
+                return f"{name}  {t('stats.percent', value=value)}"
+            label = ttk.Label(slide, text=text(0), style="Card.TLabel" if index == 0 else "CardMuted.TLabel",
+                              foreground=P.chart if index == 0 else P.muted,
+                              font=BIG_FONT if index == 0 else NAME_FONT)
+            label.pack(pady=(0, px(8)))
+            self._on_reveal[label] = lambda label=label, share=share, text=text: count_up(label, round(share), text)
 
     def _closing(self, slide):
         data, summary = self.data, self.data["summary"]
@@ -299,9 +381,18 @@ class WrappedView(ttk.Frame):
             tiles.append((t("wrapped.genre"), name[:1].upper() + name[1:]))
         if data["new_artists"] and not data["first_month"]:
             tiles.append((t("stats.new_artists"), number(len(data["new_artists"]))))
+        built = []
         for index, (caption, value) in enumerate(tiles):
             tile = ttk.Frame(grid, padding=(px(16), px(12)), style="Tile.TFrame", width=px(300))
-            tile.grid(row=index // 2, column=index % 2, sticky="nsew", padx=px(6), pady=px(6))
             ttk.Label(tile, text=caption, style="CardMuted.TLabel").pack(anchor="w")
             ttk.Label(tile, text=value, style="TileValue.TLabel", wraplength=px(270)).pack(anchor="w")
+            built.append(tile)
         grid.columnconfigure((0, 1), uniform="tile", minsize=px(300))
+
+        def place_tile(index):
+            if built[index].winfo_exists():
+                built[index].grid(row=index // 2, column=index % 2, sticky="nsew", padx=px(6), pady=px(6))
+
+        # The tiles come in one after another, like the parts of every slide
+        self._on_reveal[grid] = lambda: [grid.after(index * REVEAL_STEP_MS // 2, place_tile, index)
+                                         for index in range(len(built))]

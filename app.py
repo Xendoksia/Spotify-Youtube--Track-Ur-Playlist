@@ -7,6 +7,7 @@ Run with:  python app.py
 
 import re
 import queue
+import sys
 import threading
 import tkinter as tk
 import webbrowser
@@ -27,6 +28,8 @@ from mini_player import MiniPlayer
 from theme import FONT_BOLD, P, px, text_box
 from tracker import TrackerError, format_date, track_label
 
+# Start with the monthly summary open, to look at it before it opens by itself
+SUMMARY_FLAG = "--summary"
 EVENTS = (tracker.EVENT_ADDED, tracker.EVENT_REMOVED, tracker.EVENT_UNPLAYABLE, tracker.EVENT_PLAYABLE,
           tracker.EVENT_INITIAL)
 EVENT_COLOR_KEYS = {
@@ -398,6 +401,8 @@ class App(tk.Tk):
                 self.iconify()
         elif not any(s.has_credentials(config) for s in SERVICES):
             self.after(200, self.open_settings)
+        elif SUMMARY_FLAG in sys.argv[1:]:
+            self.after(500, lambda: self._open_monthly_summary(force=True))
         else:
             self.after(500, self._open_monthly_summary)
 
@@ -467,12 +472,14 @@ class App(tk.Tk):
         self.update_history_filter()
         self.show_section("playlists")
 
-    def _open_monthly_summary(self):
-        """On the first opening in a new month, show the summary of the month before (see wrapped_view.AUTO_OPEN)."""
+    def _open_monthly_summary(self, force: bool = False):
+        """On the first opening in a new month, show the summary of the month before (see wrapped_view.AUTO_OPEN);
+        force shows the last month with plays now."""
         import wrapped_view
-        due = wrapped_view.auto_open_due()
+        due = wrapped_view.month_to_show() if force else wrapped_view.auto_open_due()
         if due:
-            wrapped_view.mark_shown(due[0])
+            if not force:
+                wrapped_view.mark_shown(due[0])
             self.show_section("listening")
             self.listening.tabs.select(self.listening.stats)
             self.listening.stats.open_wrapped(due)
