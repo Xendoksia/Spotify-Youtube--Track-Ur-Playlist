@@ -32,6 +32,8 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
+from i18n import t
+
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "history.db"
 CONFIG_PATH = BASE_DIR / "config.json"
@@ -90,8 +92,7 @@ def start_redirect_server(port: int) -> tuple[HTTPServer, dict]:
                 self.end_headers()
                 return
             params.update(query)
-            message = ("Login complete. You can close this tab and return to the app." if "code" in params
-                       else "Login was cancelled or failed.")
+            message = t("redirect.success") if "code" in params else t("redirect.failed")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -118,7 +119,7 @@ def wait_for_redirect(server: HTTPServer, params: dict, timeout: int) -> None:
 class SpotifyClient:
     def __init__(self, client_id: str | None, client_secret: str | None):
         if not client_id or not client_secret:
-            raise SpotifyError("CLIENT_ID and CLIENT_SECRET are not set.")
+            raise SpotifyError(t("spotify.no_credentials"))
         self.client_id = client_id
         self.client_secret = client_secret
         self._token: str | None = None
@@ -137,15 +138,15 @@ class SpotifyClient:
         except urllib.error.HTTPError as error:
             body = error.read().decode(errors="replace")
             if "invalid_client" in body:
-                raise SpotifyError("Invalid Client ID / Client Secret. Check them in Settings.")
+                raise SpotifyError(t("spotify.invalid_client"))
             if "invalid_grant" in body:
                 config = load_config()
                 config.pop("REFRESH_TOKEN", None)
                 save_config(config)
-                raise LoginRequired("Your Spotify session has expired. Please log in again.")
-            raise SpotifyError(f"Spotify login failed ({error.code}): {body}", error.code)
+                raise LoginRequired(t("spotify.session_expired"))
+            raise SpotifyError(t("spotify.login_failed_code", code=error.code, body=body), error.code)
         except urllib.error.URLError as error:
-            raise SpotifyError(f"Could not connect to Spotify: {error.reason}")
+            raise SpotifyError(t("spotify.connect_failed", reason=error.reason))
 
     def _store_token(self, data: dict) -> None:
         self._token = data["access_token"]
@@ -157,7 +158,7 @@ class SpotifyClient:
         config = load_config()
         refresh_token = config.get("REFRESH_TOKEN")
         if not refresh_token:
-            raise LoginRequired("Please log in with the “Log in with Spotify” button first.")
+            raise LoginRequired(t("spotify.login_first"))
         data = self._request_token({"grant_type": "refresh_token", "refresh_token": refresh_token})
         if data.get("refresh_token") and data["refresh_token"] != refresh_token:
             config["REFRESH_TOKEN"] = data["refresh_token"]
@@ -171,7 +172,7 @@ class SpotifyClient:
         try:
             server, params = start_redirect_server(8888)
         except OSError:
-            raise SpotifyError("Port 8888 is in use. Close any other open login window and try again.")
+            raise SpotifyError(t("spotify.port_in_use"))
         webbrowser.open(AUTH_URL + "?" + urllib.parse.urlencode({
             "client_id": self.client_id,
             "response_type": "code",
@@ -183,13 +184,12 @@ class SpotifyClient:
 
         if "error" in params:
             if params["error"] == "access_denied":
-                raise SpotifyError("Login was cancelled.")
-            raise SpotifyError(f"Spotify login failed: {params['error']}")
+                raise SpotifyError(t("login.cancelled"))
+            raise SpotifyError(t("spotify.login_failed", error=params["error"]))
         if "code" not in params:
-            raise SpotifyError("Login timed out. If the authorization page did not open, make sure the "
-                               f"Redirect URI in the Dashboard is exactly {REDIRECT_URI}")
+            raise SpotifyError(t("spotify.login_timeout", redirect_uri=REDIRECT_URI))
         if params.get("state") != state:
-            raise SpotifyError("Login could not be verified. Please try again.")
+            raise SpotifyError(t("login.not_verified"))
 
         data = self._request_token({
             "grant_type": "authorization_code",
@@ -217,9 +217,9 @@ class SpotifyClient:
                     time.sleep(int(error.headers.get("Retry-After", "2")))
                     continue
                 body = error.read().decode(errors="replace")
-                raise SpotifyError(f"Spotify API error {error.code}: {body}", error.code) from error
+                raise SpotifyError(t("spotify.api_error", code=error.code, body=body), error.code) from error
             except urllib.error.URLError as error:
-                raise SpotifyError(f"Could not connect to Spotify: {error.reason}")
+                raise SpotifyError(t("spotify.connect_failed", reason=error.reason))
 
     def my_playlists(self) -> tuple[list[dict], list[dict]]:
         """Return (readable, others) playlists of the logged-in user.
@@ -253,7 +253,7 @@ class SpotifyClient:
             return self.get(f"/playlists/{playlist_id}?fields=name").get("name") or playlist_id
         except SpotifyError as error:
             if error.status == 404:
-                raise SpotifyError("Playlist not found. Is the link correct?", 404)
+                raise SpotifyError(t("playlist.not_found"), 404)
             raise
 
     def playlist_tracks(self, playlist_id: str) -> list[dict]:
@@ -262,8 +262,7 @@ class SpotifyClient:
             page = self.get(f"/playlists/{playlist_id}/items?{query}")
         except SpotifyError as error:
             if error.status == 403:
-                raise SpotifyError("Spotify does not expose the tracks of this playlist: only playlists you "
-                                   "own or collaborate on can be checked.", 403)
+                raise SpotifyError(t("spotify.not_exposed"), 403)
             raise
         tracks = []
         while True:
@@ -298,7 +297,7 @@ def parse_playlist_id(link: str) -> str:
         return match.group(1)
     if re.fullmatch(r"[A-Za-z0-9]{22}", link.strip()):
         return link.strip()
-    raise SpotifyError(f"Not a valid Spotify playlist link: {link}")
+    raise SpotifyError(t("spotify.invalid_link", link=link))
 
 
 SCHEMA = """
@@ -456,9 +455,11 @@ def export_csv(path: str = "history.csv", db_path: Path = DB_PATH) -> int:
     # utf-8-sig and ';' let Excel open the file directly with correct encoding in most locales
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f, delimiter=";")
-        writer.writerow(["Checked at", "Playlist", "Event", "Artist", "Track", "Album", "Added to playlist", "URI"])
+        writer.writerow([t(f"csv.{column}") for column in
+                         ("checked_at", "playlist", "event", "artist", "track", "album", "added", "uri")])
         for r in rows:
-            writer.writerow([format_date(r["checked_at"]), r["playlist"], r["event"], r["artist"], r["name"],
+            writer.writerow([format_date(r["checked_at"]), r["playlist"], t(f"event.{r['event']}"), r["artist"],
+                             r["name"],
                              r["album"], format_date(r["added_at"]), r["uri"]])
     return len(rows)
 
@@ -511,7 +512,8 @@ def run_cli(usage: str, connect_client, parse_id, db_path: Path, unavailable_lab
 
 
 def main() -> None:
-    run_cli(__doc__, connect, parse_playlist_id, DB_PATH, lambda: f"Not playable in {market()}", "history.csv")
+    run_cli(__doc__, connect, parse_playlist_id, DB_PATH, lambda: t("unavailable.spotify", market=market()),
+            "history.csv")
 
 
 if __name__ == "__main__":

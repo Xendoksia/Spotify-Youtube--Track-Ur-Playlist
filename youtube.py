@@ -28,6 +28,7 @@ import urllib.request
 import webbrowser
 
 import tracker
+from i18n import t
 from tracker import BASE_DIR, TrackerError, load_config, market, save_config
 
 DB_PATH = BASE_DIR / "youtube_history.db"
@@ -79,7 +80,7 @@ def _is_available(video: dict | None, region: str) -> int:
 class YouTubeClient:
     def __init__(self, api_key: str | None, client_id: str | None, client_secret: str | None):
         if not api_key and not (client_id and client_secret):
-            raise YouTubeError("No YouTube API key or OAuth client is set. Add one in Settings.")
+            raise YouTubeError(t("youtube.no_credentials"))
         self.api_key = api_key
         self.client_id = client_id
         self.client_secret = client_secret
@@ -95,15 +96,15 @@ class YouTubeClient:
         except urllib.error.HTTPError as error:
             body = error.read().decode(errors="replace")
             if "invalid_client" in body:
-                raise YouTubeError("Invalid Google OAuth Client ID / Client Secret. Check them in Settings.")
+                raise YouTubeError(t("youtube.invalid_client"))
             if "invalid_grant" in body:
                 config = load_config()
                 config.pop("YOUTUBE_REFRESH_TOKEN", None)
                 save_config(config)
-                raise LoginRequired("Your Google session has expired. Please log in again.")
-            raise YouTubeError(f"Google login failed ({error.code}): {body}", error.code)
+                raise LoginRequired(t("youtube.session_expired"))
+            raise YouTubeError(t("youtube.login_failed_code", code=error.code, body=body), error.code)
         except urllib.error.URLError as error:
-            raise YouTubeError(f"Could not connect to Google: {error.reason}")
+            raise YouTubeError(t("youtube.connect_google_failed", reason=error.reason))
 
     def _store_token(self, data: dict) -> None:
         self._token = data["access_token"]
@@ -122,8 +123,7 @@ class YouTubeClient:
     def login(self, timeout: int = 180) -> str:
         """Run the OAuth flow for installed apps (loopback redirect + PKCE) and store the session."""
         if not (self.client_id and self.client_secret):
-            raise YouTubeError("Logging in needs a Google OAuth Client ID and Client Secret. Add them in Settings. "
-                               "Public and unlisted playlists work with just the API key.")
+            raise YouTubeError(t("youtube.needs_oauth"))
         state = secrets.token_urlsafe(16)
         verifier = secrets.token_urlsafe(64)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
@@ -144,13 +144,12 @@ class YouTubeClient:
 
         if "error" in params:
             if params["error"] == "access_denied":
-                raise YouTubeError("Login was cancelled. If your OAuth app is in testing mode, add your Google "
-                                   "account as a test user on the OAuth consent screen.")
-            raise YouTubeError(f"Google login failed: {params['error']}")
+                raise YouTubeError(t("youtube.login_cancelled"))
+            raise YouTubeError(t("youtube.login_failed", error=params["error"]))
         if "code" not in params:
-            raise YouTubeError("Login timed out. Make sure the OAuth client type is “Desktop app”.")
+            raise YouTubeError(t("youtube.login_timeout"))
         if params.get("state") != state:
-            raise YouTubeError("Login could not be verified. Please try again.")
+            raise YouTubeError(t("login.not_verified"))
 
         data = self._request_token({
             "grant_type": "authorization_code",
@@ -176,7 +175,7 @@ class YouTubeClient:
             elif self.api_key:
                 query["key"] = self.api_key
             else:
-                raise LoginRequired("Please log in with Google first, or add a YouTube API key in Settings.")
+                raise LoginRequired(t("youtube.login_first"))
             request = urllib.request.Request(f"{API_URL}{path}?{urllib.parse.urlencode(query)}", headers=headers)
             try:
                 with urllib.request.urlopen(request, timeout=30) as response:
@@ -187,17 +186,17 @@ class YouTubeClient:
                     continue
                 reason, message = _error_details(error.read().decode(errors="replace"))
                 if reason == "quotaExceeded":
-                    raise YouTubeError("The daily YouTube API quota is used up. Try again tomorrow.", error.code)
+                    raise YouTubeError(t("youtube.quota"), error.code)
                 if reason in ("keyInvalid", "API_KEY_INVALID") or "API key not valid" in message:
-                    raise YouTubeError("Invalid YouTube API key. Check it in Settings.", error.code)
+                    raise YouTubeError(t("youtube.invalid_key"), error.code)
                 if reason in ("accessNotConfigured", "SERVICE_DISABLED"):
-                    raise YouTubeError("YouTube Data API v3 is not enabled in your Google Cloud project.", error.code)
+                    raise YouTubeError(t("youtube.api_disabled"), error.code)
                 if error.code == 401 and token:
                     self._token = None
-                    raise LoginRequired("Your Google session is no longer valid. Please log in again.")
-                raise YouTubeError(f"YouTube API error {error.code}: {message}", error.code) from error
+                    raise LoginRequired(t("youtube.session_invalid"))
+                raise YouTubeError(t("youtube.api_error", code=error.code, message=message), error.code) from error
             except urllib.error.URLError as error:
-                raise YouTubeError(f"Could not connect to YouTube: {error.reason}")
+                raise YouTubeError(t("youtube.connect_failed", reason=error.reason))
 
     def _pages(self, path: str, params: dict):
         params = {**params, "maxResults": 50}
@@ -211,8 +210,7 @@ class YouTubeClient:
     def my_playlists(self) -> tuple[list[dict], list[dict]]:
         """Return (readable, others) like SpotifyClient; all own YouTube playlists are readable."""
         if not self._access_token():
-            raise LoginRequired("Log in with Google to load your own playlists. "
-                                "Public and unlisted playlists can also be added by link.")
+            raise LoginRequired(t("youtube.load_needs_login"))
         playlists = [{
             "id": item["id"],
             "name": item["snippet"].get("title") or item["id"],
@@ -224,8 +222,7 @@ class YouTubeClient:
     def playlist_name(self, playlist_id: str) -> str:
         items = self.get("/playlists", {"part": "snippet", "id": playlist_id}).get("items") or []
         if not items:
-            raise YouTubeError("Playlist not found. Is the link correct? Private playlists can only be read "
-                               "after logging in with the Google account that owns them.", 404)
+            raise YouTubeError(t("youtube.playlist_not_found"), 404)
         return items[0]["snippet"].get("title") or playlist_id
 
     def playlist_tracks(self, playlist_id: str) -> list[dict]:
@@ -233,9 +230,9 @@ class YouTubeClient:
             items = list(self._pages("/playlistItems", {"part": "snippet", "playlistId": playlist_id}))
         except YouTubeError as error:
             if error.status == 403:
-                raise YouTubeError("This playlist is private. Log in with the Google account that owns it.", 403)
+                raise YouTubeError(t("youtube.private"), 403)
             if error.status == 404:
-                raise YouTubeError("Playlist not found. Is the link correct?", 404)
+                raise YouTubeError(t("playlist.not_found"), 404)
             raise
 
         video_ids = list(dict.fromkeys(
@@ -278,16 +275,17 @@ def parse_playlist_id(link: str) -> str:
     match = re.search(r"[?&]list=([A-Za-z0-9_-]+)", link)
     playlist_id = match.group(1) if match else link
     if playlist_id == "WL":
-        raise YouTubeError("“Watch later” cannot be read through the YouTube API.")
+        raise YouTubeError(t("youtube.watch_later"))
     if playlist_id.startswith("RD"):
-        raise YouTubeError("YouTube Mixes are generated automatically and cannot be tracked.")
+        raise YouTubeError(t("youtube.mix"))
     if re.fullmatch(r"(PL|UU|FL|LL|OL)[A-Za-z0-9_-]{8,}", playlist_id):
         return playlist_id
-    raise YouTubeError(f"Not a valid YouTube playlist link: {link}")
+    raise YouTubeError(t("youtube.invalid_link", link=link))
 
 
 def main() -> None:
-    tracker.run_cli(__doc__, connect, parse_playlist_id, DB_PATH, lambda: "Unavailable", "youtube_history.csv")
+    tracker.run_cli(__doc__, connect, parse_playlist_id, DB_PATH, lambda: t("unavailable.youtube"),
+                    "youtube_history.csv")
 
 
 if __name__ == "__main__":

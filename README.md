@@ -22,6 +22,7 @@ and compares it with the previous one, so the title, artist and original add dat
   original title is kept even after YouTube replaces it with "Deleted video"
 - History view filterable by source (Spotify / YouTube), playlist and event type
 - Export the history to a CSV file that opens in Excel
+- English and Turkish interface, light and dark theme (or follow the Windows setting), under **Settings → General**
 - No dependencies: only the Python standard library is used
 
 ## Requirements
@@ -114,6 +115,8 @@ your Client ID and Client Secret.
 | `YOUTUBE_API_KEY` | Google API key with YouTube Data API v3 enabled |
 | `YOUTUBE_CLIENT_ID` | Google OAuth client ID (Desktop app), optional |
 | `YOUTUBE_CLIENT_SECRET` | Google OAuth client secret, optional |
+| `LANGUAGE` | Interface language: `en` or `tr` (optional, default: system language) |
+| `THEME` | `system`, `light` or `dark` (optional, default `system`) |
 
 ## Limitations
 
@@ -145,6 +148,8 @@ Spotify and Google / YouTube.
 | File | Description |
 |---|---|
 | `app.py` | Graphical interface (tkinter) |
+| `theme.py` | Light and dark color themes |
+| `i18n.py` | English and Turkish interface texts |
 | `tracker.py` | Spotify client, diff logic, database and command line |
 | `youtube.py` | YouTube client and command line |
 | `Spotify Playlist Tracker.bat` | Double-click launcher for Windows |
