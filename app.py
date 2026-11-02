@@ -19,6 +19,7 @@ import theme
 import tracker
 import youtube
 from i18n import t
+from listening_view import ListeningView
 from theme import FONT_BOLD, P, text_box
 from tracker import TrackerError, format_date, track_label
 
@@ -243,6 +244,9 @@ class PlaylistPanel(ttk.Frame):
 
         def on_success(user):
             self.app.set_status(t("status.logged_in", service=self.service.name, user=user))
+            if self.service is SPOTIFY:
+                self.app.listening.refresh()
+                self.app.listening.auto_sync()
             self.load_my_playlists()
 
         self.run(lambda: self.service.connect().login(), on_success)
@@ -365,6 +369,7 @@ class App(tk.Tk):
         self.busy = False
         self.restart = False
         self.panels: dict[str, PlaylistPanel] = {}
+        self.sections: dict[str, tuple[ttk.Frame, ttk.Button]] = {}
 
         theme.apply_theme(self, config.get("THEME"), {s.name: (s.accent, s.accent_active) for s in SERVICES})
 
@@ -379,11 +384,21 @@ class App(tk.Tk):
         header.pack(fill="x")
         ttk.Label(header, text=t("app.title"), style="Title.TLabel").pack(side="left")
         ttk.Button(header, text=t("button.settings"), command=self.open_settings).pack(side="right")
+        nav = ttk.Frame(header, padding=3, style="Nav.TFrame")
+        nav.pack(side="left", padx=(20, 0))
         self.status_label = ttk.Label(header, text=t("status.ready"), style="Muted.TLabel")
         self.status_label.pack(side="left", padx=(16, 0), pady=(5, 0))
 
-        self.tabs = ttk.Notebook(self)
-        self.tabs.pack(fill="both", expand=True, padx=16, pady=(8, 16))
+        # Playlist tracking and listening statistics are separate sections with their own tabs
+        playlist_section = ttk.Frame(self)
+        self.tabs = ttk.Notebook(playlist_section)
+        self.tabs.pack(fill="both", expand=True)
+        self.listening = ListeningView(self, self, SPOTIFY)
+        for name, frame in (("playlists", playlist_section), ("listening", self.listening)):
+            button = ttk.Button(nav, text=t(f"nav.{name}"), style="Nav.TButton",
+                                command=lambda name=name: self.show_section(name))
+            button.pack(side="left")
+            self.sections[name] = (frame, button)
         # The history tab is built first because panels update its playlist filter while loading
         self._build_history_tab()
         for index, service in enumerate(SERVICES):
@@ -392,6 +407,16 @@ class App(tk.Tk):
             self.tabs.insert(index, panel, text=f"  {service.name}  ")
         self.tabs.select(0)
         self.update_history_filter()
+        self.show_section("playlists")
+
+    def show_section(self, name):
+        for key, (frame, button) in self.sections.items():
+            if key == name:
+                frame.pack(fill="both", expand=True, padx=16, pady=(8, 16))
+                button.configure(style="NavSelected.TButton")
+            else:
+                frame.pack_forget()
+                button.configure(style="Nav.TButton")
 
     def _build_history_tab(self):
         tab = ttk.Frame(self.tabs, padding=16, style="Card.TFrame")
@@ -446,7 +471,7 @@ class App(tk.Tk):
     def _set_busy(self, busy):
         self.busy = busy
         state = "disabled" if busy else "normal"
-        for panel in self.panels.values():
+        for panel in (*self.panels.values(), self.listening):
             for button in panel.buttons:
                 button.configure(state=state)
         self.configure(cursor="watch" if busy else "")
@@ -629,7 +654,7 @@ class App(tk.Tk):
                 self.restart = True
                 self.destroy()
                 return
-            for panel in self.panels.values():
+            for panel in (*self.panels.values(), self.listening):
                 panel.update_login_status()
             self.set_status(t("status.saved"))
 

@@ -22,6 +22,7 @@ LIGHT = {
     "scrollbar": "#d5d9df", "scrollbar_active": "#bfc5cd",
     "added": "#1a7f37", "removed": "#c62828", "unplayable": "#b26a00", "playable": "#1565c0", "initial": "#666666",
     "spotify_tint": "#ecf8f0", "youtube_tint": "#fdf0ef",
+    "banner": "#fff6db", "banner_text": "#7a4d00", "nav": "#e6e8ec",
 }
 DARK = {
     "bg": "#16181d", "surface": "#1f2228", "border": "#30343c", "text": "#e6e8eb", "muted": "#9aa1ab",
@@ -30,6 +31,7 @@ DARK = {
     "scrollbar": "#3a3f48", "scrollbar_active": "#4b515b",
     "added": "#3fb950", "removed": "#f85149", "unplayable": "#d29922", "playable": "#58a6ff", "initial": "#8b949e",
     "spotify_tint": "#1b2c22", "youtube_tint": "#30201f",
+    "banner": "#3a2f15", "banner_text": "#e3b341", "nav": "#262a31",
 }
 
 FONT = ("Segoe UI", 10)
@@ -107,10 +109,21 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     style.configure("CardMuted.TLabel", background=P.surface, foreground=P.muted)
     style.configure("Section.TLabel", background=P.surface, font=FONT_BOLD)
     style.configure("Title.TLabel", font=("Segoe UI Semibold", 15))
+    style.configure("Banner.TFrame", background=P.banner)
+    style.configure("Banner.TLabel", background=P.banner, foreground=P.banner_text)
+    style.configure("Nav.TFrame", background=P.nav)
 
     _button_style(style, "TButton", P.surface, P.text, P.border, P.hover, P.bg, P.button_disabled_text)
     _button_style(style, "Accent.TButton", P.focus, "#ffffff", P.focus, P.focus_active, P.disabled,
                   P.disabled_text)
+    # Section switcher: the selected section looks like a raised tab on a recessed track
+    for name, background, foreground in (("Nav.TButton", P.nav, P.muted),
+                                         ("NavSelected.TButton", P.surface, P.text)):
+        style.configure(name, background=background, foreground=foreground, bordercolor=background,
+                        lightcolor=background, darkcolor=background, padding=(16, 5), focusthickness=0,
+                        font=FONT_BOLD)
+        style.map(name, background=[("active", P.surface)], lightcolor=[("active", P.surface)],
+                  darkcolor=[("active", P.surface)], foreground=[("active", P.text)])
     for prefix, (color, active) in accents.items():
         _button_style(style, f"{prefix}.Accent.TButton", color, "#ffffff", color, active, P.disabled,
                       P.disabled_text)

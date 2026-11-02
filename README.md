@@ -22,6 +22,8 @@ and compares it with the previous one, so the title, artist and original add dat
   original title is kept even after YouTube replaces it with "Deleted video"
 - History view filterable by source (Spotify / YouTube), playlist and event type
 - Export the history to a CSV file that opens in Excel
+- **Listening history** in its own section: every Spotify play is recorded, so your most played tracks and
+  artists are counted from your own plays
 - English and Turkish interface, light and dark theme (or follow the Windows setting), under **Settings → General**
 - No dependencies: only the Python standard library is used
 
@@ -100,6 +102,9 @@ python youtube.py login                                          # log in with G
 python youtube.py check https://www.youtube.com/playlist?list=...
 python youtube.py history
 python youtube.py export youtube_history.csv
+
+python listening.py sync                                         # store new Spotify plays
+python listening.py stats month                                  # most played this week/month/year/all
 ```
 
 To use the command line without the GUI, copy `config.example.json` to `config.json` and fill in
@@ -124,6 +129,9 @@ your Client ID and Client Secret.
   **own or collaborate on**. Playlists of other users cannot be checked, even if you follow them.
 - **Check frequency:** the app only checks when you run it. A removal is reported as having happened
   "between the previous check and this one".
+- **Listening history:** Spotify only shares the last 50 plays, so the app has to sync at least every couple
+  of hours (it does so every 30 minutes while open). Plays from before you started are not available. Sessions
+  created before this feature lack the permission, so log in to Spotify once more.
 - **YouTube:** "Watch later" and automatic Mixes cannot be read through the API. The free API quota
   (10,000 units per day) is enough for thousands of checks. While your Google OAuth app is in testing mode,
   Google ends the session after 7 days and you need to log in again.
@@ -139,6 +147,7 @@ All data stays on your computer, in the app folder:
 | `config.json` | API keys, client secrets and sessions. **Do not share it.** |
 | `history.db` | History of your Spotify playlists and changes (SQLite) |
 | `youtube_history.db` | History of your YouTube playlists and changes (SQLite) |
+| `listening.db` | Your recorded Spotify plays (SQLite) |
 
 All of them are listed in `.gitignore` and are never committed. The app does not connect to anything other than
 Spotify and Google / YouTube.
@@ -152,5 +161,7 @@ Spotify and Google / YouTube.
 | `i18n.py` | English and Turkish interface texts |
 | `tracker.py` | Spotify client, diff logic, database and command line |
 | `youtube.py` | YouTube client and command line |
+| `listening.py` | Spotify listening history: sync, statistics and command line |
+| `listening_view.py` | Listening section of the interface |
 | `Spotify Playlist Tracker.bat` | Double-click launcher for Windows |
 | `config.example.json` | Sample configuration file |
