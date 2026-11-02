@@ -21,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
+import listening
 from listening import key
 from tracker import BASE_DIR
 
@@ -105,6 +106,34 @@ def _find_artist_photo(artist: str) -> str | None:
         if key(result.get("name", "")) == key(artist) and EMPTY_PICTURE not in picture:
             return picture
     return None
+
+
+def find_length(artist: str, name: str) -> int | None:
+    """The length of a track in milliseconds from Deezer, or None."""
+    for title in dict.fromkeys((name, _plain_title(name))):
+        results = _search("/search", f'artist:"{artist}" track:"{title}"') or _search("/search", f"{artist} {title}")
+        for result in results:
+            # Only the same track: same artist and the same title apart from version notes
+            if (key((result.get("artist") or {}).get("name", "")) == key(artist) and result.get("duration")
+                    and key(_plain_title(result.get("title", ""))) == key(_plain_title(name))):
+                return result["duration"] * 1000
+    return None
+
+
+def fill_missing_lengths(done: Callable[[], None]) -> None:
+    """Give plays stored without a listening time (by an earlier version) their track's length, so they
+    count in the listening time; the longest time recorded for the track is used when Deezer has none.
+    Runs once on a background thread; done is called when something changed."""
+    changed = False
+    for track in listening.plays_without_length():
+        try:
+            length = find_length(track["artist"], track["name"])
+        except Exception:  # offline: tried again next start
+            continue
+        listening.set_missing_length(track["key"], length or track["known_ms"] or 0)
+        changed = True
+    if changed:
+        done()
 
 
 class Fetcher:

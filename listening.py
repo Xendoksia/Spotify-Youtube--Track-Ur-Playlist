@@ -224,6 +224,22 @@ def forgotten(days: int = 30, min_plays: int = 3, limit: int = 10, now: datetime
             "ORDER BY plays DESC, last_played DESC LIMIT ?", (min_plays, since, limit))]
 
 
+def plays_without_length(db_path: Path = DB_PATH) -> list[dict]:
+    """Tracks with plays stored without a listening time (by an earlier version), with the longest
+    time recorded for the same track, if any."""
+    with open_db(db_path) as db:
+        return [dict(r) for r in db.execute(
+            "SELECT track_key AS key, MAX(artist) AS artist, MAX(name) AS name, "
+            "(SELECT MAX(ms_played) FROM listens o WHERE o.track_key = l.track_key) AS known_ms "
+            "FROM listens l WHERE ms_played IS NULL GROUP BY track_key")]
+
+
+def set_missing_length(track_key: str, ms: int, db_path: Path = DB_PATH) -> None:
+    """Give the plays of a track stored without a listening time the track's length (0: unknown)."""
+    with open_db(db_path) as db:
+        db.execute("UPDATE listens SET ms_played = ? WHERE track_key = ? AND ms_played IS NULL", (ms, track_key))
+
+
 def heard_before(moment: datetime, column: str, db_path: Path = DB_PATH) -> set[str]:
     """Tracks or artists ("track_key" / "artist_key") with a play before the moment."""
     _check_column(column)

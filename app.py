@@ -16,6 +16,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
+import artwork
 import background
 import i18n
 import nowplaying
@@ -391,6 +392,9 @@ class App(tk.Tk):
 
         self._build_ui()
         self.refresh_history()
+        # Plays stored without a listening time by an earlier version get their track's length
+        threading.Thread(target=artwork.fill_missing_lengths, name="lengths", daemon=True,
+                         args=(lambda: self.after(0, self.listening.refresh),)).start()
         self._poll_commands()
 
         if hidden:
