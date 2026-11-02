@@ -41,7 +41,10 @@ FONT = ("Segoe UI", 10)
 FONT_BOLD = ("Segoe UI Semibold", 10)
 # Windows' own icon fonts, newest first; ICON_GLYPHS are their code points, TEXT_GLYPHS stand in without them
 ICON_FONTS = ("Segoe Fluent Icons", "Segoe MDL2 Assets")
-ICON_GLYPHS = {"back": "\ue76b", "forward": "\ue76c", "close": "\ue711"}
+ICON_GLYPHS = {"back": "\ue76b", "forward": "\ue76c", "close": "\ue711",
+               # Section headings of the statistics
+               "tracks": "\ue8d6", "artists": "\ue77b", "calendar": "\ue787", "clock": "\ue823",
+               "star": "\ue734", "tag": "\ue8ec", "history": "\ue81c", "disc": "\ue93c"}
 TEXT_GLYPHS = {"back": "‹", "forward": "›", "close": "✕"}
 _icon_font: str | None = None
 
@@ -128,8 +131,12 @@ def dark_title_bar(window: tk.Misc) -> None:
 
 
 def icon(name: str) -> str:
-    """The character of an icon (back, forward, close) for Icon.TButton."""
-    return (ICON_GLYPHS if _icon_font else TEXT_GLYPHS)[name]
+    """The character of an icon in icon_font(); "" for an icon without a stand-in when that font is missing."""
+    return (ICON_GLYPHS if _icon_font else TEXT_GLYPHS).get(name, "")
+
+
+def icon_font() -> str | None:
+    return _icon_font
 
 
 def _button_style(style, name, background, foreground, border, active, disabled, disabled_text):

@@ -16,7 +16,7 @@ import collage
 import listening
 from charts import BarList, ColumnChart, count_up, mix, placeholder, rounded_rect
 from i18n import number, t
-from theme import P, icon, px
+from theme import P, icon, icon_font, px
 from tracker import format_date
 
 available = artwork.available
@@ -27,7 +27,9 @@ TOP_COUNT = 10
 DISCOVERY_COUNT = 5
 GENRE_COUNT = 8
 GENRE_REDRAW_MS = 3000
-# Side of the album collage, in design pixels
+# Space between the cards of the page, in design pixels
+SECTION_GAP = 16
+# Largest side of the album collage, in design pixels
 COLLAGE_PREVIEW = 420
 FORGOTTEN_DAYS = 30
 FORGOTTEN_MIN_PLAYS = 3
@@ -324,74 +326,100 @@ class StatsTab(ttk.Frame):
         self.artist_hero.grid(row=0, column=1, sticky="nsew", padx=(px(10), 0))
 
         empty = t("stats.empty")
-        lists = ttk.Frame(content, style="Card.TFrame")
-        lists.pack(fill="x", pady=(px(24), 0))
-        self.top_tracks = BarList(self._card(lists, t("stats.top_tracks"), 0), empty, TOP_COUNT - 1, first_rank=2)
-        self.top_artists = BarList(self._card(lists, t("stats.top_artists"), 1), empty, TOP_COUNT - 1,
+        # Below the overview, every section is a bordered card with an icon, two to a row where they fit
+        lists = self._row(content)
+        self.top_tracks = BarList(self._panel(lists, "tracks", t("stats.top_tracks"), 0), empty, TOP_COUNT - 1,
+                                  first_rank=2)
+        self.top_artists = BarList(self._panel(lists, "artists", t("stats.top_artists"), 1), empty, TOP_COUNT - 1,
                                    round_images=True, first_rank=2)
 
-        # Tracks and artists heard for the first time ever in this period
-        self.discoveries = ttk.Frame(content, style="Card.TFrame")
-        self.discoveries.pack(fill="x", pady=(px(24), 0))
-        ttk.Label(self.discoveries, text=t("stats.discoveries"), style="Period.TLabel").pack(anchor="w")
-        self.discovery_summary = ttk.Label(self.discoveries, style="CardMuted.TLabel")
-        self.discovery_summary.pack(anchor="w", pady=(px(2), px(12)))
+        charts = self._row(content)
+        self.timeline_card = self._panel(charts, "calendar", "", 0, weight=3)
+        self.timeline = ColumnChart(self.timeline_card, 170, empty)
+        self.hours = ColumnChart(self._panel(charts, "clock", t("stats.hours"), 1, weight=2), 170, empty)
+        for chart in (self.top_tracks, self.top_artists, self.timeline, self.hours):
+            chart.pack(fill="x")
+
+        # Tracks and artists heard for the first time ever in this period; under all time the tracks once
+        # played a lot but not lately take their place, as that looks back from today
+        slot = ttk.Frame(content, style="Card.TFrame")
+        slot.pack(fill="x", pady=(px(SECTION_GAP), 0))
+        self.discoveries = self._panel(slot, "star", t("stats.discoveries"), summary=True)
+        self.discovery_summary = self.discoveries.summary
         discovery_lists = ttk.Frame(self.discoveries, style="Card.TFrame")
         discovery_lists.pack(fill="x")
         empty_new = t("stats.discoveries.none")
-        self.new_tracks = BarList(self._card(discovery_lists, t("stats.new_tracks"), 0), empty_new, DISCOVERY_COUNT)
-        self.new_artists = BarList(self._card(discovery_lists, t("stats.new_artists"), 1), empty_new,
+        self.new_tracks = BarList(self._column(discovery_lists, t("stats.new_tracks"), 0), empty_new, DISCOVERY_COUNT)
+        self.new_artists = BarList(self._column(discovery_lists, t("stats.new_artists"), 1), empty_new,
                                    DISCOVERY_COUNT, round_images=True)
         for chart in (self.new_tracks, self.new_artists):
             chart.pack(fill="x")
+        self.forgotten_section = self._panel(slot, "history", t("stats.forgotten"), summary=True)
+        self.forgotten_section.summary.configure(
+            text=t("stats.forgotten.summary", days=FORGOTTEN_DAYS, plays=FORGOTTEN_MIN_PLAYS))
+        self.forgotten = BarList(self.forgotten_section, t("stats.forgotten.none", days=FORGOTTEN_DAYS), TOP_COUNT)
+        self.forgotten.pack(fill="x")
 
+        last = self._row(content)
         # Share of the period's plays per genre; an artist's plays count for its main genre
-        self.genres_section = ttk.Frame(content, style="Card.TFrame")
-        self.genres_section.pack(fill="x", pady=(px(24), 0))
-        ttk.Label(self.genres_section, text=t("stats.genres"), style="Period.TLabel").pack(anchor="w")
-        self.genre_summary = ttk.Label(self.genres_section, style="CardMuted.TLabel")
-        self.genre_summary.pack(anchor="w", pady=(px(2), px(12)))
+        self.genres_section = self._panel(last, "tag", t("stats.genres"), 0, summary=True)
+        self.genre_summary = self.genres_section.summary
         self.genres = BarList(self.genres_section, t("stats.genres.none"), GENRE_COUNT, images=False)
         self.genres.pack(fill="x")
         self._genres_pending = False
         self._range = None
 
-        # Tracks once played a lot but not lately; it looks back from today, so it belongs to the all time view
-        self.forgotten_section = ttk.Frame(content, style="Card.TFrame")
-        ttk.Label(self.forgotten_section, text=t("stats.forgotten"), style="Period.TLabel").pack(anchor="w")
-        ttk.Label(self.forgotten_section, style="CardMuted.TLabel",
-                  text=t("stats.forgotten.summary", days=FORGOTTEN_DAYS, plays=FORGOTTEN_MIN_PLAYS)
-                  ).pack(anchor="w", pady=(px(2), px(12)))
-        self.forgotten = BarList(self.forgotten_section, t("stats.forgotten.none", days=FORGOTTEN_DAYS), TOP_COUNT)
-        self.forgotten.pack(fill="x")
-
-        self.charts = charts = ttk.Frame(content, style="Card.TFrame")
-        charts.pack(fill="x", pady=(px(24), 0))
-        self.timeline_card = self._card(charts, "", 0, weight=3)
-        self.timeline = ColumnChart(self.timeline_card, 170, empty)
-        self.hours = ColumnChart(self._card(charts, t("stats.hours"), 1, weight=2), 170, empty)
-        for chart in (self.top_tracks, self.top_artists, self.timeline, self.hours):
-            chart.pack(fill="x")
-
         # The period's most played album covers in a grid; a cover opens its artist's page
         self.collage_albums = []
-        self.collage_section = ttk.Frame(content, style="Card.TFrame")
-        if collage.available:
-            self.collage_section.pack(fill="x", pady=(px(24), 0))
-        ttk.Label(self.collage_section, text=t("stats.collage"), style="Period.TLabel").pack(anchor="w")
-        ttk.Label(self.collage_section, text=t("stats.collage.summary"), style="CardMuted.TLabel"
-                  ).pack(anchor="w", pady=(px(2), px(12)))
+        self._collage_side = px(COLLAGE_PREVIEW)
+        self.collage_section = self._panel(last, "disc", t("stats.collage"), 1, summary=True)
+        self.collage_section.summary.configure(text=t("stats.collage.summary"))
+        if not collage.available:
+            self.collage_section.grid_remove()
         self.collage_preview = ttk.Label(self.collage_section, style="Card.TLabel", cursor="hand2")
         self.collage_preview.pack(anchor="center")
         self.collage_preview.bind("<Button-1>", self._collage_click)
+        # The collage shrinks to fit a narrow card
+        self.collage_section.bind("<Configure>", lambda e: self._fit_collage())
 
-    def _card(self, parent, title: str, column: int, weight: int = 1) -> ttk.Frame:
-        parent.columnconfigure(column, weight=weight, uniform="card")
-        card = ttk.Frame(parent, style="Card.TFrame")
-        card.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else px(32), 0))
-        card.title = ttk.Label(card, text=title, style="Section.TLabel")
-        card.title.pack(anchor="w", pady=(0, px(8)))
+    def _row(self, parent) -> ttk.Frame:
+        row = ttk.Frame(parent, style="Card.TFrame")
+        row.pack(fill="x", pady=(px(SECTION_GAP), 0))
+        return row
+
+    def _panel(self, parent, icon_name: str, title: str, column: int | None = None, weight: int = 1,
+               summary: bool = False) -> ttk.Frame:
+        """A bordered card with an icon and a title, in a column of parent's grid or packed alone;
+        .title and .summary (a muted line under it, when asked for) can be changed later."""
+        card = ttk.Frame(parent, padding=px(16), style="Tile.TFrame")
+        header = ttk.Frame(card, style="Card.TFrame")
+        header.pack(fill="x")
+        glyph = icon(icon_name)
+        if glyph:
+            ttk.Label(header, text=glyph, style="Card.TLabel", foreground=P.chart,
+                      font=(icon_font(), 13)).pack(side="left", padx=(0, px(10)))
+        card.title = ttk.Label(header, text=title, style="Period.TLabel")
+        card.title.pack(side="left")
+        card.summary = ttk.Label(card, style="CardMuted.TLabel")
+        if summary:
+            card.summary.pack(anchor="w", pady=(px(4), 0))
+        # The space between the header and the content
+        ttk.Frame(card, height=px(12), style="Card.TFrame").pack(fill="x")
+        if column is None:
+            card.pack(fill="x")
+        else:
+            parent.columnconfigure(column, weight=weight, uniform="card")
+            card.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else px(SECTION_GAP), 0))
         return card
+
+    def _column(self, parent, title: str, column: int) -> ttk.Frame:
+        """One of two side by side lists inside a card."""
+        parent.columnconfigure(column, weight=1, uniform="column")
+        frame = ttk.Frame(parent, style="Card.TFrame")
+        frame.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else px(32), 0))
+        frame.title = ttk.Label(frame, text=title, style="Section.TLabel")
+        frame.title.pack(anchor="w", pady=(0, px(8)))
+        return frame
 
     def select_period(self, period: str):
         self.period, self.offset = period, 0
@@ -597,11 +625,18 @@ class StatsTab(ttk.Frame):
             self.collage_preview.configure(image="", text=t("stats.empty"))
             return
         from PIL import ImageTk
-        image = collage.build(self.collage_albums, collage.COLUMNS, px(COLLAGE_PREVIEW))
+        image = collage.build(self.collage_albums, collage.COLUMNS, self._collage_side)
         self.collage_preview.configure(image=self._keep(ImageTk.PhotoImage(image)), text="")
 
+    def _fit_collage(self):
+        width = self.collage_section.winfo_width() - 2 * px(16) - 2
+        side = max(px(160), min(px(COLLAGE_PREVIEW), width))
+        if abs(side - self._collage_side) > px(8) and self._range:
+            self._collage_side = side
+            self._fill_collage(*self._range)
+
     def _collage_click(self, event):
-        cell = px(COLLAGE_PREVIEW) / collage.COLUMNS
+        cell = self._collage_side / collage.COLUMNS
         column, row = int(event.x // cell), int(event.y // cell)
         index = row * collage.COLUMNS + column
         if 0 <= column < collage.COLUMNS and index < len(self.collage_albums):
@@ -655,7 +690,7 @@ class StatsTab(ttk.Frame):
             self._fill_forgotten()
             return
         self.forgotten_section.pack_forget()
-        self.discoveries.pack(fill="x", pady=(px(24), 0), before=self.genres_section)
+        self.discoveries.pack(fill="x")
         tracks = listening.new_tracks(start, end)
         artists = listening.new_artists(start, end)
         plays = listening.summary(start, end)["plays"]
@@ -688,7 +723,7 @@ class StatsTab(ttk.Frame):
         } for r in artists[:DISCOVERY_COUNT]])
 
     def _fill_forgotten(self):
-        self.forgotten_section.pack(fill="x", pady=(px(24), 0), before=self.genres_section)
+        self.forgotten_section.pack(fill="x")
         today = datetime.now().astimezone()
         rows = []
         for r in listening.forgotten(FORGOTTEN_DAYS, FORGOTTEN_MIN_PLAYS, TOP_COUNT):
