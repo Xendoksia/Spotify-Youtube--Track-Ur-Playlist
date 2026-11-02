@@ -23,6 +23,14 @@ POLL_SECONDS = 3
 SAVE_EVERY_MS = 30_000
 # A tick longer than this means the computer slept, so the gap is not counted as listening
 MAX_TICK_MS = POLL_SECONDS * 3 * 1000
+# A song seen again this soon after its play ended, past its start, is the same play going on (Spotify was
+# briefly unreadable) rather than a new one
+RESUME_SECONDS = 60
+# Before this position a song seen again counts as started over
+RESTART_POSITION_MS = 15_000
+# Listened this much longer than the song lasts: it is playing again on repeat, although Windows did not
+# report the position going back to the start
+LAP_MARGIN_MS = 10_000
 # Window titles Spotify shows when nothing is playing (paused, ads)
 IDLE_TITLES = {"spotify", "spotify free", "spotify premium", "advertisement", "spotify advertisement"}
 
@@ -98,6 +106,9 @@ async def _read_media_session() -> Snapshot | None:
             # Windows only updates the position on events, so add the time since the last update
             position += (datetime.now(timezone.utc) - timeline.last_updated_time).total_seconds() * 1000
         duration = (timeline.end_time - timeline.start_time).total_seconds() * 1000
+        if duration > 0:
+            # The added time keeps growing when Windows misses an update, e.g. a song starting over on repeat
+            position = min(position, duration)
         return Snapshot(props.artist or "", props.title or "", props.album_title or "", playing, int(position),
                         int(duration) if duration > 0 else None)
     return None
@@ -155,6 +166,8 @@ class LocalTracker:
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
         self._play: dict | None = None
+        # The play that ended last and when, in case the same song turns out to be still going
+        self._ended: tuple[dict, float] | None = None
         self._last_tick = 0.0
         self.state = "off"
         self.error: str | None = None
@@ -221,24 +234,26 @@ class LocalTracker:
 
         restarted = (play and play["key"] == snapshot.key and play["ms"] >= listening.MIN_PLAY_MS
                      and snapshot.position_ms is not None and play["position"] is not None
-                     and snapshot.position_ms + 5000 < play["position"] and snapshot.position_ms < 15000)
+                     and snapshot.position_ms + 5000 < play["position"] and snapshot.position_ms < RESTART_POSITION_MS)
         if play and (play["key"] != snapshot.key or restarted):
             self._finish()
+            if restarted:
+                self._ended = None
             play = None
         if play is None:
-            started = datetime.now(timezone.utc)
-            if snapshot.position_ms is not None and snapshot.position_ms < 15 * 60 * 1000:
-                started -= timedelta(milliseconds=snapshot.position_ms)
-            play = self._play = {
-                "key": snapshot.key, "artist": snapshot.artist, "name": snapshot.title,
-                "album": snapshot.album, "played_at": listening.to_utc(started),
-                "ms": 0, "saved_ms": 0, "id": None, "position": snapshot.position_ms,
-                "duration": snapshot.duration_ms,
-            }
+            play = self._play = self._resumed(snapshot, now) or self._new_play(snapshot)
             elapsed_ms = 0
 
         if snapshot.playing:
             play["ms"] += min(elapsed_ms, MAX_TICK_MS)
+        duration = play.get("duration") or snapshot.duration_ms
+        if duration and play["ms"] > duration + LAP_MARGIN_MS:
+            # Played to the end and on again: close this play at the song's length, the rest starts the next
+            extra = play["ms"] - duration
+            play["ms"] = duration
+            self._finish()
+            self._ended = None
+            play = self._play = self._new_play(snapshot, extra)
         play["position"] = snapshot.position_ms
         # The time it was read, so the mini player can move its progress bar between reads
         play["position_at"] = now
@@ -256,6 +271,27 @@ class LocalTracker:
         elif play["id"] and play["ms"] - play["saved_ms"] >= SAVE_EVERY_MS:
             self._save(play)
 
+    def _new_play(self, snapshot: Snapshot, listened_ms: int = 0) -> dict:
+        started = datetime.now(timezone.utc)
+        if listened_ms:
+            started -= timedelta(milliseconds=listened_ms)
+        elif snapshot.position_ms is not None and snapshot.position_ms < 15 * 60 * 1000:
+            started -= timedelta(milliseconds=snapshot.position_ms)
+        return {
+            "key": snapshot.key, "artist": snapshot.artist, "name": snapshot.title,
+            "album": snapshot.album, "played_at": listening.to_utc(started),
+            "ms": listened_ms, "saved_ms": 0, "id": None, "position": snapshot.position_ms,
+            "duration": snapshot.duration_ms,
+        }
+
+    def _resumed(self, snapshot: Snapshot, now: float) -> dict | None:
+        """The play that just ended, if this is the same song still going rather than a new play of it."""
+        ended, self._ended = self._ended, None
+        if (ended and ended[0]["key"] == snapshot.key and now - ended[1] < RESUME_SECONDS
+                and (snapshot.position_ms is None or snapshot.position_ms >= RESTART_POSITION_MS)):
+            return ended[0]
+        return None
+
     def _save(self, play: dict) -> None:
         if play["id"]:
             listening.update_local(play["id"], play["ms"])
@@ -266,4 +302,5 @@ class LocalTracker:
             self._save(self._play)
             if self._play["id"]:
                 self.version += 1
+            self._ended = (self._play, time.monotonic())
             self._play = None
