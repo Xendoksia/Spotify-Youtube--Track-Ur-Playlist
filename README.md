@@ -26,7 +26,7 @@ and compares it with the previous one, so the title, artist and original add dat
   this computer is recorded with the time actually listened, so your most played tracks and artists are
   counted from your own plays.
 - **Listening statistics** per week, month, year or all time: your number one track and artist with album cover
-  and artist photo, the rest of the top 10 with each one's move since the previous period (▲ ▼ NEW), the tracks
+  and artist photo, the rest of the top 10 with each one's move since the previous period (▲ ▼, NEW when heard for the first time, ↺ when back after a break), the tracks
   and artists you discovered in it, the share of each genre, listening time, plays per day or month and by hour of day, compared with the
   same stretch of the previous period, and (under all time) the tracks you used to play a lot but have not played
   for 30 days, and a 3×3 collage of the period's most played album covers (a cover opens its artist's page).

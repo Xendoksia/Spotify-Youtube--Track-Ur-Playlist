@@ -224,6 +224,14 @@ def forgotten(days: int = 30, min_plays: int = 3, limit: int = 10, now: datetime
             "ORDER BY plays DESC, last_played DESC LIMIT ?", (min_plays, since, limit))]
 
 
+def heard_before(moment: datetime, column: str, db_path: Path = DB_PATH) -> set[str]:
+    """Tracks or artists ("track_key" / "artist_key") with a play before the moment."""
+    _check_column(column)
+    with open_db(db_path) as db:
+        return {row[0] for row in db.execute(f"SELECT DISTINCT {column} FROM listens WHERE played_at < ?",
+                                             (to_utc(moment),))}
+
+
 def ranks(start: datetime, end: datetime, column: str, db_path: Path = DB_PATH) -> dict[str, int]:
     """Rank (1 = most played) of every track or artist played in the period, ordered like top_tracks/top_artists.
 

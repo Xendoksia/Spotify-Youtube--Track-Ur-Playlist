@@ -431,11 +431,23 @@ class StatsTab(ttk.Frame):
         """Returns change(key, rank) → (text, color) comparing with the whole previous period, or None."""
         if self.period == "all":
             return lambda key, rank, long=False: None
-        previous = listening.ranks(*listening.period_range(self.period, self.offset + 1), column)
+        previous_start, previous_end = listening.period_range(self.period, self.offset + 1)
+        previous = listening.ranks(previous_start, previous_end, column)
+        known = listening.heard_before(start, column)
+        # Songs heard before recording began look new too, so new and back are only told apart
+        # once the whole previous period was recorded
+        first = listening.first_play()
+        recorded_before = first is not None and first <= previous_start
 
         def change(key, rank, long=False):
             before = previous.get(key)
             if before is None:
+                if not recorded_before:
+                    return None
+                # New means heard for the first time ever, like the discoveries; one heard before
+                # but not in the previous period is back
+                if key in known:
+                    return t("stats.change.back_long" if long else "stats.change.back"), P.muted
                 return t("stats.change.new_long" if long else "stats.change.new"), P.playable
             if before == rank:
                 return (t("stats.change.same") if long else "="), P.muted
