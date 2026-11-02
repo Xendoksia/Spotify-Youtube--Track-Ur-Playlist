@@ -46,16 +46,17 @@ class MiniPlayer(ttk.Frame):
         size = px(COVER_SIZE)
         self.cover = tk.Canvas(body, width=size, height=size, background=P.surface, highlightthickness=0)
         self.cover.pack(side="left")
+        # The time and state are packed before the names, so a long name is cut off instead of pushing them out
+        self.state = ttk.Label(body, style="CardMuted.TLabel", font=FONT)
+        self.state.pack(side="right")
+        self.time = ttk.Label(body, style="Card.TLabel", font=FONT)
+        self.time.pack(side="right", padx=(px(16), px(16)))
         text = ttk.Frame(body, style="Card.TFrame")
         text.pack(side="left", fill="x", expand=True, padx=(px(12), 0))
         self.title = ttk.Label(text, style="Section.TLabel")
         self.title.pack(anchor="w")
         self.subtitle = ttk.Label(text, style="CardMuted.TLabel")
         self.subtitle.pack(anchor="w")
-        self.state = ttk.Label(body, style="CardMuted.TLabel", font=FONT)
-        self.state.pack(side="right")
-        self.time = ttk.Label(body, style="Card.TLabel", font=FONT)
-        self.time.pack(side="right", padx=(0, px(16)))
 
         self._clickable = (self, body, self.cover, text, self.title, self.subtitle, self.state, self.time,
                            self.progress)

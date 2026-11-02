@@ -116,8 +116,8 @@ class Hero(ttk.Frame):
         details.pack(anchor="w", pady=(px(10), 0))
         self.detail = ttk.Label(details, style="Card.TLabel")
         self.detail.pack(side="left")
-        self.change = ttk.Label(details, style="Card.TLabel")
-        self.change.pack(side="left", padx=(px(10), 0))
+        # The move since the previous period goes on its own line, which wraps when the card is narrow
+        self.change = ttk.Label(text, style="Card.TLabel", justify="left")
         # A few sentences about an artist, shown on its own page (see set_about)
         self.about = ttk.Label(text, style="Card.TLabel", justify="left")
         self.bind("<Configure>", lambda e: self._wrap())
@@ -133,7 +133,7 @@ class Hero(ttk.Frame):
 
     def _wrap(self):
         width = max(px(120), self.winfo_width() - px(self.IMAGE_SIZE + 60))
-        for label in (self.title, self.subtitle, self.about):
+        for label in (self.title, self.subtitle, self.change, self.about):
             label.configure(wraplength=width)
 
     def set_about(self, text: str):
@@ -155,6 +155,10 @@ class Hero(ttk.Frame):
         self.detail.configure(text=detail)
         text, color = change or ("", P.muted)
         self.change.configure(text=text, foreground=color)
+        if text:
+            self.change.pack(anchor="w", pady=(px(4), 0), after=self.detail.master)
+        else:
+            self.change.pack_forget()
 
     def show_empty(self, text: str):
         self.on_click(None)
@@ -167,6 +171,7 @@ class Hero(ttk.Frame):
         self.subtitle.configure(text=text)
         self.detail.configure(text="")
         self.change.configure(text="")
+        self.change.pack_forget()
 
 
 class StatsTab(ttk.Frame):
