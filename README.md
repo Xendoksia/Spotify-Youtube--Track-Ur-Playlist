@@ -28,7 +28,8 @@ and compares it with the previous one, so the title, artist and original add dat
 - **Listening statistics** per week, month, year or all time: your number one track and artist with album cover
   and artist photo, the rest of the top 10 with each one's move since the previous period (▲ ▼ NEW), the tracks
   and artists you discovered in it, listening time, plays per day or month and by hour of day, compared with the
-  same stretch of the previous period
+  same stretch of the previous period, and (under all time) the tracks you used to play a lot but have not played
+  for 30 days
 - **Runs in the background:** closing the window keeps the app in the system tray, where recording can be
   paused; it can also start with Windows. Only one copy runs at a time, opening it again shows the window.
 - English and Turkish interface, light and dark theme (or follow the Windows setting), under **Settings → General**

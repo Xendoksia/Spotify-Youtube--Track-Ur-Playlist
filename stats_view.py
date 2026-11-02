@@ -18,6 +18,8 @@ from tracker import format_date
 
 TOP_COUNT = 10
 DISCOVERY_COUNT = 5
+FORGOTTEN_DAYS = 30
+FORGOTTEN_MIN_PLAYS = 3
 
 
 def plays_text(count: int) -> str:
@@ -219,6 +221,15 @@ class StatsTab(ttk.Frame):
         for chart in (self.new_tracks, self.new_artists):
             chart.pack(fill="x")
 
+        # Tracks once played a lot but not lately; it looks back from today, so it belongs to the all time view
+        self.forgotten_section = ttk.Frame(content, style="Card.TFrame")
+        ttk.Label(self.forgotten_section, text=t("stats.forgotten"), style="Period.TLabel").pack(anchor="w")
+        ttk.Label(self.forgotten_section, style="CardMuted.TLabel",
+                  text=t("stats.forgotten.summary", days=FORGOTTEN_DAYS, plays=FORGOTTEN_MIN_PLAYS)
+                  ).pack(anchor="w", pady=(2, 12))
+        self.forgotten = BarList(self.forgotten_section, t("stats.forgotten.none", days=FORGOTTEN_DAYS), TOP_COUNT)
+        self.forgotten.pack(fill="x")
+
         self.charts = charts = ttk.Frame(content, style="Card.TFrame")
         charts.pack(fill="x", pady=(24, 0))
         self.timeline_card = self._card(charts, "", 0, weight=3)
@@ -345,7 +356,9 @@ class StatsTab(ttk.Frame):
         # Everything is new over all time, so the section only makes sense for a week, month or year
         if self.period == "all":
             self.discoveries.pack_forget()
+            self._fill_forgotten()
             return
+        self.forgotten_section.pack_forget()
         self.discoveries.pack(fill="x", pady=(24, 0), before=self.charts)
         tracks = listening.new_tracks(start, end)
         artists = listening.new_artists(start, end)
@@ -377,6 +390,23 @@ class StatsTab(ttk.Frame):
                        + "\n" + t("stats.discoveries.first_heard", date=format_date(r["first_played"])),
             "image": self._artist_photo(r["name"], size),
         } for r in artists[:DISCOVERY_COUNT]])
+
+    def _fill_forgotten(self):
+        self.forgotten_section.pack(fill="x", pady=(24, 0), before=self.charts)
+        today = datetime.now().astimezone()
+        rows = []
+        for r in listening.forgotten(FORGOTTEN_DAYS, FORGOTTEN_MIN_PLAYS, TOP_COUNT):
+            days = (today - listening.from_utc(r["last_played"])).days
+            rows.append({
+                "title": r["name"], "subtitle": r["artist"], "value": r["plays"], "value_text": number(r["plays"]),
+                "tooltip": f"{r['name']}\n{r['artist']}\n"
+                           + summary_text(plays_text(r["plays"]), minutes=r["minutes"]) + "\n"
+                           + t("stats.forgotten.last", date=format_date(r["last_played"]), days=number(days)),
+                "image": self._cover(r, BarList.IMAGE_SIZE, 4),
+            })
+        # Only as tall as needed: the list is often short or empty
+        self.forgotten.configure(height=BarList.ROW_HEIGHT * len(rows) if rows else 60)
+        self.forgotten.set_rows(rows)
 
     def _fill_tiles(self, start, end):
         current = listening.summary(start, end)

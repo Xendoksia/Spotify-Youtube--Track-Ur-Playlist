@@ -198,6 +198,18 @@ def new_artists(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list
                         "MAX(l.artist) AS name, COUNT(DISTINCT l.track_key) AS tracks", db_path)
 
 
+def forgotten(days: int = 30, min_plays: int = 3, limit: int = 10, now: datetime | None = None,
+              db_path: Path = DB_PATH) -> list[dict]:
+    """Tracks played at least `min_plays` times but not once in the last `days` days, most played first."""
+    since = to_utc((now or datetime.now()).astimezone() - timedelta(days=days))
+    with open_db(db_path) as db:
+        return [dict(r) for r in db.execute(
+            "SELECT track_key AS key, MAX(name) AS name, MAX(artist) AS artist, MAX(album) AS album, "
+            "COUNT(*) AS plays, COALESCE(SUM(ms_played), 0) / 60000 AS minutes, MAX(played_at) AS last_played "
+            "FROM listens GROUP BY track_key HAVING plays >= ? AND last_played < ? "
+            "ORDER BY plays DESC, last_played DESC LIMIT ?", (min_plays, since, limit))]
+
+
 def ranks(start: datetime, end: datetime, column: str, db_path: Path = DB_PATH) -> dict[str, int]:
     """Rank (1 = most played) of every track or artist played in the period, ordered like top_tracks/top_artists.
 

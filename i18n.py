@@ -69,6 +69,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "stats.discoveries.first_heard": "First played: {date}",
         "stats.new_tracks": "New tracks",
         "stats.new_artists": "New artists",
+        "stats.forgotten": "Forgotten",
+        "stats.forgotten.summary": "Tracks you played at least {plays} times but not once in the last {days} days",
+        "stats.forgotten.none": "Nothing forgotten yet. Tracks you loved but have not played for {days} days "
+                                "will show up here.",
+        "stats.forgotten.last": "Last played: {date} ({days} days ago)",
         "stats.change.new": "NEW",
         "stats.change.new_long": "New: not played in the previous period",
         "stats.change.same": "Same place as in the previous period",
@@ -308,6 +313,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "stats.discoveries.first_heard": "İlk dinleme: {date}",
         "stats.new_tracks": "Yeni şarkılar",
         "stats.new_artists": "Yeni sanatçılar",
+        "stats.forgotten": "Unutulanlar",
+        "stats.forgotten.summary": "En az {plays} kez dinleyip son {days} günde hiç açmadığın şarkılar",
+        "stats.forgotten.none": "Henüz unutulan bir şey yok. Çok dinleyip {days} gündür açmadığın şarkılar "
+                                "burada görünecek.",
+        "stats.forgotten.last": "Son dinleme: {date} ({days} gün önce)",
         "stats.change.new": "YENİ",
         "stats.change.new_long": "Yeni: önceki dönemde dinlenmemişti",
         "stats.change.same": "Önceki dönemle aynı sırada",
