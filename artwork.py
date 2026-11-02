@@ -9,6 +9,7 @@ without it the statistics show placeholders.
 
 from __future__ import annotations
 
+import colorsys
 import hashlib
 import io
 import json
@@ -186,8 +187,8 @@ def photo(path: Path | None, size: int, background: str, round_: bool = False, r
     return ImageTk.PhotoImage(result) if result is not None else None
 
 
-def picture(path: Path | None, size: int, background: str, round_: bool = False, radius: int = 6):
-    """Like photo(), as a Pillow image."""
+def picture(path: Path | None, size: int, background: str | None, round_: bool = False, radius: int = 6):
+    """Like photo(), as a Pillow image; with no background the corners are transparent."""
     if not available or not path or not path.exists():
         return None
     try:
@@ -206,6 +207,40 @@ def picture(path: Path | None, size: int, background: str, round_: bool = False,
     else:
         draw.rounded_rectangle((0, 0, size * scale - 1, size * scale - 1), radius=radius * scale, fill=255)
     mask = mask.resize((size, size), Image.LANCZOS)
+    if background is None:
+        image.putalpha(mask)
+        return image
     result = Image.new("RGB", (size, size), background)
     result.paste(image, (0, 0), mask)
     return result
+
+
+_colors: dict = {}
+
+
+def colors(path: Path | None) -> tuple[tuple[int, int, int], tuple[int, int, int]] | None:
+    """The two main colors of a picture as RGB, the more vivid and frequent first, or None."""
+    if not available or not path or not path.exists():
+        return None
+    cache_key = (path, path.stat().st_mtime)
+    if cache_key not in _colors:
+        try:
+            image = Image.open(path).convert("RGB").resize((48, 48))
+        except OSError:
+            return None
+        quantized = image.quantize(colors=8, method=Image.Quantize.MEDIANCUT)
+        palette = quantized.getpalette()
+        candidates = []
+        for count, index in quantized.getcolors():
+            rgb = tuple(palette[index * 3:index * 3 + 3])
+            hue, saturation, value = colorsys.rgb_to_hsv(*(channel / 255 for channel in rgb))
+            # Near black and near white say little about a cover; vivid colors say the most
+            weight = 0.25 if value < 0.12 or (saturation < 0.08 and value > 0.92) else 1
+            candidates.append((count * (0.15 + saturation) * weight, rgb))
+        candidates.sort(reverse=True)
+        first = candidates[0][1]
+        # The second is the next one that clearly differs from the first, else a darker shade of it
+        second = next((rgb for _, rgb in candidates[1:] if sum(abs(a - b) for a, b in zip(rgb, first)) > 90),
+                      tuple(int(channel * 0.55) for channel in first))
+        _colors[cache_key] = (first, second)
+    return _colors[cache_key]

@@ -5,6 +5,7 @@ year, counted from the plays recorded in listening.db.
 
 from __future__ import annotations
 
+import colorsys
 import tkinter as tk
 from datetime import datetime, timedelta
 from tkinter import ttk
@@ -13,10 +14,14 @@ import artist_info
 import artwork
 import collage
 import listening
-from charts import BarList, ColumnChart, count_up, placeholder, rounded_rect
+from charts import BarList, ColumnChart, count_up, mix, placeholder, rounded_rect
 from i18n import number, t
 from theme import P, px
 from tracker import format_date
+
+available = artwork.available
+if available:
+    from PIL import Image, ImageTk
 
 TOP_COUNT = 10
 DISCOVERY_COUNT = 5
@@ -97,84 +102,164 @@ class ScrollFrame(ttk.Frame):
             self.canvas.yview_scroll(-event.delta // 120, "units")
 
 
-class Hero(ttk.Frame):
-    """A large card for the number one track or artist of the period, with its picture."""
+def card_tint(rgb: tuple[int, int, int], strength: float) -> str:
+    """A color of a picture, calmed down to sit behind text and mixed into the card color by strength."""
+    hue, saturation, value = colorsys.rgb_to_hsv(*(channel / 255 for channel in rgb))
+    saturation = min(saturation, 0.75 if P.dark else 0.6)
+    if P.dark:
+        value = min(value, 0.6)
+    color = "#" + "".join(f"{round(channel * 255):02x}" for channel in colorsys.hsv_to_rgb(hue, saturation, value))
+    return mix(P.surface, color, strength)
+
+
+class Hero(tk.Canvas):
+    """A large card for the number one track or artist of the period, with its picture.
+
+    It is drawn on a canvas so its background can run between the two main colors of the picture,
+    with the texts on top."""
 
     IMAGE_SIZE = 132
+    PADDING = 16
+    # How strongly the picture's colors tint the card, on the left and on the right; more under the mouse
+    TINT = {"dark": (0.42, 0.24), "light": (0.20, 0.10)}
+    HOVER_TINT = 0.08
+    CAPTION_FONT = ("Segoe UI Semibold", 9)
+    TITLE_FONT = ("Segoe UI Semibold", 17)
+    SUBTITLE_FONT = ("Segoe UI", 11)
+    TEXT_FONT = ("Segoe UI", 10)
 
     def __init__(self, parent, caption: str, round_image: bool):
-        super().__init__(parent, padding=px(16), style="Tile.TFrame")
+        super().__init__(parent, height=px(self.IMAGE_SIZE + 2 * self.PADDING), background=P.surface,
+                         highlightthickness=0)
+        self.caption = caption.upper()
         self.round_image = round_image
-        size = px(self.IMAGE_SIZE)
-        self.picture = tk.Canvas(self, width=size, height=size, background=P.surface, highlightthickness=0)
-        self.picture.pack(side="left")
-        text = ttk.Frame(self, style="Card.TFrame")
-        text.pack(side="left", fill="both", expand=True, padx=(px(18), 0))
-        ttk.Label(text, text=caption.upper(), style="Caption.TLabel").pack(anchor="w", pady=(px(10), px(4)))
-        self.title = ttk.Label(text, style="HeroTitle.TLabel")
-        self.title.pack(anchor="w")
-        self.subtitle = ttk.Label(text, style="HeroSubtitle.TLabel")
-        self.subtitle.pack(anchor="w")
-        details = ttk.Frame(text, style="Card.TFrame")
-        details.pack(anchor="w", pady=(px(10), 0))
-        self.detail = ttk.Label(details, style="Card.TLabel")
-        self.detail.pack(side="left")
-        # The move since the previous period goes on its own line, which wraps when the card is narrow
-        self.change = ttk.Label(text, style="Card.TLabel", justify="left")
-        # A few sentences about an artist, shown on its own page (see set_about)
-        self.about = ttk.Label(text, style="Card.TLabel", justify="left")
-        self.bind("<Configure>", lambda e: self._wrap())
+        self._content: dict = {"title": "—", "subtitle": "", "detail": "", "path": None, "change": None}
+        self._about = ""
         self._action = None
-        for widget in (self, self.picture, text, self.title, self.subtitle, details, self.detail, self.change):
-            widget.bind("<Button-1>", lambda e: self._action and self._action())
+        self._subtitle_action = None
+        self._hovered = False
+        self._images = []
+        self.bind("<Configure>", lambda e: self._draw())
+        self.bind("<Enter>", lambda e: self._hover(True))
+        self.bind("<Leave>", lambda e: self._hover(False))
+        self.bind("<Motion>", self._on_motion)
+        self.bind("<Button-1>", self._on_click)
+
+    # What the card shows
+
+    def show(self, title: str, subtitle: str, detail: str, path, change: tuple[str, str] | None = None):
+        """path: the picture file (or None for a placeholder)."""
+        self._content = {"title": title, "subtitle": subtitle, "detail": detail, "path": path, "change": change}
+        self._draw()
+
+    def show_empty(self, text: str):
+        self.on_click(None)
+        self._content = {"title": "—", "subtitle": text, "detail": "", "path": None, "change": None, "empty": True}
+        self._draw()
+
+    def set_about(self, text: str):
+        """A few sentences about an artist, shown on its own page."""
+        self._about = text
+        self._draw()
 
     def on_click(self, action):
         """Make the whole card clickable (None turns it off)."""
         self._action = action
-        for widget in (self, self.picture, self.title, self.subtitle, self.detail, self.change):
-            widget.configure(cursor="hand2" if action else "")
+        self.configure(cursor="hand2" if action else "")
 
-    def _wrap(self):
-        width = max(px(120), self.winfo_width() - px(self.IMAGE_SIZE + 60))
-        for label in (self.title, self.subtitle, self.change, self.about):
-            label.configure(wraplength=width)
+    def on_subtitle_click(self, action):
+        """Make the subtitle line a link of its own (the artist of a track)."""
+        self._subtitle_action = action
 
-    def set_about(self, text: str):
-        self.about.configure(text=text)
-        if text:
-            self.about.pack(anchor="w", pady=(px(12), px(4)))
-        else:
-            self.about.pack_forget()
+    # Mouse
 
-    def show(self, title: str, subtitle: str, detail: str, image, change: tuple[str, str] | None = None):
-        size = px(self.IMAGE_SIZE)
-        self.picture.delete("all")
-        if image is not None:
-            self.picture.create_image(0, 0, image=image, anchor="nw")
-        else:
-            placeholder(self.picture, 0, 0, size, title, self.round_image, ("Segoe UI Semibold", 40))
-        self.title.configure(text=title)
-        self.subtitle.configure(text=subtitle)
-        self.detail.configure(text=detail)
-        text, color = change or ("", P.muted)
-        self.change.configure(text=text, foreground=color)
-        if text:
-            self.change.pack(anchor="w", pady=(px(4), 0), after=self.detail.master)
-        else:
-            self.change.pack_forget()
+    def _hover(self, on: bool):
+        if self._action and on != self._hovered:
+            self._hovered = on
+            self._draw()
 
-    def show_empty(self, text: str):
-        self.on_click(None)
-        self.picture.delete("all")
-        if self.round_image:
-            self.picture.create_oval(0, 0, px(self.IMAGE_SIZE), px(self.IMAGE_SIZE), fill=P.nav, outline="")
-        else:
-            rounded_rect(self.picture, 0, 0, px(self.IMAGE_SIZE), px(self.IMAGE_SIZE), px(10), fill=P.nav)
-        self.title.configure(text="—")
-        self.subtitle.configure(text=text)
-        self.detail.configure(text="")
-        self.change.configure(text="")
-        self.change.pack_forget()
+    def _over_subtitle(self, event) -> bool:
+        box = self.bbox("subtitle")
+        return bool(self._subtitle_action and box and box[0] <= event.x <= box[2] and box[1] <= event.y <= box[3])
+
+    def _on_motion(self, event):
+        if self._subtitle_action:
+            self.configure(cursor="hand2" if self._over_subtitle(event) or self._action else "")
+
+    def _on_click(self, event):
+        if self._over_subtitle(event):
+            self._subtitle_action()
+        elif self._action:
+            self._action()
+
+    # Drawing
+
+    def _background(self, width: int, height: int):
+        """The two color gradient of the picture, or None to keep the plain card color."""
+        colors = artwork.colors(self._content["path"])
+        if colors is None:
+            return None
+        left, right = self.TINT["dark" if P.dark else "light"]
+        if self._hovered:
+            left, right = left + self.HOVER_TINT, right + self.HOVER_TINT
+        start, end = (Image.new("RGB", (1, 1), card_tint(color, strength)).resize((width, height))
+                      for color, strength in zip(colors, (left, right)))
+        # Left to right, from the picture's first color to its second
+        mask = Image.linear_gradient("L").rotate(90).resize((width, height))
+        return ImageTk.PhotoImage(Image.composite(start, end, mask))
+
+    def _draw(self):
+        width = self.winfo_width()
+        if width < 50:
+            return
+        self.delete("all")
+        self._images = []
+        content, pad, size = self._content, px(self.PADDING), px(self.IMAGE_SIZE)
+
+        if content["path"] is not None:
+            image = artwork.picture(content["path"], size, None, round_=self.round_image, radius=px(10))
+            if image is not None:
+                self._images.append(ImageTk.PhotoImage(image))
+                self.create_image(pad, pad, image=self._images[-1], anchor="nw", tags="content")
+        if not self._images:
+            if content.get("empty"):
+                if self.round_image:
+                    self.create_oval(pad, pad, pad + size, pad + size, fill=P.nav, outline="", tags="content")
+                else:
+                    rounded_rect(self, pad, pad, pad + size, pad + size, px(10), fill=P.nav, tags="content")
+            else:
+                placeholder(self, pad, pad, size, content["title"], self.round_image, ("Segoe UI Semibold", 40))
+
+        left = pad + size + px(18)
+        text_width = max(px(120), width - left - pad)
+        y = pad + px(10)
+
+        def line(text, font, color, gap=0, tags="content"):
+            nonlocal y
+            if not text:
+                return
+            y += gap
+            item = self.create_text(left, y, text=text, font=font, fill=color, anchor="nw", width=text_width,
+                                    tags=tags)
+            y = self.bbox(item)[3]
+
+        line(self.caption, self.CAPTION_FONT, P.muted)
+        line(content["title"], self.TITLE_FONT, P.text, px(4))
+        line(content["subtitle"], self.SUBTITLE_FONT, P.muted, tags=("content", "subtitle"))
+        line(content["detail"], self.TEXT_FONT, P.text, px(10))
+        if content["change"]:
+            line(content["change"][0], self.TEXT_FONT, content["change"][1], px(4))
+        line(self._about, self.TEXT_FONT, P.text, px(12))
+
+        height = max(2 * pad + size, y + pad)
+        if int(self.cget("height")) != height:
+            self.configure(height=height)
+        background = self._background(width, height) if available else None
+        if background is not None:
+            self._images.append(background)
+            self.create_image(0, 0, image=background, anchor="nw", tags="background")
+            self.tag_lower("background")
+        self.create_rectangle(0, 0, width - 1, height - 1, outline=P.muted if self._hovered else P.border)
 
 
 class StatsTab(ttk.Frame):
@@ -426,7 +511,9 @@ class StatsTab(ttk.Frame):
             self.track_hero.on_click(self._opener("track_key", top["key"]))
             self.track_hero.show(top["name"], top["artist"],
                                  summary_text(plays_text(top["plays"]), minutes=top["minutes"]),
-                                 self._cover(top, Hero.IMAGE_SIZE, 10), track_change(top["key"], 1, long=True))
+                                 self.fetcher.cover(top["artist"], top["album"] or "", top["name"],
+                                                    self._artwork_arrived),
+                                 track_change(top["key"], 1, long=True))
         else:
             self.track_hero.show_empty(t("stats.empty"))
         if artists:
@@ -434,7 +521,7 @@ class StatsTab(ttk.Frame):
             self.artist_hero.on_click(self._opener("artist_key", top["key"]))
             self.artist_hero.show(top["name"], tracks_text(top["tracks"]),
                                   summary_text(plays_text(top["plays"]), minutes=top["minutes"]),
-                                  self._artist_photo(top["name"], Hero.IMAGE_SIZE),
+                                  self.fetcher.artist(top["name"], self._artwork_arrived),
                                   artist_change(top["key"], 1, long=True))
         else:
             self.artist_hero.show_empty(t("stats.empty"))

@@ -163,16 +163,16 @@ class DetailPage(ttk.Frame):
         if self.is_artist:
             self.hero.show(title, tracks_text(info["tracks"]), summary_text(plays_text(info["plays"]),
                                                                             minutes=info["minutes"]),
-                           self._artist_photo(title, Hero.IMAGE_SIZE))
+                           self.fetcher.artist(title, self._artwork_arrived))
             facts = artist_info.request(title, self.key, self, self._artwork_arrived)
             self.hero.set_about(artist_info.describe(facts) if facts else "")
         else:
             subtitle = info["artist"] + (f"  ·  {info['album']}" if info["album"] else "")
             self.hero.show(title, subtitle, summary_text(plays_text(info["plays"]), minutes=info["minutes"]),
-                           self._cover(info, Hero.IMAGE_SIZE, 10))
+                           self.fetcher.cover(info["artist"], info["album"] or "", info["name"],
+                                              self._artwork_arrived))
             # The artist line leads to the artist's own page
-            self.hero.subtitle.configure(cursor="hand2")
-            self.hero.subtitle.bind("<Button-1>", lambda e: self.open_page("artist_key", info["artist_key"]))
+            self.hero.on_subtitle_click(lambda: self.open_page("artist_key", info["artist_key"]))
 
         count_up(self.tiles["plays"], info["plays"], number)
         count_up(self.tiles["time"], info["minutes"], lambda minutes: duration_text(minutes) if minutes else "—")
