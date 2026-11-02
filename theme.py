@@ -16,15 +16,16 @@ from types import SimpleNamespace
 THEMES = ("system", "light", "dark")
 
 LIGHT = {
-    "bg": "#f3f4f6", "surface": "#ffffff", "border": "#e3e6ea", "text": "#1f2328", "muted": "#6b7280",
-    "hover": "#f0f2f5", "selected": "#e3ecfd", "stripe": "#fafbfc", "focus": "#3b82f6", "focus_active": "#2f6fdb",
-    "disabled": "#c9cdd3", "disabled_text": "#f5f6f8", "button_disabled_text": "#a0a6b0",
-    "scrollbar": "#d5d9df", "scrollbar_active": "#bfc5cd",
-    "added": "#1a7f37", "removed": "#c62828", "unplayable": "#b26a00", "playable": "#1565c0", "initial": "#666666",
-    "spotify_tint": "#ecf8f0", "youtube_tint": "#fdf0ef",
-    "banner": "#fff6db", "banner_text": "#7a4d00", "nav": "#e6e8ec",
-    # Chart marks; validated with the dataviz palette checks against this theme's surface
-    "chart": "#1aa34a", "chart_hover": "#13843b", "grid": "#eceef1",
+    # Soft grays rather than white, which looked too bright; every text color keeps 4.5:1 on the surface
+    "bg": "#e3e5e9", "surface": "#f1f2f4", "border": "#d2d6dc", "text": "#1f2328", "muted": "#5f6672",
+    "hover": "#e6e8ec", "selected": "#d9e4f8", "stripe": "#eaecef", "focus": "#3b82f6", "focus_active": "#2f6fdb",
+    "disabled": "#c4c8cf", "disabled_text": "#eef0f2", "button_disabled_text": "#8f96a1",
+    "scrollbar": "#c9ced5", "scrollbar_active": "#b3b9c2",
+    "added": "#177a33", "removed": "#c62828", "unplayable": "#9a5a00", "playable": "#1565c0", "initial": "#5f5f5f",
+    "spotify_tint": "#e1eee5", "youtube_tint": "#f1e3e2",
+    "banner": "#f5ead0", "banner_text": "#6e4500", "nav": "#d8dbe0",
+    # Chart marks: at least 3:1 against this theme's surface
+    "chart": "#16924a", "chart_hover": "#10753a", "grid": "#dfe2e6",
 }
 DARK = {
     "bg": "#16181d", "surface": "#1f2228", "border": "#30343c", "text": "#e6e8eb", "muted": "#9aa1ab",
