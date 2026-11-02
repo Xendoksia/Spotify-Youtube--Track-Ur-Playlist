@@ -16,7 +16,7 @@ import collage
 import listening
 from charts import BarList, ColumnChart, count_up, placeholder, rounded_rect
 from i18n import number, t
-from theme import P, icon, icon_font, mix, px, readable
+from theme import TYPE, P, icon, icon_font, mix, px, readable
 from tracker import format_date
 
 available = artwork.available
@@ -125,10 +125,10 @@ class Hero(tk.Canvas):
     # How strongly the picture's colors tint the card, on the left and on the right; more under the mouse
     TINT = {"dark": (0.42, 0.24), "light": (0.20, 0.10)}
     HOVER_TINT = 0.08
-    CAPTION_FONT = ("Segoe UI Semibold", 9)
-    TITLE_FONT = ("Segoe UI Semibold", 17)
-    SUBTITLE_FONT = ("Segoe UI", 11)
-    TEXT_FONT = ("Segoe UI", 10)
+    CAPTION_FONT = TYPE["caption"]
+    TITLE_FONT = TYPE["display"]
+    SUBTITLE_FONT = TYPE["lead"]
+    TEXT_FONT = TYPE["body"]
 
     def __init__(self, parent, caption: str, round_image: bool):
         super().__init__(parent, height=px(self.IMAGE_SIZE + 2 * self.PADDING), background=P.surface,
@@ -248,7 +248,7 @@ class Hero(tk.Canvas):
             else:
                 placeholder(self, pad, pad, size, content["title"], self.round_image, ("Segoe UI Semibold", 40))
 
-        left = pad + size + px(18)
+        left = pad + size + px(16)
         text_width = max(px(120), width - left - pad)
         y = pad + px(10)
 
@@ -302,7 +302,7 @@ class StatsTab(ttk.Frame):
     def _build(self):
         toolbar = ttk.Frame(self.overview, style="Card.TFrame")
         toolbar.pack(fill="x", padx=px(16), pady=(px(16), 0))
-        switcher = ttk.Frame(toolbar, padding=px(3), style="Nav.TFrame")
+        switcher = ttk.Frame(toolbar, padding=px(4), style="Nav.TFrame")
         switcher.pack(side="left")
         self.period_buttons = {}
         for period in listening.PERIODS:
@@ -329,12 +329,12 @@ class StatsTab(ttk.Frame):
         self.tiles = {}
         for index, name in enumerate(("plays", "time", "tracks", "artists")):
             tiles.columnconfigure(index, weight=1, uniform="tile")
-            tile = ttk.Frame(tiles, padding=(px(14), px(10)), style="Tile.TFrame")
-            tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else px(10), 0))
+            tile = ttk.Frame(tiles, padding=(px(16), px(12)), style="Tile.TFrame")
+            tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else px(12), 0))
             ttk.Label(tile, text=t(f"stats.tile.{name}"), style="CardMuted.TLabel").pack(anchor="w")
             value = ttk.Label(tile, style="TileValue.TLabel")
             value.pack(anchor="w")
-            delta = ttk.Label(tile, style="CardMuted.TLabel", font=("Segoe UI", 9))
+            delta = ttk.Label(tile, style="CardMuted.TLabel", font=TYPE["small"])
             delta.pack(anchor="w")
             self.tiles[name] = (value, delta)
 
@@ -344,7 +344,7 @@ class StatsTab(ttk.Frame):
         self.track_hero = Hero(heroes, t("stats.hero.track"), round_image=False)
         self.track_hero.grid(row=0, column=0, sticky="nsew")
         self.artist_hero = Hero(heroes, t("stats.hero.artist"), round_image=True)
-        self.artist_hero.grid(row=0, column=1, sticky="nsew", padx=(px(10), 0))
+        self.artist_hero.grid(row=0, column=1, sticky="nsew", padx=(px(12), 0))
 
         empty = t("stats.empty")
         # Below the overview, every section is a bordered card with an icon, two to a row where they fit
@@ -418,7 +418,7 @@ class StatsTab(ttk.Frame):
         glyph = icon(icon_name)
         if glyph:
             ttk.Label(header, text=glyph, style="Card.TLabel", foreground=P.chart,
-                      font=(icon_font(), 13)).pack(side="left", padx=(0, px(10)))
+                      font=(icon_font(), 13)).pack(side="left", padx=(0, px(12)))
         card.title = ttk.Label(header, text=title, style="Period.TLabel")
         card.title.pack(side="left")
         card.summary = ttk.Label(card, style="CardMuted.TLabel")
@@ -437,7 +437,7 @@ class StatsTab(ttk.Frame):
         """One of two side by side lists inside a card."""
         parent.columnconfigure(column, weight=1, uniform="column")
         frame = ttk.Frame(parent, style="Card.TFrame")
-        frame.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else px(32), 0))
+        frame.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else px(24), 0))
         frame.title = ttk.Label(frame, text=title, style="Section.TLabel")
         frame.title.pack(anchor="w", pady=(0, px(8)))
         return frame

@@ -37,8 +37,24 @@ DARK = {
     "chart": "#2ea043", "chart_hover": "#3fb950", "grid": "#2a2e35",
 }
 
-FONT = ("Segoe UI", 10)
-FONT_BOLD = ("Segoe UI Semibold", 10)
+# One type scale for the whole interface (sizes in points, which follow the screen scale)
+TYPE = {
+    "caption": ("Segoe UI Semibold", 9),   # small capitals over a title, table headings
+    "small": ("Segoe UI", 9),              # chart labels, changes since the previous period
+    "body": ("Segoe UI", 10),
+    "body_bold": ("Segoe UI Semibold", 10),
+    "lead": ("Segoe UI", 12),              # the line under a title
+    "heading": ("Segoe UI Semibold", 12),  # section titles
+    "title": ("Segoe UI Semibold", 15),    # the window title
+    "display": ("Segoe UI Semibold", 18),  # the name on a top card, the numbers in the tiles
+    "name": ("Segoe UI Semibold", 24),     # names in the monthly summary
+    "big": ("Segoe UI Semibold", 44),      # the large numbers of the monthly summary
+}
+FONT = TYPE["body"]
+FONT_BOLD = TYPE["body_bold"]
+# Spacing between and inside parts of a page uses only these steps (design pixels, through px());
+# controls such as buttons keep their own inner padding
+SPACING = (4, 8, 12, 16, 24)
 # Windows' own icon fonts, newest first; ICON_GLYPHS are their code points, TEXT_GLYPHS stand in without them
 ICON_FONTS = ("Segoe Fluent Icons", "Segoe MDL2 Assets")
 ICON_GLYPHS = {"back": "\ue76b", "forward": "\ue76c", "close": "\ue711",
@@ -203,13 +219,11 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     style.configure("Muted.TLabel", foreground=P.muted)
     style.configure("CardMuted.TLabel", background=P.surface, foreground=P.muted)
     style.configure("Section.TLabel", background=P.surface, font=FONT_BOLD)
-    style.configure("Title.TLabel", font=("Segoe UI Semibold", 15))
+    style.configure("Title.TLabel", font=TYPE["title"])
     style.configure("Tile.TFrame", background=P.surface, bordercolor=P.border, relief="solid", borderwidth=1)
-    style.configure("TileValue.TLabel", background=P.surface, font=("Segoe UI Semibold", 20))
-    style.configure("Period.TLabel", background=P.surface, font=("Segoe UI Semibold", 12))
-    style.configure("Caption.TLabel", background=P.surface, foreground=P.muted, font=("Segoe UI Semibold", 9))
-    style.configure("HeroTitle.TLabel", background=P.surface, font=("Segoe UI Semibold", 17))
-    style.configure("HeroSubtitle.TLabel", background=P.surface, foreground=P.muted, font=("Segoe UI", 11))
+    style.configure("TileValue.TLabel", background=P.surface, font=TYPE["display"])
+    style.configure("Period.TLabel", background=P.surface, font=TYPE["heading"])
+    style.configure("Caption.TLabel", background=P.surface, foreground=P.muted, font=TYPE["caption"])
     style.configure("Banner.TFrame", background=P.banner)
     style.configure("Banner.TLabel", background=P.banner, foreground=P.banner_text)
     style.configure("Nav.TFrame", background=P.nav)
@@ -270,7 +284,7 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     style.map("Treeview", background=[("selected", P.selected)], foreground=[("selected", P.text)])
     style.configure("Treeview.Heading", background=P.stripe, foreground=P.muted, bordercolor=P.border,
                     lightcolor=P.stripe, darkcolor=P.stripe, relief="flat", padding=(px(8), px(6)),
-                    font=("Segoe UI Semibold", 9))
+                    font=TYPE["caption"])
     style.map("Treeview.Heading", background=[("active", P.hover)], lightcolor=[("active", P.hover)],
               darkcolor=[("active", P.hover)])
 

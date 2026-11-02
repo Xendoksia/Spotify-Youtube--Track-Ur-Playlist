@@ -15,12 +15,12 @@ from collections.abc import Callable
 from tkinter import font as tkfont
 
 from i18n import number
-from theme import FONT, P, px
+from theme import FONT, TYPE, P, px
 
 RADIUS = 4
 MAX_THICKNESS = 24
 GAP = 2
-SMALL_FONT = ("Segoe UI", 9)
+SMALL_FONT = TYPE["small"]
 # New values slide in from the old ones (or from zero) over this long
 ANIMATION_MS = 450
 FRAME_MS = 16

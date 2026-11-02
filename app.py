@@ -115,23 +115,23 @@ class PlaylistPanel(ttk.Frame):
         form.columnconfigure(1, weight=1)
 
         top = ttk.Frame(form, style="Card.TFrame")
-        top.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, px(10)))
+        top.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, px(12)))
         self.fetch_button = ttk.Button(top, text=t("panel.load_playlists", service=self.service.name),
                                        command=self.load_my_playlists)
         self.fetch_button.pack(side="left")
         self.login_button = ttk.Button(top, command=self.login)
         self.login_button.pack(side="right")
         self.login_label = ttk.Label(top, style="Card.TLabel", foreground=P.added)
-        self.login_label.pack(side="right", padx=px(6))
+        self.login_label.pack(side="right", padx=px(8))
 
         ttk.Label(form, text=t("panel.or_link"), style="Card.TLabel").grid(row=1, column=0, sticky="w", pady=px(2))
         self.link_entry = ttk.Entry(form)
-        self.link_entry.grid(row=1, column=1, sticky="ew", padx=px(6), pady=px(2))
+        self.link_entry.grid(row=1, column=1, sticky="ew", padx=px(8), pady=px(2))
         self.link_entry.bind("<Return>", lambda e: self.add_by_link())
         self.add_button = ttk.Button(form, text=t("panel.add"), command=self.add_by_link)
         self.add_button.grid(row=1, column=2, sticky="ew", pady=px(2))
 
-        ttk.Label(self, style="CardMuted.TLabel", text=t("panel.hint")).pack(anchor="w", pady=(px(14), px(6)))
+        ttk.Label(self, style="CardMuted.TLabel", text=t("panel.hint")).pack(anchor="w", pady=(px(16), px(8)))
 
         table_frame = ttk.Frame(self, style="Card.TFrame")
         table_frame.pack(fill="both", expand=True)
@@ -158,14 +158,14 @@ class PlaylistPanel(ttk.Frame):
         self.table.bind("<Double-1>", self._open_playlist)
 
         footer = ttk.Frame(self, style="Card.TFrame")
-        footer.pack(fill="x", pady=(px(10), 0))
+        footer.pack(fill="x", pady=(px(12), 0))
         ttk.Button(footer, text=t("panel.select_all"), command=lambda: self._set_all(True)).pack(side="left")
         ttk.Button(footer, text=t("panel.clear_selection"),
-                   command=lambda: self._set_all(False)).pack(side="left", padx=px(6))
+                   command=lambda: self._set_all(False)).pack(side="left", padx=px(8))
         self.check_button = ttk.Button(footer, command=self.check, style=f"{self.service.name}.Accent.TButton")
         self.check_button.pack(side="right")
 
-        ttk.Label(self, text=t("panel.last_result"), style="Section.TLabel").pack(anchor="w", pady=(px(14), px(6)))
+        ttk.Label(self, text=t("panel.last_result"), style="Section.TLabel").pack(anchor="w", pady=(px(16), px(8)))
         self.result_box = text_box(self, height=8)
         self.result_box.pack(fill="x")
         for event in EVENTS:
@@ -452,10 +452,10 @@ class App(tk.Tk):
         header.pack(fill="x")
         ttk.Label(header, text=t("app.title"), style="Title.TLabel").pack(side="left")
         ttk.Button(header, text=t("button.settings"), command=self.open_settings).pack(side="right")
-        nav = ttk.Frame(header, padding=px(3), style="Nav.TFrame")
-        nav.pack(side="left", padx=(px(20), 0))
+        nav = ttk.Frame(header, padding=px(4), style="Nav.TFrame")
+        nav.pack(side="left", padx=(px(24), 0))
         self.status_label = ttk.Label(header, text=t("status.ready"), style="Muted.TLabel")
-        self.status_label.pack(side="left", padx=(px(16), 0), pady=(px(5), 0))
+        self.status_label.pack(side="left", padx=(px(16), 0), pady=(px(4), 0))
         self.mini_player = MiniPlayer(self, self.local_tracker, self.open_track_page, header)
 
         # Playlist tracking and listening statistics are separate sections with their own tabs
@@ -513,20 +513,20 @@ class App(tk.Tk):
         ttk.Label(toolbar, text=t("history.source"), style="Card.TLabel").pack(side="left")
         self.source_filter = ttk.Combobox(toolbar, state="readonly", width=10, values=[s.name for s in SERVICES])
         self.source_filter.current(0)
-        self.source_filter.pack(side="left", padx=px(6))
+        self.source_filter.pack(side="left", padx=px(8))
         self.source_filter.bind("<<ComboboxSelected>>", lambda e: self._on_source_changed())
         ttk.Label(toolbar, text=t("history.playlist"), style="Card.TLabel").pack(side="left", padx=(px(12), 0))
         self.playlist_filter = ttk.Combobox(toolbar, state="readonly", width=40)
-        self.playlist_filter.pack(side="left", padx=px(6))
+        self.playlist_filter.pack(side="left", padx=px(8))
         self.playlist_filter.bind("<<ComboboxSelected>>", lambda e: self.refresh_history())
         ttk.Label(toolbar, text=t("history.event"), style="Card.TLabel").pack(side="left", padx=(px(12), 0))
         self.event_filter = ttk.Combobox(toolbar, state="readonly", width=20,
                                          values=[t("history.all")] + [event_label(e) for e in EVENTS])
         self.event_filter.current(0)
-        self.event_filter.pack(side="left", padx=px(6))
+        self.event_filter.pack(side="left", padx=px(8))
         self.event_filter.bind("<<ComboboxSelected>>", lambda e: self.refresh_history())
         ttk.Button(toolbar, text=t("history.export"), command=self._export_csv).pack(side="right")
-        ttk.Button(toolbar, text=t("history.refresh"), command=self.refresh_history).pack(side="right", padx=px(6))
+        ttk.Button(toolbar, text=t("history.refresh"), command=self.refresh_history).pack(side="right", padx=px(8))
 
         table_frame = ttk.Frame(tab, style="Card.TFrame")
         table_frame.pack(fill="both", expand=True, pady=(px(12), 0))
@@ -662,7 +662,7 @@ class App(tk.Tk):
 
         def link(parent, text, url, row):
             label = ttk.Label(parent, text=text, style="Card.TLabel", foreground=P.focus, cursor="hand2")
-            label.grid(row=row, column=0, columnspan=2, sticky="w", pady=(px(4), px(10)))
+            label.grid(row=row, column=0, columnspan=2, sticky="w", pady=(px(4), px(12)))
             label.bind("<Button-1>", lambda e: webbrowser.open(url))
 
         def field(parent, label, key, row, secret=False):

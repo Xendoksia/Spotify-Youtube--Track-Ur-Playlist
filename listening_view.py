@@ -70,10 +70,10 @@ class ListeningView(ttk.Frame):
         self.info_label.pack(side="right")
 
         self.now_label = ttk.Label(tab, style="Card.TLabel")
-        self.now_label.pack(anchor="w", pady=(px(10), 0))
+        self.now_label.pack(anchor="w", pady=(px(12), 0))
 
         table_frame = ttk.Frame(tab, style="Card.TFrame")
-        table_frame.pack(fill="both", expand=True, pady=(px(10), 0))
+        table_frame.pack(fill="both", expand=True, pady=(px(12), 0))
         columns = ("played_at", "track", "artist", "album", "listened", "source")
         self.table = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
         for column, width, anchor in (("played_at", 140, "w"), ("track", 280, "w"), ("artist", 200, "w"),

@@ -122,8 +122,8 @@ class DetailPage(ttk.Frame):
         self.tiles = {}
         for index, name in enumerate(("plays", "time", "first", "last")):
             tiles.columnconfigure(index, weight=1, uniform="tile")
-            tile = ttk.Frame(tiles, padding=(px(14), px(10)), style="Tile.TFrame")
-            tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else px(10), 0))
+            tile = ttk.Frame(tiles, padding=(px(16), px(12)), style="Tile.TFrame")
+            tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else px(12), 0))
             ttk.Label(tile, text=t(f"detail.tile.{name}"), style="CardMuted.TLabel").pack(anchor="w")
             # Dates are longer than numbers, so they get a smaller font
             value = ttk.Label(tile, style="TileValue.TLabel" if name in ("plays", "time") else "Period.TLabel")

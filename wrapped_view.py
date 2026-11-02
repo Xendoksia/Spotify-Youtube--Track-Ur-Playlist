@@ -19,7 +19,7 @@ import tracker
 from charts import Animation, BarList, ColumnChart, count_up
 from i18n import number, t
 from stats_view import duration_text, month_name, period_title, plays_text
-from theme import P, icon, mix, px
+from theme import TYPE, P, icon, mix, px
 
 try:
     from PIL import Image, ImageTk
@@ -33,11 +33,11 @@ AUTO_OPEN = True
 TOP = 5
 IMAGE = 200
 LIST_WIDTH = 620
-BIG_FONT = ("Segoe UI Semibold", 44)
-NAME_FONT = ("Segoe UI Semibold", 24)
-BODY_FONT = ("Segoe UI", 13)
-CAPTION_FONT = ("Segoe UI Semibold", 11)
-TILE_FONT = ("Segoe UI Semibold", 20)
+BIG_FONT = TYPE["big"]
+NAME_FONT = TYPE["name"]
+BODY_FONT = TYPE["lead"]
+CAPTION_FONT = TYPE["heading"]
+TILE_FONT = TYPE["display"]
 # The old slide fades out under a cover, then the parts of the new one fade in one after another
 FADE_OUT_MS = 180
 FADE_IN_MS = 380
@@ -257,7 +257,7 @@ class WrappedView(ttk.Frame):
     def _heading(self, parent, text: str):
         self._label(parent, text, P.text, NAME_FONT)
 
-    def _body(self, parent, text: str, muted: bool = True, pady=(px(6), 0)):
+    def _body(self, parent, text: str, muted: bool = True, pady=(px(8), 0)):
         self._label(parent, text, P.muted if muted else P.text, BODY_FONT, pady=pady)
 
     def _picture(self, parent, path, **shape):
@@ -426,7 +426,7 @@ class WrappedView(ttk.Frame):
             # Plain Tk frames, as their border color can fade in like the text
             tile = tk.Frame(grid, background=P.surface, highlightthickness=1, highlightbackground=P.surface,
                             padx=px(16), pady=px(12))
-            tile.grid(row=index // 2, column=index % 2, sticky="nsew", padx=px(6), pady=px(6))
+            tile.grid(row=index // 2, column=index % 2, sticky="nsew", padx=px(8), pady=px(8))
             caption_label = ttk.Label(tile, text=caption, style="Card.TLabel")
             caption_label.pack(anchor="w")
             value_label = ttk.Label(tile, text=value, style="Card.TLabel", font=TILE_FONT, wraplength=px(270))
