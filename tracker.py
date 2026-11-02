@@ -40,7 +40,7 @@ CONFIG_PATH = BASE_DIR / "config.json"
 
 DEFAULT_MARKET = "TR"
 REDIRECT_URI = "http://127.0.0.1:8888/callback"
-SCOPES = "playlist-read-private playlist-read-collaborative user-read-recently-played"
+SCOPES = "playlist-read-private playlist-read-collaborative"
 API_URL = "https://api.spotify.com/v1"
 AUTH_URL = "https://accounts.spotify.com/authorize"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
@@ -200,7 +200,6 @@ class SpotifyClient:
         me = self.get("/me")
         config = load_config()
         config["REFRESH_TOKEN"] = data["refresh_token"]
-        config["SCOPE"] = data.get("scope", "")
         config["USER"] = me.get("display_name") or me.get("id")
         save_config(config)
         return config["USER"]

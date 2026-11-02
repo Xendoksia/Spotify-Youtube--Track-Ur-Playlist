@@ -1,50 +1,57 @@
 """
-Spotify listening history (core + command line).
+Listening history (core + command line).
 
-Spotify only exposes the last 50 played tracks, so each sync stores new plays in
-listening.db and all statistics are counted from those recorded plays.
-A play counts once Spotify registers it (after about 30 seconds of listening).
+Plays are stored in listening.db and come from:
+  - this computer: nowplaying.py records what the Spotify desktop app plays, no API involved
+  - Spotify's data export (my_spotify_data.zip): plays from other devices and from before tracking started
+A play found in both sources is stored once. All statistics are counted from these plays.
 
 Command line usage:
-    python listening.py sync                          Store new plays from Spotify
+    python listening.py import <zip or json> [...]    Import a Spotify data export
     python listening.py recent                        Show the last recorded plays
     python listening.py stats [week|month|year|all]   Show the most played tracks and artists
 """
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import sys
+import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Iterable
 
 import tracker
 from i18n import t
-from tracker import BASE_DIR, LoginRequired, SpotifyError, TrackerError, load_config
+from tracker import BASE_DIR, TrackerError, load_config
 
 DB_PATH = BASE_DIR / "listening.db"
-REQUIRED_SCOPE = "user-read-recently-played"
 PERIODS = ("week", "month", "year", "all")
 UTC_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+SOURCE_LOCAL = "local"
+SOURCE_EXPORT = "export"
+SOURCE_SPOTIFY = "spotify"  # plays read from Spotify's recently played list by an earlier version
+# Spotify counts a stream as a play after 30 seconds; shorter export entries are skips
+MIN_PLAY_MS = 30_000
+# Sources record slightly different times for the same play (its start or end), so plays of the same
+# track closer than its length plus this margin are matched
+MATCH_MARGIN = timedelta(minutes=3)
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS plays (
-    played_at TEXT PRIMARY KEY,
-    track_id TEXT,
-    name TEXT, artist TEXT, album TEXT,
-    duration_ms INTEGER,
-    context_type TEXT, context_uri TEXT
+CREATE TABLE IF NOT EXISTS listens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    played_at TEXT NOT NULL,
+    source TEXT NOT NULL,
+    artist TEXT, name TEXT, album TEXT,
+    artist_key TEXT NOT NULL,
+    track_key TEXT NOT NULL,
+    ms_played INTEGER,
+    UNIQUE (source, played_at, track_key)
 );
-CREATE TABLE IF NOT EXISTS play_artists (
-    played_at TEXT,
-    position INTEGER,
-    artist_id TEXT,
-    artist_name TEXT,
-    PRIMARY KEY (played_at, position)
-);
-CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
-CREATE INDEX IF NOT EXISTS plays_track ON plays (track_id);
-CREATE INDEX IF NOT EXISTS play_artists_artist ON play_artists (artist_id);
+CREATE INDEX IF NOT EXISTS listens_time ON listens (played_at);
+CREATE INDEX IF NOT EXISTS listens_track ON listens (track_key, played_at);
+CREATE INDEX IF NOT EXISTS listens_artist ON listens (artist_key);
 """
 
 
@@ -52,83 +59,126 @@ def open_db(db_path: Path = DB_PATH) -> sqlite3.Connection:
     db = sqlite3.connect(db_path)
     db.row_factory = sqlite3.Row
     db.executescript(SCHEMA)
+    _migrate(db)
     return db
 
 
-def needs_login(config: dict) -> bool:
-    """Sessions created before listening history existed lack the recently-played permission."""
-    return not config.get("REFRESH_TOKEN") or REQUIRED_SCOPE not in config.get("SCOPE", "").split()
+def _migrate(db: sqlite3.Connection) -> None:
+    """Move plays stored by the earlier Spotify-only version into the listens table."""
+    if not db.execute("SELECT 1 FROM sqlite_master WHERE name = 'plays'").fetchone():
+        return
+    for p in db.execute("SELECT * FROM plays").fetchall():
+        first_artist = db.execute("SELECT artist_name FROM play_artists WHERE played_at = ? ORDER BY position",
+                                  (p["played_at"],)).fetchone()
+        _insert(db, {"played_at": p["played_at"], "artist": first_artist[0] if first_artist else p["artist"],
+                     "name": p["name"], "album": p["album"], "ms_played": None,
+                     "length_ms": p["duration_ms"]}, SOURCE_SPOTIFY)
+    db.executescript("DROP TABLE plays; DROP TABLE play_artists; DROP TABLE IF EXISTS meta;")
+    db.commit()
+
+
+def key(text: str) -> str:
+    return " ".join((text or "").casefold().split())
 
 
 def to_utc(moment: datetime) -> str:
     return moment.astimezone(timezone.utc).strftime(UTC_FORMAT)
 
 
-def fetch_recent(client) -> list[dict]:
-    """Return the last 50 plays of the logged-in user, oldest first."""
-    if needs_login(load_config()):
-        raise LoginRequired(t("listening.login_again"))
+def from_utc(text: str) -> datetime:
+    return datetime.strptime(text, UTC_FORMAT).replace(tzinfo=timezone.utc)
+
+
+def _insert(db: sqlite3.Connection, play: dict, source: str) -> bool:
+    """Store a play unless it is already recorded, by this or another source; return True if stored."""
+    artist_key, track_key = key(play["artist"]), key(play["artist"]) + "|" + key(play["name"])
+    moment = from_utc(play["played_at"])
+    window = MATCH_MARGIN + timedelta(milliseconds=play.get("length_ms") or play.get("ms_played") or 0)
+    duplicate = db.execute(
+        "SELECT 1 FROM listens WHERE track_key = ? AND source != ? AND played_at BETWEEN ? AND ? LIMIT 1",
+        (track_key, source, to_utc(moment - window), to_utc(moment + window))).fetchone()
+    if duplicate:
+        return False
+    cursor = db.execute(
+        "INSERT OR IGNORE INTO listens (played_at, source, artist, name, album, artist_key, track_key, ms_played) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (play["played_at"], source, play["artist"], play["name"], play["album"], artist_key, track_key,
+         play.get("ms_played")))
+    return cursor.rowcount > 0
+
+
+def record_local(play: dict, db_path: Path = DB_PATH) -> int | None:
+    """Store a play detected on this computer; return its id, or None if the export already has it."""
+    with open_db(db_path) as db:
+        if _insert(db, {**play, "ms_played": play["ms"]}, SOURCE_LOCAL):
+            return db.execute("SELECT last_insert_rowid()").fetchone()[0]
+    return None
+
+
+def update_local(play_id: int, ms_played: int, db_path: Path = DB_PATH) -> None:
+    with open_db(db_path) as db:
+        db.execute("UPDATE listens SET ms_played = ? WHERE id = ?", (ms_played, play_id))
+
+
+def _export_records(paths: Iterable[str]) -> Iterable[dict]:
+    """Read streaming history entries from export zips or the JSON files inside them."""
+    def wanted(name: str) -> bool:
+        base = Path(name).name
+        return base.endswith(".json") and base.startswith(("Streaming_History_Audio", "StreamingHistory")) \
+            and "podcast" not in base.lower() and "video" not in base.lower()
+
+    for path in paths:
+        if zipfile.is_zipfile(path):
+            with zipfile.ZipFile(path) as archive:
+                for name in sorted(n for n in archive.namelist() if wanted(n)):
+                    yield from json.loads(archive.read(name).decode("utf-8"))
+        else:
+            yield from json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _export_play(record: dict) -> dict | None:
+    # Extended streaming history uses ts/ms_played, the yearly account data endTime/msPlayed
+    if "ts" in record:
+        name, artist = record.get("master_metadata_track_name"), record.get("master_metadata_album_artist_name")
+        album, ms, end = record.get("master_metadata_album_album_name"), record.get("ms_played"), record["ts"]
+        ended = datetime.fromisoformat(end.replace("Z", "+00:00"))
+    elif "endTime" in record:
+        name, artist, album, ms = record.get("trackName"), record.get("artistName"), "", record.get("msPlayed")
+        ended = datetime.strptime(record["endTime"], "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+    else:
+        return None
+    if not name or not artist or (ms or 0) < MIN_PLAY_MS:
+        return None
+    # The export stores when a stream ended, Last.fm when it started
+    return {"played_at": to_utc(ended - timedelta(milliseconds=ms)), "artist": artist, "name": name,
+            "album": album or "", "ms_played": ms}
+
+
+def import_export(paths: Iterable[str], db_path: Path = DB_PATH) -> tuple[int, int]:
+    """Import a Spotify data export; return (stored, skipped as already recorded)."""
+    stored = found = 0
     try:
-        page = client.get("/me/player/recently-played?limit=50")
-    except SpotifyError as error:
-        if error.status in (401, 403):
-            raise LoginRequired(t("listening.login_again"), error.status)
-        raise
-    plays = []
-    for item in page.get("items") or []:
-        track = item.get("track") or {}
-        if not item.get("played_at") or not track:
-            continue
-        context = item.get("context") or {}
-        artists = [a for a in track.get("artists") or [] if a.get("name")]
-        plays.append({
-            "played_at": to_utc(datetime.fromisoformat(item["played_at"].replace("Z", "+00:00"))),
-            # Local files have no id, their uri is stable instead
-            "track_id": track.get("id") or track.get("uri") or track.get("name"),
-            "name": track.get("name") or "(untitled)",
-            "artist": ", ".join(a["name"] for a in artists),
-            "album": (track.get("album") or {}).get("name") or "",
-            "duration_ms": track.get("duration_ms") or 0,
-            "context_type": context.get("type") or "",
-            "context_uri": context.get("uri") or "",
-            "artists": [(a.get("id") or a["name"], a["name"]) for a in artists],
-        })
-    return sorted(plays, key=lambda p: p["played_at"])
+        with open_db(db_path) as db:
+            for record in _export_records(paths):
+                play = _export_play(record) if isinstance(record, dict) else None
+                if play:
+                    found += 1
+                    stored += _insert(db, play, SOURCE_EXPORT)
+    except (ValueError, KeyError, OSError, zipfile.BadZipFile) as error:
+        raise TrackerError(t("listening.import_failed", error=error))
+    if not found:
+        raise TrackerError(t("listening.import_nothing"))
+    return stored, found - stored
 
 
-def sync(client, db_path: Path = DB_PATH) -> int:
-    """Store plays that are not recorded yet and return how many were new."""
-    plays = fetch_recent(client)
-    new = 0
+def counts(db_path: Path = DB_PATH) -> dict[str, int]:
     with open_db(db_path) as db:
-        for p in plays:
-            cursor = db.execute(
-                "INSERT OR IGNORE INTO plays (played_at, track_id, name, artist, album, duration_ms, "
-                "context_type, context_uri) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (p["played_at"], p["track_id"], p["name"], p["artist"], p["album"], p["duration_ms"],
-                 p["context_type"], p["context_uri"]),
-            )
-            if cursor.rowcount:
-                new += 1
-                db.executemany(
-                    "INSERT OR IGNORE INTO play_artists (played_at, position, artist_id, artist_name) "
-                    "VALUES (?, ?, ?, ?)",
-                    [(p["played_at"], i, artist_id, name) for i, (artist_id, name) in enumerate(p["artists"])],
-                )
-        db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_sync', ?)",
-                   (datetime.now().astimezone().isoformat(timespec="seconds"),))
-    return new
-
-
-def last_sync(db_path: Path = DB_PATH) -> str | None:
-    with open_db(db_path) as db:
-        row = db.execute("SELECT value FROM meta WHERE key = 'last_sync'").fetchone()
-        return row["value"] if row else None
+        return {r[0]: r[1] for r in db.execute("SELECT source, COUNT(*) FROM listens GROUP BY source")}
 
 
 def recent_plays(limit: int = 200, db_path: Path = DB_PATH) -> list[dict]:
     with open_db(db_path) as db:
-        return [dict(r) for r in db.execute("SELECT * FROM plays ORDER BY played_at DESC LIMIT ?", (limit,))]
+        return [dict(r) for r in db.execute("SELECT * FROM listens ORDER BY played_at DESC LIMIT ?", (limit,))]
 
 
 def period_range(period: str, offset: int = 0, now: datetime | None = None) -> tuple[datetime, datetime]:
@@ -155,34 +205,26 @@ def _range(start: datetime, end: datetime) -> tuple[str, str]:
 
 def summary(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
     with open_db(db_path) as db:
-        row = db.execute(
-            "SELECT COUNT(*) AS plays, COALESCE(SUM(duration_ms), 0) / 60000 AS minutes, "
-            "COUNT(DISTINCT track_id) AS tracks FROM plays WHERE played_at >= ? AND played_at < ?",
-            _range(start, end)).fetchone()
-        artists = db.execute(
-            "SELECT COUNT(DISTINCT a.artist_id) FROM play_artists a JOIN plays p USING (played_at) "
-            "WHERE p.played_at >= ? AND p.played_at < ?", _range(start, end)).fetchone()[0]
-    return {**dict(row), "artists": artists}
+        return dict(db.execute(
+            "SELECT COUNT(*) AS plays, COALESCE(SUM(ms_played), 0) / 60000 AS minutes, "
+            "COUNT(DISTINCT track_key) AS tracks, COUNT(DISTINCT artist_key) AS artists "
+            "FROM listens WHERE played_at >= ? AND played_at < ?", _range(start, end)).fetchone())
 
 
 def top_tracks(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
-            "SELECT track_id, name, artist, COUNT(*) AS plays, SUM(duration_ms) / 60000 AS minutes, "
-            "MAX(played_at) AS last_played FROM plays WHERE played_at >= ? AND played_at < ? "
-            "GROUP BY track_id ORDER BY plays DESC, minutes DESC, last_played DESC LIMIT ?",
-            (*_range(start, end), limit))]
+            "SELECT MAX(name) AS name, MAX(artist) AS artist, COUNT(*) AS plays, MAX(played_at) AS last_played "
+            "FROM listens WHERE played_at >= ? AND played_at < ? "
+            "GROUP BY track_key ORDER BY plays DESC, last_played DESC LIMIT ?", (*_range(start, end), limit))]
 
 
 def top_artists(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
-    """Every artist of a track gets the play, so features count for both artists."""
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
-            "SELECT a.artist_id, MAX(a.artist_name) AS name, COUNT(*) AS plays, "
-            "SUM(p.duration_ms) / 60000 AS minutes, COUNT(DISTINCT p.track_id) AS tracks "
-            "FROM play_artists a JOIN plays p USING (played_at) WHERE p.played_at >= ? AND p.played_at < ? "
-            "GROUP BY a.artist_id ORDER BY plays DESC, minutes DESC LIMIT ?",
-            (*_range(start, end), limit))]
+            "SELECT MAX(artist) AS name, COUNT(*) AS plays, COUNT(DISTINCT track_key) AS tracks "
+            "FROM listens WHERE played_at >= ? AND played_at < ? "
+            "GROUP BY artist_key ORDER BY plays DESC, MAX(played_at) DESC LIMIT ?", (*_range(start, end), limit))]
 
 
 def timeline(start: datetime, end: datetime, bucket: str, db_path: Path = DB_PATH) -> dict[str, int]:
@@ -190,19 +232,19 @@ def timeline(start: datetime, end: datetime, bucket: str, db_path: Path = DB_PAT
     pattern = "%Y-%m-%d" if bucket == "day" else "%Y-%m"
     with open_db(db_path) as db:
         return {r[0]: r[1] for r in db.execute(
-            "SELECT strftime(?, played_at, 'localtime') AS bucket, COUNT(*) FROM plays "
+            "SELECT strftime(?, played_at, 'localtime') AS bucket, COUNT(*) FROM listens "
             "WHERE played_at >= ? AND played_at < ? GROUP BY bucket", (pattern, *_range(start, end)))}
 
 
 def hours(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list[int]:
     """Plays per local hour of the day, 0-23."""
-    counts = [0] * 24
+    counts_by_hour = [0] * 24
     with open_db(db_path) as db:
         for hour, count in db.execute(
-                "SELECT CAST(strftime('%H', played_at, 'localtime') AS INTEGER), COUNT(*) FROM plays "
+                "SELECT CAST(strftime('%H', played_at, 'localtime') AS INTEGER), COUNT(*) FROM listens "
                 "WHERE played_at >= ? AND played_at < ? GROUP BY 1", _range(start, end)):
-            counts[hour] = count
-    return counts
+            counts_by_hour[hour] = count
+    return counts_by_hour
 
 
 def main() -> None:
@@ -211,16 +253,17 @@ def main() -> None:
         return
     command, args = sys.argv[1].lower(), sys.argv[2:]
     try:
-        if command == "sync":
-            print(f"{sync(tracker.connect())} new plays stored.")
+        if command == "import" and args:
+            stored, skipped = import_export(args)
+            print(f"{stored} plays imported, {skipped} were already recorded.")
         elif command == "recent":
             for p in reversed(recent_plays(30)):
-                print(f"{tracker.format_date(p['played_at'])}  {tracker.track_label(p)}")
+                print(f"{tracker.format_date(p['played_at'])}  [{p['source']}]  {tracker.track_label(p)}")
         elif command == "stats" and (not args or args[0] in PERIODS):
             start, end = period_range(args[0] if args else "week")
             s = summary(start, end)
             print(f"{start:%Y-%m-%d} – {end - timedelta(seconds=1):%Y-%m-%d}: {s['plays']} plays, "
-                  f"~{s['minutes']} minutes, {s['tracks']} tracks, {s['artists']} artists\n")
+                  f"{s['minutes']} minutes, {s['tracks']} tracks, {s['artists']} artists\n")
             print("Top tracks:")
             for i, r in enumerate(top_tracks(start, end), 1):
                 print(f"  {i:>2}. {r['plays']:>4}×  {tracker.track_label(r)}")

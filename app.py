@@ -15,11 +15,12 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
 import i18n
+import nowplaying
 import theme
 import tracker
 import youtube
 from i18n import t
-from listening_view import ListeningView
+from listening_view import ListeningView, tracking_enabled
 from theme import FONT_BOLD, P, text_box
 from tracker import TrackerError, format_date, track_label
 
@@ -244,9 +245,6 @@ class PlaylistPanel(ttk.Frame):
 
         def on_success(user):
             self.app.set_status(t("status.logged_in", service=self.service.name, user=user))
-            if self.service is SPOTIFY:
-                self.app.listening.refresh()
-                self.app.listening.auto_sync()
             self.load_my_playlists()
 
         self.run(lambda: self.service.connect().login(), on_success)
@@ -358,8 +356,9 @@ class PlaylistPanel(ttk.Frame):
 
 
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self, local_tracker: nowplaying.LocalTracker):
         super().__init__()
+        self.local_tracker = local_tracker
         config = tracker.load_config()
         i18n.set_language(config.get("LANGUAGE"))
         self.title(t("app.title"))
@@ -393,7 +392,7 @@ class App(tk.Tk):
         playlist_section = ttk.Frame(self)
         self.tabs = ttk.Notebook(playlist_section)
         self.tabs.pack(fill="both", expand=True)
-        self.listening = ListeningView(self, self, SPOTIFY)
+        self.listening = ListeningView(self, self, self.local_tracker)
         for name, frame in (("playlists", playlist_section), ("listening", self.listening)):
             button = ttk.Button(nav, text=t(f"nav.{name}"), style="Nav.TButton",
                                 command=lambda name=name: self.show_section(name))
@@ -476,11 +475,11 @@ class App(tk.Tk):
                 button.configure(state=state)
         self.configure(cursor="watch" if busy else "")
 
-    def run_in_background(self, panel, task, on_success):
+    def run_in_background(self, panel, task, on_success, needs_credentials=True):
         """Run network work on a worker thread so the window stays responsive."""
         if self.busy:
             return
-        if not panel.service.has_credentials(tracker.load_config()):
+        if needs_credentials and not panel.service.has_credentials(tracker.load_config()):
             self.open_settings(panel.service)
             return
         self._set_busy(True)
@@ -665,11 +664,18 @@ class App(tk.Tk):
 
 
 def main():
-    while True:
-        app = App()
-        app.mainloop()
-        if not app.restart:
-            break
+    # The tracker outlives windows rebuilt after a language or theme change, so a song keeps being one play
+    local_tracker = nowplaying.LocalTracker()
+    if tracking_enabled(tracker.load_config()):
+        local_tracker.start()
+    try:
+        while True:
+            app = App(local_tracker)
+            app.mainloop()
+            if not app.restart:
+                break
+    finally:
+        local_tracker.stop()
 
 
 if __name__ == "__main__":

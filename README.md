@@ -22,10 +22,12 @@ and compares it with the previous one, so the title, artist and original add dat
   original title is kept even after YouTube replaces it with "Deleted video"
 - History view filterable by source (Spotify / YouTube), playlist and event type
 - Export the history to a CSV file that opens in Excel
-- **Listening history** in its own section: every Spotify play is recorded, so your most played tracks and
-  artists are counted from your own plays
+- **Listening history** in its own section, without the Spotify API: what the Spotify desktop app plays on
+  this computer is recorded with the time actually listened, so your most played tracks and artists are
+  counted from your own plays. Plays from your phone and from before can be imported from Spotify's data export.
 - English and Turkish interface, light and dark theme (or follow the Windows setting), under **Settings → General**
-- No dependencies: only the Python standard library is used
+- Only the Python standard library is needed. On Windows, `pip install -r requirements.txt` lets listening
+  history read the album and playback position too; without it the Spotify window title is used.
 
 ## Requirements
 
@@ -103,7 +105,7 @@ python youtube.py check https://www.youtube.com/playlist?list=...
 python youtube.py history
 python youtube.py export youtube_history.csv
 
-python listening.py sync                                         # store new Spotify plays
+python listening.py import my_spotify_data.zip                   # import a Spotify data export
 python listening.py stats month                                  # most played this week/month/year/all
 ```
 
@@ -129,9 +131,9 @@ your Client ID and Client Secret.
   **own or collaborate on**. Playlists of other users cannot be checked, even if you follow them.
 - **Check frequency:** the app only checks when you run it. A removal is reported as having happened
   "between the previous check and this one".
-- **Listening history:** Spotify only shares the last 50 plays, so the app has to sync at least every couple
-  of hours (it does so every 30 minutes while open). Plays from before you started are not available. Sessions
-  created before this feature lack the permission, so log in to Spotify once more.
+- **Listening history:** only the Spotify desktop app on Windows is recorded, and only while this app is open.
+  A song counts after 30 seconds of listening. For your phone and earlier plays, request your data at
+  spotify.com/account/privacy (the "Extended streaming history" covers your whole account) and import the zip.
 - **YouTube:** "Watch later" and automatic Mixes cannot be read through the API. The free API quota
   (10,000 units per day) is enough for thousands of checks. While your Google OAuth app is in testing mode,
   Google ends the session after 7 days and you need to log in again.
@@ -147,7 +149,7 @@ All data stays on your computer, in the app folder:
 | `config.json` | API keys, client secrets and sessions. **Do not share it.** |
 | `history.db` | History of your Spotify playlists and changes (SQLite) |
 | `youtube_history.db` | History of your YouTube playlists and changes (SQLite) |
-| `listening.db` | Your recorded Spotify plays (SQLite) |
+| `listening.db` | Your recorded and imported plays (SQLite) |
 
 All of them are listed in `.gitignore` and are never committed. The app does not connect to anything other than
 Spotify and Google / YouTube.
@@ -161,7 +163,8 @@ Spotify and Google / YouTube.
 | `i18n.py` | English and Turkish interface texts |
 | `tracker.py` | Spotify client, diff logic, database and command line |
 | `youtube.py` | YouTube client and command line |
-| `listening.py` | Spotify listening history: sync, statistics and command line |
+| `listening.py` | Listening history: storage, data export import, statistics and command line |
+| `nowplaying.py` | Records what the Spotify desktop app plays, without the API |
 | `listening_view.py` | Listening section of the interface |
 | `Spotify Playlist Tracker.bat` | Double-click launcher for Windows |
 | `config.example.json` | Sample configuration file |

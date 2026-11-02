@@ -1,0 +1,4 @@
+# Optional: lets listening history read album and playback position from Windows' media controls
+winrt-runtime; sys_platform == "win32"
+winrt-Windows.Foundation; sys_platform == "win32"
+winrt-Windows.Media.Control; sys_platform == "win32"

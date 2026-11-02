@@ -112,6 +112,12 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     style.configure("Banner.TFrame", background=P.banner)
     style.configure("Banner.TLabel", background=P.banner, foreground=P.banner_text)
     style.configure("Nav.TFrame", background=P.nav)
+    style.configure("Card.TCheckbutton", background=P.surface, foreground=P.text, indicatorbackground=P.surface,
+                    indicatorforeground=P.text, upperbordercolor=P.border, lowerbordercolor=P.border,
+                    focusthickness=0, padding=(0, 4))
+    style.map("Card.TCheckbutton", background=[("active", P.surface)],
+              indicatorbackground=[("selected", P.focus), ("active", P.hover)],
+              indicatorforeground=[("selected", "#ffffff")])
 
     _button_style(style, "TButton", P.surface, P.text, P.border, P.hover, P.bg, P.button_disabled_text)
     _button_style(style, "Accent.TButton", P.focus, "#ffffff", P.focus, P.focus_active, P.disabled,
