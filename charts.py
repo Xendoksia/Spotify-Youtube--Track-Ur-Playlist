@@ -26,6 +26,13 @@ ANIMATION_MS = 450
 FRAME_MS = 16
 
 
+def mix(color: str, other: str, amount: float) -> str:
+    """The color amount of the way from color to other (both #rrggbb)."""
+    a = [int(color[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(other[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(x + (y - x) * amount):02x}" for x, y in zip(a, b))
+
+
 def ease_out(progress: float) -> float:
     return 1 - (1 - progress) ** 3
 
@@ -33,8 +40,8 @@ def ease_out(progress: float) -> float:
 class Animation:
     """Calls step(progress) on every frame, progress easing from 0 to 1; starting again restarts it."""
 
-    def __init__(self, widget: tk.Misc, step: Callable[[float], None]):
-        self.widget, self.step = widget, step
+    def __init__(self, widget: tk.Misc, step: Callable[[float], None], duration_ms: int = ANIMATION_MS):
+        self.widget, self.step, self.duration_ms = widget, step, duration_ms
         self._job = None
         self._started = 0.0
 
@@ -49,7 +56,7 @@ class Animation:
             self._job = None
 
     def _frame(self):
-        progress = min(1.0, (time.monotonic() - self._started) * 1000 / ANIMATION_MS)
+        progress = min(1.0, (time.monotonic() - self._started) * 1000 / self.duration_ms)
         self._job = None
         self.step(ease_out(progress))
         if progress < 1:

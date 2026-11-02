@@ -153,6 +153,12 @@ class Fetcher:
 
 def photo(path: Path | None, size: int, background: str, round_: bool = False, radius: int = 6):
     """Return a Tk image of the file cropped to a square with rounded corners or a circle, or None."""
+    result = picture(path, size, background, round_, radius)
+    return ImageTk.PhotoImage(result) if result is not None else None
+
+
+def picture(path: Path | None, size: int, background: str, round_: bool = False, radius: int = 6):
+    """Like photo(), as a Pillow image."""
     if not available or not path or not path.exists():
         return None
     try:
@@ -173,4 +179,4 @@ def photo(path: Path | None, size: int, background: str, round_: bool = False, r
     mask = mask.resize((size, size), Image.LANCZOS)
     result = Image.new("RGB", (size, size), background)
     result.paste(image, (0, 0), mask)
-    return ImageTk.PhotoImage(result)
+    return result
