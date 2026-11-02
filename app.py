@@ -23,6 +23,7 @@ import tracker
 import youtube
 from i18n import t
 from listening_view import ListeningView, set_tracking, tracking_enabled
+from mini_player import MiniPlayer
 from theme import FONT_BOLD, P, px, text_box
 from tracker import TrackerError, format_date, track_label
 
@@ -442,6 +443,7 @@ class App(tk.Tk):
         nav.pack(side="left", padx=(px(20), 0))
         self.status_label = ttk.Label(header, text=t("status.ready"), style="Muted.TLabel")
         self.status_label.pack(side="left", padx=(px(16), 0), pady=(px(5), 0))
+        self.mini_player = MiniPlayer(self, self.local_tracker, self.open_track_page, header)
 
         # Playlist tracking and listening statistics are separate sections with their own tabs
         playlist_section = ttk.Frame(self)
@@ -462,6 +464,11 @@ class App(tk.Tk):
         self.tabs.select(0)
         self.update_history_filter()
         self.show_section("playlists")
+
+    def open_track_page(self, track_key: str):
+        self.show_section("listening")
+        self.listening.tabs.select(self.listening.stats)
+        self.listening.stats.open_detail("track_key", track_key)
 
     def show_section(self, name):
         for key, (frame, button) in self.sections.items():

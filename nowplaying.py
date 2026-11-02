@@ -34,6 +34,7 @@ class Snapshot:
     album: str
     playing: bool
     position_ms: int | None = None
+    duration_ms: int | None = None
 
     @property
     def key(self) -> str:
@@ -96,7 +97,9 @@ async def _read_media_session() -> Snapshot | None:
         if playing:
             # Windows only updates the position on events, so add the time since the last update
             position += (datetime.now(timezone.utc) - timeline.last_updated_time).total_seconds() * 1000
-        return Snapshot(props.artist or "", props.title or "", props.album_title or "", playing, int(position))
+        duration = (timeline.end_time - timeline.start_time).total_seconds() * 1000
+        return Snapshot(props.artist or "", props.title or "", props.album_title or "", playing, int(position),
+                        int(duration) if duration > 0 else None)
     return None
 
 
@@ -230,12 +233,17 @@ class LocalTracker:
                 "key": snapshot.key, "artist": snapshot.artist, "name": snapshot.title,
                 "album": snapshot.album, "played_at": listening.to_utc(started),
                 "ms": 0, "saved_ms": 0, "id": None, "position": snapshot.position_ms,
+                "duration": snapshot.duration_ms,
             }
             elapsed_ms = 0
 
         if snapshot.playing:
             play["ms"] += min(elapsed_ms, MAX_TICK_MS)
         play["position"] = snapshot.position_ms
+        # The time it was read, so the mini player can move its progress bar between reads
+        play["position_at"] = now
+        if snapshot.duration_ms:
+            play["duration"] = snapshot.duration_ms
         if not play["album"] and snapshot.album:
             play["album"] = snapshot.album
         self.state = "playing" if snapshot.playing else "paused"

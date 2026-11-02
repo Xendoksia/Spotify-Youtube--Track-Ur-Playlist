@@ -33,6 +33,8 @@ and compares it with the previous one, so the title, artist and original add dat
   artist's most played tracks. An artist's page also says in a sentence or two what kind of band or artist it is,
   where and when it started and who its members are (from MusicBrainz, no account needed). Pages open in the statistics tab, with back / forward buttons (Alt+← / Alt+→) and
   a close button (Esc).
+- **Mini player:** a strip along the bottom of the window shows the song playing in Spotify with its cover and
+  progress; clicking it opens the song's page.
 - **Runs in the background:** closing the window keeps the app in the system tray, where recording can be
   paused; it can also start with Windows. Only one copy runs at a time, opening it again shows the window.
 - English and Turkish interface, light and dark theme (or follow the Windows setting), under **Settings → General**
