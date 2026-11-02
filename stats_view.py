@@ -130,8 +130,9 @@ class Hero(tk.Canvas):
     SUBTITLE_FONT = TYPE["lead"]
     TEXT_FONT = TYPE["body"]
 
-    def __init__(self, parent, caption: str, round_image: bool):
-        super().__init__(parent, height=px(self.IMAGE_SIZE + 2 * self.PADDING), background=P.surface,
+    def __init__(self, parent, caption: str, round_image: bool, image_size: int = IMAGE_SIZE):
+        self.image_size = image_size
+        super().__init__(parent, height=px(image_size + 2 * self.PADDING), background=P.surface,
                          highlightthickness=0)
         self.caption = caption.upper()
         self.round_image = round_image
@@ -232,7 +233,7 @@ class Hero(tk.Canvas):
             return
         self.delete("all")
         self._images = []
-        content, pad, size = self._content, px(self.PADDING), px(self.IMAGE_SIZE)
+        content, pad, size = self._content, px(self.PADDING), px(self.image_size)
 
         if content["path"] is not None:
             image = artwork.picture(content["path"], size, None, round_=self.round_image, radius=px(10))

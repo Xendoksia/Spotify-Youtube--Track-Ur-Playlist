@@ -319,13 +319,15 @@ def artist_titles(artist_key: str, db_path: Path = DB_PATH) -> set[str]:
     return {title for row in rows for title in row if title}
 
 
-def hours(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list[int]:
-    """Plays per local hour of the day, 0-23."""
+def hours(start: datetime, end: datetime, column: str | None = None, key: str | None = None,
+          db_path: Path = DB_PATH) -> list[int]:
+    """Plays per local hour of the day, 0-23, optionally of one track, artist or album."""
+    where, params = _filter(column, key) if column else ("1", ())
     counts_by_hour = [0] * 24
     with open_db(db_path) as db:
         for hour, count in db.execute(
                 "SELECT CAST(strftime('%H', played_at, 'localtime') AS INTEGER), COUNT(*) FROM listens "
-                "WHERE played_at >= ? AND played_at < ? GROUP BY 1", _range(start, end)):
+                f"WHERE played_at >= ? AND played_at < ? AND {where} GROUP BY 1", (*_range(start, end), *params)):
             counts_by_hour[hour] = count
     return counts_by_hour
 
