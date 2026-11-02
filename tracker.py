@@ -50,10 +50,14 @@ EVENT_PLAYABLE = "PLAYABLE_AGAIN"
 EVENT_INITIAL = "INITIAL_SNAPSHOT"
 
 
-class SpotifyError(Exception):
+class TrackerError(Exception):
     def __init__(self, message: str, status: int | None = None):
         super().__init__(message)
         self.status = status
+
+
+class SpotifyError(TrackerError):
+    pass
 
 
 class LoginRequired(SpotifyError):
@@ -72,6 +76,43 @@ def save_config(config: dict) -> None:
 
 def market() -> str:
     return load_config().get("MARKET") or DEFAULT_MARKET
+
+
+def start_redirect_server(port: int) -> tuple[HTTPServer, dict]:
+    """Start a local server that captures the OAuth redirect; port 0 picks a free port."""
+    params: dict[str, str] = {}
+
+    class CallbackHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            query = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).items()}
+            if "code" not in query and "error" not in query:
+                self.send_response(404)
+                self.end_headers()
+                return
+            params.update(query)
+            message = ("Login complete. You can close this tab and return to the app." if "code" in params
+                       else "Login was cancelled or failed.")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(f"<html><body style='font-family:sans-serif;padding:40px'>"
+                             f"<h2>{message}</h2></body></html>".encode("utf-8"))
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", port), CallbackHandler)
+    server.timeout = 1
+    return server, params
+
+
+def wait_for_redirect(server: HTTPServer, params: dict, timeout: int) -> None:
+    deadline = time.time() + timeout
+    try:
+        while "code" not in params and "error" not in params and time.time() < deadline:
+            server.handle_request()
+    finally:
+        server.server_close()
 
 
 class SpotifyClient:
@@ -127,32 +168,10 @@ class SpotifyClient:
     def login(self, timeout: int = 180) -> str:
         """Run the OAuth authorization code flow through the browser and store the session."""
         state = secrets.token_urlsafe(16)
-        params: dict[str, str] = {}
-
-        class CallbackHandler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                url = urllib.parse.urlparse(self.path)
-                if url.path != "/callback":
-                    self.send_response(404)
-                    self.end_headers()
-                    return
-                params.update({k: v[0] for k, v in urllib.parse.parse_qs(url.query).items()})
-                message = ("Login complete. You can close this tab and return to the app." if "code" in params
-                           else "Login was cancelled or failed.")
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(f"<html><body style='font-family:sans-serif;padding:40px'>"
-                                 f"<h2>{message}</h2></body></html>".encode("utf-8"))
-
-            def log_message(self, *args):
-                pass
-
         try:
-            server = HTTPServer(("127.0.0.1", 8888), CallbackHandler)
+            server, params = start_redirect_server(8888)
         except OSError:
             raise SpotifyError("Port 8888 is in use. Close any other open login window and try again.")
-        server.timeout = 1
         webbrowser.open(AUTH_URL + "?" + urllib.parse.urlencode({
             "client_id": self.client_id,
             "response_type": "code",
@@ -160,12 +179,7 @@ class SpotifyClient:
             "scope": SCOPES,
             "state": state,
         }))
-        deadline = time.time() + timeout
-        try:
-            while "code" not in params and "error" not in params and time.time() < deadline:
-                server.handle_request()
-        finally:
-            server.server_close()
+        wait_for_redirect(server, params, timeout)
 
         if "error" in params:
             if params["error"] == "access_denied":
@@ -316,20 +330,20 @@ CREATE TABLE IF NOT EXISTS events (
 """
 
 
-def open_db() -> sqlite3.Connection:
-    db = sqlite3.connect(DB_PATH)
+def open_db(db_path: Path = DB_PATH) -> sqlite3.Connection:
+    db = sqlite3.connect(db_path)
     db.row_factory = sqlite3.Row
     db.executescript(SCHEMA)
     return db
 
 
-def tracked_playlists() -> list[dict]:
-    with open_db() as db:
+def tracked_playlists(db_path: Path = DB_PATH) -> list[dict]:
+    with open_db(db_path) as db:
         return [dict(r) for r in db.execute("SELECT * FROM playlists WHERE tracked = 1 ORDER BY name")]
 
 
-def set_tracked(playlist_id: str, name: str, tracked: bool) -> None:
-    with open_db() as db:
+def set_tracked(playlist_id: str, name: str, tracked: bool, db_path: Path = DB_PATH) -> None:
+    with open_db(db_path) as db:
         db.execute(
             "INSERT INTO playlists (playlist_id, name, tracked) VALUES (?, ?, ?) "
             "ON CONFLICT(playlist_id) DO UPDATE SET name = excluded.name, tracked = excluded.tracked",
@@ -346,13 +360,13 @@ def _write_event(db: sqlite3.Connection, playlist_id: str, checked_at: str, even
     )
 
 
-def get_events(playlist_id: str | None = None) -> list[dict]:
+def get_events(playlist_id: str | None = None, db_path: Path = DB_PATH) -> list[dict]:
     query = "SELECT e.*, p.name AS playlist FROM events e LEFT JOIN playlists p USING (playlist_id)"
     params: tuple = ()
     if playlist_id:
         query += " WHERE e.playlist_id = ?"
         params = (playlist_id,)
-    with open_db() as db:
+    with open_db(db_path) as db:
         return [dict(r) for r in db.execute(query + " ORDER BY e.id DESC", params)]
 
 
@@ -370,13 +384,16 @@ def track_label(track: dict) -> str:
     return f"{track['artist']} - {track['name']}" if track.get("artist") else track.get("name", "")
 
 
-def check_playlist(client: SpotifyClient, playlist_id: str) -> dict:
-    """Fetch a playlist, diff it against the previous snapshot, record events and return the result."""
+def check_playlist(client, playlist_id: str, db_path: Path = DB_PATH) -> dict:
+    """Fetch a playlist, diff it against the previous snapshot, record events and return the result.
+
+    Works with any client that provides playlist_name() and playlist_tracks().
+    """
     name = client.playlist_name(playlist_id)
     current = client.playlist_tracks(playlist_id)
     now = datetime.now().astimezone().isoformat(timespec="seconds")
 
-    with open_db() as db:
+    with open_db(db_path) as db:
         row = db.execute("SELECT last_checked FROM playlists WHERE playlist_id = ?", (playlist_id,)).fetchone()
         first_check = row is None or row["last_checked"] is None
         db.execute(
@@ -390,6 +407,10 @@ def check_playlist(client: SpotifyClient, playlist_id: str) -> dict:
             for r in db.execute("SELECT * FROM tracks WHERE playlist_id = ? AND in_playlist = 1", (playlist_id,))
         }
         current_by_key = {t["key"]: t for t in current}
+        for k, t in current_by_key.items():
+            # Unavailable items may lose their metadata (YouTube shows "Deleted video"), keep the last known one
+            if k in previous and not t["playable"]:
+                t.update({f: previous[k][f] for f in ("name", "artist", "album")})
         kept = [(previous[k], t) for k, t in current_by_key.items() if k in previous]
 
         result = {
@@ -430,8 +451,8 @@ def check_playlist(client: SpotifyClient, playlist_id: str) -> dict:
     return result
 
 
-def export_csv(path: str = "history.csv") -> int:
-    rows = list(reversed(get_events()))
+def export_csv(path: str = "history.csv", db_path: Path = DB_PATH) -> int:
+    rows = list(reversed(get_events(db_path=db_path)))
     # utf-8-sig and ';' let Excel open the file directly with correct encoding in most locales
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f, delimiter=";")
@@ -442,12 +463,12 @@ def export_csv(path: str = "history.csv") -> int:
     return len(rows)
 
 
-def _print_result(result: dict) -> None:
-    print(f"Playlist: {result['name']}  ({result['total']} tracks)")
+def print_result(result: dict, unavailable_label: str) -> None:
+    print(f"Playlist: {result['name']}  ({result['total']} items)")
     if result["first_check"]:
         print("Initial snapshot recorded. Changes will be tracked from the next check on.")
         for t in result["unavailable"]:
-            print(f"   ! Not playable in {market()}: {track_label(t)}")
+            print(f"   ! {unavailable_label}: {track_label(t)}")
         return
     if not any(result[k] for k in ("added", "removed", "unplayable", "playable_again")):
         print("No changes.")
@@ -462,30 +483,35 @@ def _print_result(result: dict) -> None:
         print(f"  ✓ PLAYABLE      {track_label(t)}")
 
 
-def main() -> None:
+def run_cli(usage: str, connect_client, parse_id, db_path: Path, unavailable_label, default_csv: str) -> None:
+    """Shared command line for the Spotify and YouTube trackers."""
     if len(sys.argv) < 2:
-        print(__doc__)
+        print(usage)
         return
     command, args = sys.argv[1].lower(), sys.argv[2:]
     try:
         if command == "login":
-            print(f"Logged in as: {connect().login()}")
+            print(f"Logged in as: {connect_client().login()}")
         elif command == "check" and args:
-            client = connect()
+            client = connect_client()
             for link in args:
-                _print_result(check_playlist(client, parse_playlist_id(link)))
+                print_result(check_playlist(client, parse_id(link), db_path), unavailable_label())
         elif command == "history":
-            playlist_id = parse_playlist_id(args[0]) if args else None
-            for r in reversed(get_events(playlist_id)):
+            playlist_id = parse_id(args[0]) if args else None
+            for r in reversed(get_events(playlist_id, db_path)):
                 added = f"  (added: {format_date(r['added_at'])})" if r["added_at"] else ""
                 print(f"{format_date(r['checked_at'])}  [{r['playlist']}]  {r['event']:<18} {track_label(r)}{added}")
         elif command == "export":
-            path = args[0] if args else "history.csv"
-            print(f"{export_csv(path)} records written to '{path}'.")
+            path = args[0] if args else default_csv
+            print(f"{export_csv(path, db_path)} records written to '{path}'.")
         else:
-            print(__doc__)
-    except SpotifyError as error:
+            print(usage)
+    except TrackerError as error:
         sys.exit(str(error))
+
+
+def main() -> None:
+    run_cli(__doc__, connect, parse_playlist_id, DB_PATH, lambda: f"Not playable in {market()}", "history.csv")
 
 
 if __name__ == "__main__":
