@@ -30,7 +30,8 @@ and compares it with the previous one, so the title, artist and original add dat
   and artists you discovered in it, listening time, plays per day or month and by hour of day, compared with the
   same stretch of the previous period, and (under all time) the tracks you used to play a lot but have not played
   for 30 days. Click a track or artist for its own page: first and last play, totals, plays over time and an
-  artist's most played tracks. Pages open in the statistics tab, with back / forward buttons (Alt+← / Alt+→) and
+  artist's most played tracks. An artist's page also says in a sentence or two what kind of band or artist it is,
+  where and when it started and who its members are (from MusicBrainz, no account needed). Pages open in the statistics tab, with back / forward buttons (Alt+← / Alt+→) and
   a close button (Esc).
 - **Runs in the background:** closing the window keeps the app in the system tray, where recording can be
   paused; it can also start with Windows. Only one copy runs at a time, opening it again shows the window.

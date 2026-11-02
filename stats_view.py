@@ -115,6 +115,8 @@ class Hero(ttk.Frame):
         self.detail.pack(side="left")
         self.change = ttk.Label(details, style="Card.TLabel")
         self.change.pack(side="left", padx=(px(10), 0))
+        # A few sentences about an artist, shown on its own page (see set_about)
+        self.about = ttk.Label(text, style="Card.TLabel", justify="left")
         self.bind("<Configure>", lambda e: self._wrap())
         self._action = None
         for widget in (self, self.picture, text, self.title, self.subtitle, details, self.detail, self.change):
@@ -128,8 +130,15 @@ class Hero(ttk.Frame):
 
     def _wrap(self):
         width = max(px(120), self.winfo_width() - px(self.IMAGE_SIZE + 60))
-        for label in (self.title, self.subtitle):
+        for label in (self.title, self.subtitle, self.about):
             label.configure(wraplength=width)
+
+    def set_about(self, text: str):
+        self.about.configure(text=text)
+        if text:
+            self.about.pack(anchor="w", pady=(px(12), px(4)))
+        else:
+            self.about.pack_forget()
 
     def show(self, title: str, subtitle: str, detail: str, image, change: tuple[str, str] | None = None):
         size = px(self.IMAGE_SIZE)

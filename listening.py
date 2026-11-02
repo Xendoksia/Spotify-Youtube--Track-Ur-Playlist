@@ -258,6 +258,13 @@ def detail(column: str, key: str, db_path: Path = DB_PATH) -> dict | None:
     return dict(row) if row and row["plays"] else None
 
 
+def artist_titles(artist_key: str, db_path: Path = DB_PATH) -> set[str]:
+    """The album and track names heard from one artist."""
+    with open_db(db_path) as db:
+        rows = db.execute("SELECT DISTINCT album, name FROM listens WHERE artist_key = ?", (artist_key,)).fetchall()
+    return {title for row in rows for title in row if title}
+
+
 def hours(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list[int]:
     """Plays per local hour of the day, 0-23."""
     counts_by_hour = [0] * 24

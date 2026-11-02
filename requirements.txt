@@ -7,3 +7,5 @@ winrt-runtime; sys_platform == "win32"
 winrt-Windows.Foundation; sys_platform == "win32"
 winrt-Windows.Media.Control; sys_platform == "win32"
 winrt-Windows.Storage.Streams; sys_platform == "win32"
+# Optional: up to date certificates for looking up artist facts (some Windows certificate stores are outdated)
+certifi

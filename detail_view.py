@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from tkinter import ttk
 
+import artist_info
 import artwork
 import listening
 from charts import BarList, ColumnChart
@@ -163,6 +164,8 @@ class DetailPage(ttk.Frame):
             self.hero.show(title, tracks_text(info["tracks"]), summary_text(plays_text(info["plays"]),
                                                                             minutes=info["minutes"]),
                            self._artist_photo(title, Hero.IMAGE_SIZE))
+            facts = artist_info.request(title, self.key, self, self._artwork_arrived)
+            self.hero.set_about(artist_info.describe(facts) if facts else "")
         else:
             subtitle = info["artist"] + (f"  ·  {info['album']}" if info["album"] else "")
             self.hero.show(title, subtitle, summary_text(plays_text(info["plays"]), minutes=info["minutes"]),
