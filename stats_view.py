@@ -9,6 +9,7 @@ import tkinter as tk
 from datetime import datetime, timedelta
 from tkinter import ttk
 
+import artist_info
 import artwork
 import listening
 from charts import BarList, ColumnChart, placeholder, rounded_rect
@@ -18,6 +19,8 @@ from tracker import format_date
 
 TOP_COUNT = 10
 DISCOVERY_COUNT = 5
+GENRE_COUNT = 8
+GENRE_REDRAW_MS = 3000
 FORGOTTEN_DAYS = 30
 FORGOTTEN_MIN_PLAYS = 3
 
@@ -245,6 +248,17 @@ class StatsTab(ttk.Frame):
         for chart in (self.new_tracks, self.new_artists):
             chart.pack(fill="x")
 
+        # Share of the period's plays per genre; an artist's plays count for its main genre
+        self.genres_section = ttk.Frame(content, style="Card.TFrame")
+        self.genres_section.pack(fill="x", pady=(px(24), 0))
+        ttk.Label(self.genres_section, text=t("stats.genres"), style="Period.TLabel").pack(anchor="w")
+        self.genre_summary = ttk.Label(self.genres_section, style="CardMuted.TLabel")
+        self.genre_summary.pack(anchor="w", pady=(px(2), px(12)))
+        self.genres = BarList(self.genres_section, t("stats.genres.none"), GENRE_COUNT, images=False)
+        self.genres.pack(fill="x")
+        self._genres_pending = False
+        self._range = None
+
         # Tracks once played a lot but not lately; it looks back from today, so it belongs to the all time view
         self.forgotten_section = ttk.Frame(content, style="Card.TFrame")
         ttk.Label(self.forgotten_section, text=t("stats.forgotten"), style="Period.TLabel").pack(anchor="w")
@@ -383,6 +397,8 @@ class StatsTab(ttk.Frame):
             "on_click": self._opener("artist_key", r["key"]),
         } for rank, r in enumerate(artists[1:], start=2)])
         self._fill_discoveries(start, end)
+        self._range = (start, end)
+        self._fill_genres()
         self._fill_timeline(start, end)
         hours = listening.hours(start, end)
         self.hours.set_buckets([{
@@ -410,6 +426,47 @@ class StatsTab(ttk.Frame):
             return text, P.added if before > rank else P.removed
         return change
 
+    def _genre_arrived(self):
+        # Genres arrive one artist at a time, so redraw only this section, at most every few seconds
+        if not self._genres_pending:
+            self._genres_pending = True
+            self.after(GENRE_REDRAW_MS, self._fill_genres)
+
+    def _fill_genres(self):
+        self._genres_pending = False
+        if not self.winfo_exists() or self._range is None:
+            return
+        artists = listening.top_artists(*self._range, -1)
+        total = sum(a["plays"] for a in artists)
+        genres: dict[str, dict] = {}
+        known = waiting = 0
+        for artist in artists:
+            facts = artist_info.request(artist["name"], artist["key"], self, self._genre_arrived,
+                                        priority=artist_info.LATER)
+            if facts and facts["genres"]:
+                genre = genres.setdefault(facts["genres"][0], {"plays": 0, "artists": []})
+                genre["plays"] += artist["plays"]
+                genre["artists"].append(artist["name"])
+                known += artist["plays"]
+            elif artist_info.waiting(artist["key"]):
+                waiting += 1
+        parts = []
+        if total:
+            parts.append(t("stats.genres.summary", percent=t("stats.percent", value=round(100 * known / total))))
+        if waiting:
+            parts.append(t("stats.genres.loading", count=number(waiting)))
+        self.genre_summary.configure(text="  ·  ".join(parts))
+        rows = sorted(genres.items(), key=lambda item: -item[1]["plays"])[:GENRE_COUNT]
+        self.genres.configure(height=px(BarList.ROW_HEIGHT * len(rows) if rows else 60))
+        self.genres.set_rows([{
+            "title": name[:1].upper() + name[1:],
+            "subtitle": ", ".join(genre["artists"][:3]),
+            "value": genre["plays"],
+            "value_text": t("stats.percent", value=round(100 * genre["plays"] / total)),
+            "tooltip": f"{name}\n{plays_text(genre['plays'])}\n"
+                       + t("stats.genres.artists", names=", ".join(genre["artists"][:5])),
+        } for name, genre in rows])
+
     def _fill_discoveries(self, start, end):
         # Everything is new over all time, so the section only makes sense for a week, month or year
         if self.period == "all":
@@ -417,7 +474,7 @@ class StatsTab(ttk.Frame):
             self._fill_forgotten()
             return
         self.forgotten_section.pack_forget()
-        self.discoveries.pack(fill="x", pady=(px(24), 0), before=self.charts)
+        self.discoveries.pack(fill="x", pady=(px(24), 0), before=self.genres_section)
         tracks = listening.new_tracks(start, end)
         artists = listening.new_artists(start, end)
         plays = listening.summary(start, end)["plays"]
@@ -450,7 +507,7 @@ class StatsTab(ttk.Frame):
         } for r in artists[:DISCOVERY_COUNT]])
 
     def _fill_forgotten(self):
-        self.forgotten_section.pack(fill="x", pady=(px(24), 0), before=self.charts)
+        self.forgotten_section.pack(fill="x", pady=(px(24), 0), before=self.genres_section)
         today = datetime.now().astimezone()
         rows = []
         for r in listening.forgotten(FORGOTTEN_DAYS, FORGOTTEN_MIN_PLAYS, TOP_COUNT):

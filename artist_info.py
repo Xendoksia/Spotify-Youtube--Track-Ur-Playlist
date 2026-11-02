@@ -179,6 +179,10 @@ def _look_up(artist: str, artist_key: str) -> dict:
 def _work():
     while True:
         _, _, artist, artist_key = _queue.get()
+        with _lock:
+            # Asked again with a higher priority and already answered
+            if artist_key not in _waiting:
+                continue
         try:
             facts = _look_up(artist, artist_key)
         except Exception:  # offline or MusicBrainz unavailable: asked again next time
@@ -203,6 +207,12 @@ def cached(artist_key: str) -> dict | None:
     return facts if facts and "missing" not in facts else None
 
 
+def waiting(artist_key: str) -> bool:
+    """Whether the artist is still being looked up."""
+    with _lock:
+        return artist_key in _waiting
+
+
 def request(artist: str, artist_key: str, widget, done: Callable[[], None], priority: int = FIRST) -> dict | None:
     """Return the cached facts, or look them up in the background and call done on the Tk thread."""
     global _worker, _order
@@ -211,7 +221,9 @@ def request(artist: str, artist_key: str, widget, done: Callable[[], None], prio
         if facts is not None and ("missing" not in facts or time.time() - facts["missing"] < RETRY_SECONDS):
             return facts if "missing" not in facts else None
         first_request = artist_key not in _waiting
-        _waiting.setdefault(artist_key, []).append((widget, done))
+        callbacks = _waiting.setdefault(artist_key, [])
+        if (widget, done) not in callbacks:
+            callbacks.append((widget, done))
         if first_request or priority == FIRST:
             # An artist page asked while the genre share is still filling in jumps the queue
             _order += 1

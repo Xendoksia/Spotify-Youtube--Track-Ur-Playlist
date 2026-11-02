@@ -157,10 +157,12 @@ class BarList(Chart):
     ROW_HEIGHT = 44
     IMAGE_SIZE = 32
 
-    def __init__(self, parent, empty_text: str = "", rows: int = 10, round_images: bool = False, first_rank: int = 1):
+    def __init__(self, parent, empty_text: str = "", rows: int = 10, round_images: bool = False, first_rank: int = 1,
+                 images: bool = True):
         super().__init__(parent, self.ROW_HEIGHT * rows, empty_text)
         self.rows: list[dict] = []
         self.round_images = round_images
+        self.images = images
         self.first_rank = first_rank
 
     def set_rows(self, rows: list[dict]):
@@ -185,7 +187,7 @@ class BarList(Chart):
         rank_width = max(self.small_font.measure(text) for text in
                          [str(self.first_rank + len(self.rows))] + [r["change"][0] for r in self.rows if r.get("change")]
                          ) + px(8)
-        size = px(self.IMAGE_SIZE)
+        size = px(self.IMAGE_SIZE) if self.images else 0
         text_left = rank_width + size + px(10)
         value_width = max(self.small_font.measure(r["value_text"]) for r in self.rows) + px(8)
         bar_left = label_width + px(12)
@@ -206,7 +208,7 @@ class BarList(Chart):
                                  font=self.small_font)
             if row.get("image"):
                 self.create_image(rank_width, middle, image=row["image"], anchor="w")
-            else:
+            elif self.images:
                 placeholder(self, rank_width, middle - size / 2, size, row["title"], self.round_images,
                             self.small_font)
             text_width = label_width - text_left
