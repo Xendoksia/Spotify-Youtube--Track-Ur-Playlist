@@ -184,9 +184,6 @@ class Chart(tk.Canvas):
         if on_click:
             self._clicks[area] = on_click
 
-    def _highlight(self, mark: int, on: bool):
-        self.itemconfigure(mark, fill=P.chart_hover if on else P.chart)
-
     def _area_at(self, x, y):
         items = [i for i in self.find_overlapping(x, y, x, y) if i in self._marks]
         return items[-1] if items else None
@@ -205,13 +202,13 @@ class Chart(tk.Canvas):
         self.delete("tooltip")
         if self._hovered is not None and self._hovered != item:
             for mark in self._marks[self._hovered][1]:
-                self._highlight(mark, False)
+                self.itemconfigure(mark, fill=P.chart)
         self._hovered = item
         if item is None:
             return
         tooltip, highlight = self._marks[item]
         for mark in highlight:
-            self._highlight(mark, True)
+            self.itemconfigure(mark, fill=P.chart_hover)
         text = self.create_text(0, 0, text=tooltip, anchor="nw", fill=P.text, font=FONT, tags="tooltip")
         x0, y0, x1, y1 = self.bbox(text)
         box_width, box_height = x1 - x0 + px(20), y1 - y0 + px(14)
@@ -354,83 +351,4 @@ class ColumnChart(Chart):
                 self.create_text(center, bottom + px(4), text=bucket["label"], anchor="n", fill=P.muted,
                                  font=self.small_font)
             self.add_hit_area(center - slot / 2, top, center + slot / 2, bottom, bucket["tooltip"], marks)
-        return True
-
-
-def mix(color: str, other: str, amount: float) -> str:
-    """The color amount of the way from color to other (both #rrggbb)."""
-    a = [int(color[i:i + 2], 16) for i in (1, 3, 5)]
-    b = [int(other[i:i + 2], 16) for i in (1, 3, 5)]
-    return "#" + "".join(f"{round(x + (y - x) * amount):02x}" for x, y in zip(a, b))
-
-
-class CalendarHeatmap(Chart):
-    """One square per day, weeks as columns from Monday to Sunday, darker for more plays."""
-
-    HEIGHT = 160
-    MAX_STEP = 16
-    LEVELS = 4
-
-    def __init__(self, parent, weekdays: list[str], months: list[str], less: str, more: str):
-        super().__init__(parent, self.HEIGHT)
-        self.weekdays, self.months, self.less, self.more = weekdays, months, less, more
-        self.days: list[dict] = []
-
-    def set_days(self, days: list[dict]):
-        """days: consecutive dicts with date, value and tooltip."""
-        self.days = days
-        self._set_values({day["date"]: day["value"] for day in days})
-
-    def _color(self, value: float, top: float) -> str:
-        if value <= 0:
-            return P.grid
-        level = min(self.LEVELS, max(1, math.ceil(self.LEVELS * value / top)))
-        return mix(P.surface, P.chart, level / self.LEVELS)
-
-    def _highlight(self, mark: int, on: bool):
-        # The shade tells the amount, so the hovered day keeps it and gets an outline
-        self.itemconfigure(mark, outline=P.text if on else "", width=1 if on else 0)
-
-    def draw(self, width, height):
-        if not self.days:
-            return False
-        first = self.days[0]["date"]
-        offset = first.weekday()
-        weeks = (offset + len(self.days) + 6) // 7
-        label_width = max(self.small_font.measure(name) for name in self.weekdays) + px(8)
-        line = self.small_font.metrics("linespace")
-        top_margin = line + px(4)
-        step = min(px(self.MAX_STEP), (width - label_width) / weeks, (height - top_margin - line - px(10)) / 7)
-        cell = step * 0.8
-        top_value = max(day["value"] for day in self.days) or 1
-
-        for row in (0, 2, 4):
-            self.create_text(label_width - px(8), top_margin + row * step + cell / 2, text=self.weekdays[row],
-                             anchor="e", fill=P.muted, font=self.small_font)
-        last_month_x = -width
-        for index, day in enumerate(self.days):
-            column, row = divmod(offset + index, 7)
-            x, y = label_width + column * step, top_margin + row * step
-            date = day["date"]
-            # Name a month above the week its first day falls in (and above the first week)
-            if (date.day == 1 or index == 0) and x - last_month_x > self.small_font.measure("May") + px(12):
-                self.create_text(x, top_margin - px(4), text=self.months[date.month - 1], anchor="sw",
-                                 fill=P.muted, font=self.small_font)
-                last_month_x = x
-            square = self.create_rectangle(x, y, x + cell, y + cell, width=0,
-                                           fill=self._color(self._value_now(date), top_value))
-            self.add_hit_area(x - (step - cell) / 2, y - (step - cell) / 2, x + cell + (step - cell) / 2,
-                              y + cell + (step - cell) / 2, day["tooltip"], [square])
-
-        # Legend: less ▢▢▢▢▢ more, under the right end of the grid
-        right = label_width + weeks * step - (step - cell)
-        y = top_margin + 7 * step + px(6)
-        more_width = self.small_font.measure(self.more)
-        x = right - more_width - px(6)
-        self.create_text(right, y + cell / 2, text=self.more, anchor="e", fill=P.muted, font=self.small_font)
-        for level in range(self.LEVELS, -1, -1):
-            x -= step
-            self.create_rectangle(x, y, x + cell, y + cell, width=0,
-                                  fill=mix(P.surface, P.chart, level / self.LEVELS) if level else P.grid)
-        self.create_text(x - px(6), y + cell / 2, text=self.less, anchor="e", fill=P.muted, font=self.small_font)
         return True
