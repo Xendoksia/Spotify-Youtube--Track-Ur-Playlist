@@ -16,10 +16,10 @@ import artist_info
 import artwork
 import listening
 import tracker
-from charts import Animation, BarList, ColumnChart, count_up, mix
+from charts import Animation, BarList, ColumnChart, count_up
 from i18n import number, t
 from stats_view import duration_text, month_name, period_title, plays_text
-from theme import P, icon, px
+from theme import P, icon, mix, px
 
 try:
     from PIL import Image, ImageTk
@@ -240,7 +240,7 @@ class WrappedView(ttk.Frame):
         return label
 
     def _caption(self, parent, key: str, **values):
-        self._label(parent, t(key, **values).upper(), P.chart, CAPTION_FONT, pady=(0, px(12)))
+        self._label(parent, t(key, **values).upper(), P.added, CAPTION_FONT, pady=(0, px(12)))
 
     def _big(self, parent, value: int, text, pady=0, color=None):
         label = self._label(parent, text(0), color or P.chart, BIG_FONT, pady=pady)

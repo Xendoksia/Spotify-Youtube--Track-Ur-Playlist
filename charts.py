@@ -26,13 +26,6 @@ ANIMATION_MS = 450
 FRAME_MS = 16
 
 
-def mix(color: str, other: str, amount: float) -> str:
-    """The color amount of the way from color to other (both #rrggbb)."""
-    a = [int(color[i:i + 2], 16) for i in (1, 3, 5)]
-    b = [int(other[i:i + 2], 16) for i in (1, 3, 5)]
-    return "#" + "".join(f"{round(x + (y - x) * amount):02x}" for x, y in zip(a, b))
-
-
 def ease_out(progress: float) -> float:
     return 1 - (1 - progress) ** 3
 

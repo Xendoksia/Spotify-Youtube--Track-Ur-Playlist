@@ -93,6 +93,38 @@ def place_window(window: tk.Misc, width: int, height: int) -> None:
     window.geometry(f"{width}x{height}+{left}+{top}")
 
 
+def mix(color: str, other: str, amount: float) -> str:
+    """The color amount of the way from color to other (both #rrggbb)."""
+    a = [int(color[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(other[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(x + (y - x) * amount):02x}" for x, y in zip(a, b))
+
+
+def _luminance(color: str) -> float:
+    channels = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    linear = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def contrast(color: str, other: str) -> float:
+    """The WCAG contrast ratio of two colors, from 1 to 21."""
+    light, dark = sorted((_luminance(color), _luminance(other)), reverse=True)
+    return (light + 0.05) / (dark + 0.05)
+
+
+# Contrast small text needs to stay readable (WCAG AA)
+READABLE = 4.5
+
+
+def readable(color: str, backgrounds: list[str], target: float = READABLE) -> str:
+    """color, moved toward the text color just as far as it takes to read well on every background."""
+    for step in range(11):
+        candidate = mix(color, P.text, step / 10)
+        if all(contrast(candidate, background) >= target for background in backgrounds):
+            return candidate
+    return P.text
+
+
 def system_prefers_dark() -> bool:
     if sys.platform != "win32":
         return False

@@ -14,9 +14,9 @@ import artist_info
 import artwork
 import collage
 import listening
-from charts import BarList, ColumnChart, count_up, mix, placeholder, rounded_rect
+from charts import BarList, ColumnChart, count_up, placeholder, rounded_rect
 from i18n import number, t
-from theme import P, icon, icon_font, px
+from theme import P, icon, icon_font, mix, px, readable
 from tracker import format_date
 
 available = artwork.available
@@ -206,16 +206,22 @@ class Hero(tk.Canvas):
 
     # Drawing
 
-    def _background(self, width: int, height: int):
-        """The two color gradient of the picture, or None to keep the plain card color."""
-        colors = artwork.colors(self._content["path"])
+    def _tints(self) -> list[str]:
+        """The card's two background colors from its picture, or just the plain card color."""
+        colors = artwork.colors(self._content["path"]) if available else None
         if colors is None:
-            return None
+            return [P.surface]
         left, right = self.TINT["dark" if P.dark else "light"]
         if self._hovered:
             left, right = left + self.HOVER_TINT, right + self.HOVER_TINT
-        start, end = (Image.new("RGB", (1, 1), card_tint(color, strength)).resize((width, height))
-                      for color, strength in zip(colors, (left, right)))
+        return [card_tint(color, strength) for color, strength in zip(colors, (left, right))]
+
+    def _background(self, width: int, height: int):
+        """The two color gradient of the picture, or None to keep the plain card color."""
+        tints = self._tints()
+        if len(tints) < 2:
+            return None
+        start, end = (Image.new("RGB", (1, 1), tint).resize((width, height)) for tint in tints)
         # Left to right, from the picture's first color to its second
         mask = Image.linear_gradient("L").rotate(90).resize((width, height))
         return ImageTk.PhotoImage(Image.composite(start, end, mask))
@@ -255,14 +261,17 @@ class Hero(tk.Canvas):
                                     tags=tags)
             y = self.bbox(item)[3]
 
-        line(self.caption, self.CAPTION_FONT, P.muted)
+        # Muted and colored texts get just as much stronger as the picture's colors behind them need
+        tints = self._tints()
+        muted = readable(P.muted, tints)
+        line(self.caption, self.CAPTION_FONT, muted)
         line(content["title"], self.TITLE_FONT, P.text, px(4))
-        line(content["subtitle"], self.SUBTITLE_FONT, P.muted, tags=("content", "subtitle"))
+        line(content["subtitle"], self.SUBTITLE_FONT, muted, tags=("content", "subtitle"))
         if self._link:
-            line(self._link[0], self.SUBTITLE_FONT, P.muted, px(2), tags=("content", "link"))
+            line(self._link[0], self.SUBTITLE_FONT, muted, px(2), tags=("content", "link"))
         line(content["detail"], self.TEXT_FONT, P.text, px(10))
         if content["change"]:
-            line(content["change"][0], self.TEXT_FONT, content["change"][1], px(4))
+            line(content["change"][0], self.TEXT_FONT, readable(content["change"][1], tints), px(4))
         line(self._about, self.TEXT_FONT, P.text, px(12))
 
         height = max(2 * pad + size, y + pad)
