@@ -6,6 +6,7 @@ Run with:  python app.py
 """
 
 import re
+import queue
 import threading
 import tkinter as tk
 import webbrowser
@@ -14,13 +15,14 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
+import background
 import i18n
 import nowplaying
 import theme
 import tracker
 import youtube
 from i18n import t
-from listening_view import ListeningView, tracking_enabled
+from listening_view import ListeningView, set_tracking, tracking_enabled
 from theme import FONT_BOLD, P, text_box
 from tracker import TrackerError, format_date, track_label
 
@@ -356,12 +358,16 @@ class PlaylistPanel(ttk.Frame):
 
 
 class App(tk.Tk):
-    def __init__(self, local_tracker: nowplaying.LocalTracker):
+    def __init__(self, local_tracker: nowplaying.LocalTracker, commands: queue.Queue[str],
+                 tray: background.Tray, hidden: bool = False):
         super().__init__()
         self.local_tracker = local_tracker
+        self.commands = commands
+        self.tray = tray
         config = tracker.load_config()
         i18n.set_language(config.get("LANGUAGE"))
         self.title(t("app.title"))
+        tray.set_title(t("app.title"))
         self.geometry("1100x780")
         self.minsize(860, 600)
 
@@ -372,11 +378,59 @@ class App(tk.Tk):
 
         theme.apply_theme(self, config.get("THEME"), {s.name: (s.accent, s.accent_active) for s in SERVICES})
 
+        if background.TRAY_AVAILABLE:
+            from PIL import ImageTk
+            self._icon = ImageTk.PhotoImage(background.icon_image(64))
+            self.iconphoto(True, self._icon)
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
         self._build_ui()
         self.refresh_history()
+        self._poll_commands()
 
-        if not any(s.has_credentials(config) for s in SERVICES):
+        if hidden:
+            # Started with Windows: keep running in the tray, or minimized when there is no tray
+            if background.close_to_tray(config):
+                self.withdraw()
+            else:
+                self.iconify()
+        elif not any(s.has_credentials(config) for s in SERVICES):
             self.after(200, self.open_settings)
+
+    def on_close(self):
+        if not background.close_to_tray(tracker.load_config()):
+            self.quit_app()
+            return
+        self.withdraw()
+        if not self.tray.hint_shown:
+            self.tray.hint_shown = True
+            self.tray.notify(t("tray.hint"))
+
+    def show_window(self):
+        self.deiconify()
+        self.state("normal")
+        self.lift()
+        self.attributes("-topmost", True)
+        self.after(100, lambda: self.attributes("-topmost", False))
+        self.focus_force()
+
+    def quit_app(self):
+        self.restart = False
+        self.destroy()
+
+    def _poll_commands(self):
+        # Requests from the tray icon and from copies of the app started later, which run on other threads
+        while True:
+            try:
+                command = self.commands.get_nowait()
+            except queue.Empty:
+                break
+            if command == "show":
+                self.show_window()
+            elif command == "quit":
+                self.quit_app()
+                return
+        self.after(200, self._poll_commands)
 
     def _build_ui(self):
         header = ttk.Frame(self, padding=(16, 12, 16, 4))
@@ -622,8 +676,17 @@ class App(tk.Tk):
         get_language = choice(general_tab, t("settings.language"), i18n.LANGUAGES, i18n.current(), 0)
         get_theme = choice(general_tab, t("settings.theme"), {k: t(f"theme.{k}") for k in theme.THEMES},
                            current_theme, 1)
+        tray_var = tk.BooleanVar(value=background.close_to_tray(config))
+        ttk.Checkbutton(general_tab, text=t("settings.close_to_tray"), variable=tray_var,
+                        style="Card.TCheckbutton", state="normal" if background.TRAY_AVAILABLE else "disabled"
+                        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(12, 4))
+        autostart_var = tk.BooleanVar(value=background.autostart_enabled())
+        ttk.Checkbutton(general_tab, text=t("settings.autostart"), variable=autostart_var,
+                        style="Card.TCheckbutton",
+                        state="normal" if background.autostart_supported() else "disabled"
+                        ).grid(row=3, column=0, columnspan=2, sticky="w", pady=4)
         ttk.Label(general_tab, text=t("settings.restart_note"), style="CardMuted.TLabel"
-                  ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(12, 0))
+                  ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(12, 0))
 
         def save():
             updated = tracker.load_config()
@@ -646,7 +709,15 @@ class App(tk.Tk):
                     updated.pop(key, None)
             appearance_changed = get_language() != i18n.current() or get_theme() != current_theme
             updated["LANGUAGE"], updated["THEME"] = get_language(), get_theme()
+            if background.TRAY_AVAILABLE:
+                updated["CLOSE_TO_TRAY"] = tray_var.get()
             tracker.save_config(updated)
+            if autostart_var.get() != background.autostart_enabled():
+                try:
+                    background.set_autostart(autostart_var.get())
+                except OSError as error:
+                    messagebox.showerror(t("settings.title"), t("settings.autostart_failed", error=error),
+                                         parent=window)
             window.destroy()
             if appearance_changed:
                 # Rebuild the whole window so every widget picks up the new texts and colors
@@ -664,18 +735,35 @@ class App(tk.Tk):
 
 
 def main():
-    # The tracker outlives windows rebuilt after a language or theme change, so a song keeps being one play
+    i18n.set_language(tracker.load_config().get("LANGUAGE"))
+    instance = background.SingleInstance()
+    if not instance.acquire():
+        # Already running: a second tracker would record every song twice, so show the open window instead
+        if not background.start_minimized():
+            instance.notify_running()
+        return
+
+    # The tracker and tray icon outlive windows rebuilt after a language or theme change,
+    # so a song keeps being one play
     local_tracker = nowplaying.LocalTracker()
     if tracking_enabled(tracker.load_config()):
         local_tracker.start()
+    commands = instance.requests
+    tray = background.Tray(commands, is_paused=lambda: not local_tracker.enabled,
+                           set_paused=lambda paused: set_tracking(local_tracker, not paused))
+    tray.start()
+    hidden = background.start_minimized()
     try:
         while True:
-            app = App(local_tracker)
+            app = App(local_tracker, commands, tray, hidden)
             app.mainloop()
+            hidden = False
             if not app.restart:
                 break
     finally:
+        tray.stop()
         local_tracker.stop()
+        instance.release()
 
 
 if __name__ == "__main__":

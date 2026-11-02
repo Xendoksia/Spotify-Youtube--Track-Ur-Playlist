@@ -162,6 +162,11 @@ class LocalTracker:
     def running(self) -> bool:
         return bool(self._thread and self._thread.is_alive())
 
+    @property
+    def enabled(self) -> bool:
+        """Recording is on (False as soon as stop() is called, even while it is still finishing)."""
+        return self.running and not self._stop.is_set()
+
     def start(self) -> None:
         if self.running:
             return

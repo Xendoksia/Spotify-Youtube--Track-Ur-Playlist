@@ -28,9 +28,11 @@ and compares it with the previous one, so the title, artist and original add dat
 - **Listening statistics** per week, month, year or all time: your number one track and artist with album cover
   and artist photo, the rest of the top 10, listening time, plays per day or month and by hour of day, compared
   with the same stretch of the previous period
+- **Runs in the background:** closing the window keeps the app in the system tray, where recording can be
+  paused; it can also start with Windows. Only one copy runs at a time, opening it again shows the window.
 - English and Turkish interface, light and dark theme (or follow the Windows setting), under **Settings → General**
 - Playlist tracking needs only the Python standard library. On Windows, `pip install -r requirements.txt` adds
-  album covers, artist photos and the album and playback position of the playing song (without it the Spotify
+  the tray icon, album covers, artist photos and the album and playback position of the playing song (without it the Spotify
   window title is used and the statistics show initials instead of pictures).
 
 ## Requirements
@@ -128,6 +130,7 @@ your Client ID and Client Secret.
 | `YOUTUBE_CLIENT_SECRET` | Google OAuth client secret, optional |
 | `LANGUAGE` | Interface language: `en` or `tr` (optional, default: system language) |
 | `THEME` | `system`, `light` or `dark` (optional, default `system`) |
+| `CLOSE_TO_TRAY` | Keep running in the system tray when the window is closed (optional, default `true`) |
 
 ## Limitations
 
@@ -135,7 +138,8 @@ your Client ID and Client Secret.
   **own or collaborate on**. Playlists of other users cannot be checked, even if you follow them.
 - **Check frequency:** the app only checks when you run it. A removal is reported as having happened
   "between the previous check and this one".
-- **Listening history:** only the Spotify desktop app on Windows is recorded, and only while this app is open.
+- **Listening history:** only the Spotify desktop app on Windows is recorded, and only while this app is running
+  (open or in the system tray).
   A song counts after 30 seconds of listening. Plays on other devices, such as your phone, are not recorded.
 - **YouTube:** "Watch later" and automatic Mixes cannot be read through the API. The free API quota
   (10,000 units per day) is enough for thousands of checks. While your Google OAuth app is in testing mode,
@@ -172,6 +176,7 @@ the artist and track names are sent, no account is involved).
 | `nowplaying.py` | Records what the Spotify desktop app plays, without the API |
 | `listening_view.py` | Listening section of the interface |
 | `stats_view.py` | Statistics tab of the Listening section |
+| `background.py` | System tray icon, single running copy and starting with Windows |
 | `charts.py` | Bar and column charts drawn with tkinter |
 | `artwork.py` | Album covers and artist photos for the statistics |
 | `Spotify Playlist Tracker.bat` | Double-click launcher for Windows |

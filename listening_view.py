@@ -29,6 +29,17 @@ def tracking_enabled(config: dict) -> bool:
     return config.get("LOCAL_TRACKING", True) is not False
 
 
+def set_tracking(local_tracker: nowplaying.LocalTracker, enabled: bool) -> None:
+    """Turn recording on or off and remember the choice (used by the checkbox and the tray menu)."""
+    config = tracker.load_config()
+    config["LOCAL_TRACKING"] = enabled
+    tracker.save_config(config)
+    if enabled:
+        local_tracker.start()
+    else:
+        local_tracker.stop()
+
+
 class ListeningView(ttk.Frame):
     """Sub-tabs for listening data: statistics and the list of recent plays."""
 
@@ -76,17 +87,14 @@ class ListeningView(ttk.Frame):
         scrollbar.pack(side="right", fill="y")
 
     def _toggle_tracking(self):
-        config = tracker.load_config()
-        config["LOCAL_TRACKING"] = self.tracking.get()
-        tracker.save_config(config)
-        if self.tracking.get():
-            self.local_tracker.start()
-        else:
-            self.local_tracker.stop()
+        set_tracking(self.local_tracker, self.tracking.get())
 
     def _poll_status(self):
         status = self.local_tracker.status()
         play, state = status["play"], status["state"]
+        # Recording can also be paused from the tray menu
+        if self.tracking.get() != self.local_tracker.enabled:
+            self.tracking.set(self.local_tracker.enabled)
         if state == "off":
             text, color = t("listening.now.off"), P.muted
         elif status["error"]:

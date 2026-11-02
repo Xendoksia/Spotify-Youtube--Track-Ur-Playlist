@@ -6,6 +6,10 @@ config.json
 *.db-journal
 artwork/
 
+# Address of the running copy (single-instance lock)
+.instance
+.instance.lock
+
 # Exported history
 *.csv
 
