@@ -11,6 +11,7 @@ import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+from tkinter import font as tkfont
 from typing import Callable
 
 import tracker
@@ -34,6 +35,18 @@ EVENT_COLORS = {
 CHECKED, UNCHECKED = "☑", "☐"
 ALL = "All"
 
+BG = "#f3f4f6"
+SURFACE = "#ffffff"
+BORDER = "#e3e6ea"
+TEXT = "#1f2328"
+MUTED = "#6b7280"
+HOVER = "#f0f2f5"
+SELECTED = "#e3ecfd"
+STRIPE = "#fafbfc"
+FOCUS = "#3b82f6"
+FONT = ("Segoe UI", 10)
+FONT_BOLD = ("Segoe UI Semibold", 10)
+
 
 @dataclass
 class Service:
@@ -49,6 +62,9 @@ class Service:
     unavailable_label: Callable[[], str]
     login_hint: str
     account: str
+    accent: str
+    accent_active: str
+    tint: str
 
 
 SPOTIFY = Service(
@@ -59,6 +75,7 @@ SPOTIFY = Service(
     unavailable_label=lambda: f"Not playable in {tracker.market()}",
     login_hint="The Spotify authorization page opened in your browser, press “Agree”…",
     account="Spotify",
+    accent="#1aa34a", accent_active="#168a3f", tint="#ecf8f0",
 )
 YOUTUBE = Service(
     name="YouTube", db_path=youtube.DB_PATH, connect=youtube.connect, parse_playlist_id=youtube.parse_playlist_id,
@@ -68,15 +85,91 @@ YOUTUBE = Service(
     unavailable_label=lambda: "Unavailable (deleted, private or blocked in your region)",
     login_hint="The Google sign-in page opened in your browser, choose your account and allow access…",
     account="Google",
+    accent="#e62117", accent_active="#c41b12", tint="#fdf0ef",
 )
 SERVICES = (SPOTIFY, YOUTUBE)
+
+
+def _button_style(style, name, background, foreground, border, active, disabled, disabled_text):
+    style.configure(name, background=background, foreground=foreground, bordercolor=border,
+                    lightcolor=background, darkcolor=background, padding=(14, 6), focusthickness=0)
+    states = [("disabled", disabled), ("pressed", active), ("active", active)]
+    style.map(name, background=states, lightcolor=states, darkcolor=states,
+              bordercolor=[("disabled", BORDER)], foreground=[("disabled", disabled_text)])
+
+
+def apply_theme(root: tk.Tk) -> None:
+    """Flat light theme built on ttk's "clam" engine, so no extra packages are needed."""
+    for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
+        tkfont.nametofont(name).configure(family=FONT[0], size=FONT[1])
+    root.configure(background=BG)
+    root.option_add("*TCombobox*Listbox.background", SURFACE)
+    root.option_add("*TCombobox*Listbox.selectBackground", SELECTED)
+    root.option_add("*TCombobox*Listbox.selectForeground", TEXT)
+    root.option_add("*TCombobox*Listbox.font", FONT)
+
+    style = ttk.Style(root)
+    style.theme_use("clam")
+    style.configure(".", background=BG, foreground=TEXT, bordercolor=BORDER, lightcolor=BG, darkcolor=BG,
+                    troughcolor=BG, selectbackground=SELECTED, selectforeground=TEXT, font=FONT)
+    style.configure("Card.TFrame", background=SURFACE)
+    style.configure("Card.TLabel", background=SURFACE)
+    style.configure("Muted.TLabel", foreground=MUTED)
+    style.configure("CardMuted.TLabel", background=SURFACE, foreground=MUTED)
+    style.configure("Section.TLabel", background=SURFACE, font=FONT_BOLD)
+    style.configure("Title.TLabel", font=("Segoe UI Semibold", 15))
+
+    _button_style(style, "TButton", SURFACE, TEXT, BORDER, HOVER, BG, "#a0a6b0")
+    _button_style(style, "Accent.TButton", FOCUS, "#ffffff", FOCUS, "#2f6fdb", "#c9cdd3", "#f5f6f8")
+    for service in SERVICES:
+        _button_style(style, f"{service.name}.Accent.TButton", service.accent, "#ffffff", service.accent,
+                      service.accent_active, "#c9cdd3", "#f5f6f8")
+
+    for widget in ("TEntry", "TCombobox"):
+        style.configure(widget, fieldbackground=SURFACE, background=SURFACE, bordercolor=BORDER,
+                        lightcolor=SURFACE, darkcolor=SURFACE, arrowcolor=MUTED, insertcolor=TEXT, padding=5)
+        style.map(widget, bordercolor=[("focus", FOCUS)], lightcolor=[("focus", FOCUS)],
+                  fieldbackground=[("readonly", SURFACE)], background=[("active", HOVER)],
+                  selectbackground=[("readonly", SURFACE)], selectforeground=[("readonly", TEXT)])
+
+    style.configure("TNotebook", background=BG, bordercolor=BORDER, lightcolor=SURFACE, darkcolor=SURFACE,
+                    tabmargins=(0, 0, 0, 0))
+    style.configure("TNotebook.Tab", background=BG, foreground=MUTED, bordercolor=BG, lightcolor=BG,
+                    darkcolor=BG, padding=(18, 7), font=FONT_BOLD)
+    style.map("TNotebook.Tab",
+              background=[("selected", SURFACE), ("active", HOVER)],
+              foreground=[("selected", TEXT)],
+              bordercolor=[("selected", BORDER)],
+              lightcolor=[("selected", SURFACE), ("active", HOVER)],
+              darkcolor=[("selected", SURFACE), ("active", HOVER)],
+              expand=[("selected", (0, 0, 0, 0))])
+
+    style.configure("Treeview", background=SURFACE, fieldbackground=SURFACE, foreground=TEXT, bordercolor=BORDER,
+                    lightcolor=SURFACE, darkcolor=SURFACE, rowheight=30)
+    style.map("Treeview", background=[("selected", SELECTED)], foreground=[("selected", TEXT)])
+    style.configure("Treeview.Heading", background=STRIPE, foreground=MUTED, bordercolor=BORDER,
+                    lightcolor=STRIPE, darkcolor=STRIPE, relief="flat", padding=(8, 6),
+                    font=("Segoe UI Semibold", 9))
+    style.map("Treeview.Heading", background=[("active", HOVER)], lightcolor=[("active", HOVER)],
+              darkcolor=[("active", HOVER)])
+
+    style.configure("Vertical.TScrollbar", background="#d5d9df", troughcolor=SURFACE, bordercolor=SURFACE,
+                    lightcolor="#d5d9df", darkcolor="#d5d9df", arrowcolor=MUTED, gripcount=0, arrowsize=12)
+    style.map("Vertical.TScrollbar", background=[("active", "#bfc5cd")], lightcolor=[("active", "#bfc5cd")],
+              darkcolor=[("active", "#bfc5cd")])
+
+
+def text_box(parent, height: int) -> tk.Text:
+    return tk.Text(parent, height=height, wrap="word", font=FONT, background=SURFACE, foreground=TEXT,
+                   relief="flat", highlightthickness=1, highlightbackground=BORDER, highlightcolor=BORDER,
+                   padx=10, pady=8, state="disabled")
 
 
 class PlaylistPanel(ttk.Frame):
     """Playlist list, selection and check results for one service."""
 
     def __init__(self, app: "App", service: Service):
-        super().__init__(app.tabs, padding=10)
+        super().__init__(app.tabs, padding=16, style="Card.TFrame")
         self.app = app
         self.service = service
         self.playlists: dict[str, dict] = {}
@@ -86,20 +179,20 @@ class PlaylistPanel(ttk.Frame):
 
     def _build(self):
         name = self.service.name
-        form = ttk.Frame(self)
+        form = ttk.Frame(self, style="Card.TFrame")
         form.pack(fill="x")
         form.columnconfigure(1, weight=1)
 
-        top = ttk.Frame(form)
-        top.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 6))
+        top = ttk.Frame(form, style="Card.TFrame")
+        top.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 10))
         self.fetch_button = ttk.Button(top, text=f"Load my {name} playlists", command=self.load_my_playlists)
         self.fetch_button.pack(side="left")
         self.login_button = ttk.Button(top, command=self.login)
         self.login_button.pack(side="right")
-        self.login_label = ttk.Label(top, foreground="#1a7f37")
+        self.login_label = ttk.Label(top, style="Card.TLabel", foreground="#1a7f37")
         self.login_label.pack(side="right", padx=6)
 
-        ttk.Label(form, text="or playlist link:").grid(row=1, column=0, sticky="w", pady=2)
+        ttk.Label(form, text="or playlist link:", style="Card.TLabel").grid(row=1, column=0, sticky="w", pady=2)
         self.link_entry = ttk.Entry(form)
         self.link_entry.grid(row=1, column=1, sticky="ew", padx=6, pady=2)
         self.link_entry.bind("<Return>", lambda e: self.add_by_link())
@@ -107,14 +200,15 @@ class PlaylistPanel(ttk.Frame):
         self.add_button.grid(row=1, column=2, sticky="ew", pady=2)
 
         ttk.Label(
-            self, foreground="#666",
+            self, style="CardMuted.TLabel",
             text="Tick the playlists you want to track, then press “Check selected”.",
-        ).pack(anchor="w", pady=(10, 4))
+        ).pack(anchor="w", pady=(14, 6))
 
-        table_frame = ttk.Frame(self)
+        table_frame = ttk.Frame(self, style="Card.TFrame")
         table_frame.pack(fill="both", expand=True)
         columns = ("tracked", "name", "owner", "tracks", "last_checked")
-        self.table = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="browse")
+        self.table = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="browse",
+                                  height=8)
         for column, heading, width, anchor in (
             ("tracked", "Track", 60, "center"),
             ("name", "Playlist", 380, "w"),
@@ -122,9 +216,10 @@ class PlaylistPanel(ttk.Frame):
             ("tracks", self.service.items.capitalize(), 70, "center"),
             ("last_checked", "Last checked", 140, "center"),
         ):
-            self.table.heading(column, text=heading)
+            self.table.heading(column, text=heading, anchor=anchor)
             self.table.column(column, width=width, anchor=anchor, stretch=(column == "name"))
-        self.table.tag_configure("tracked", background="#e8f5e9")
+        self.table.tag_configure("odd", background=STRIPE)
+        self.table.tag_configure("tracked", background=self.service.tint)
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.table.yview)
         self.table.configure(yscrollcommand=scrollbar.set)
         self.table.pack(side="left", fill="both", expand=True)
@@ -133,20 +228,20 @@ class PlaylistPanel(ttk.Frame):
         self.table.bind("<space>", lambda e: self._toggle_selected())
         self.table.bind("<Double-1>", self._open_playlist)
 
-        footer = ttk.Frame(self)
-        footer.pack(fill="x", pady=(8, 0))
+        footer = ttk.Frame(self, style="Card.TFrame")
+        footer.pack(fill="x", pady=(10, 0))
         ttk.Button(footer, text="Select all", command=lambda: self._set_all(True)).pack(side="left")
         ttk.Button(footer, text="Clear selection", command=lambda: self._set_all(False)).pack(side="left", padx=6)
-        self.check_button = ttk.Button(footer, text="▶  Check selected", command=self.check)
+        self.check_button = ttk.Button(footer, text="▶  Check selected", command=self.check,
+                                       style=f"{self.service.name}.Accent.TButton")
         self.check_button.pack(side="right")
 
-        ttk.Label(self, text="Last check result:").pack(anchor="w", pady=(10, 2))
-        self.result_box = tk.Text(self, height=9, wrap="word", font=("Segoe UI", 10),
-                                  relief="solid", borderwidth=1, state="disabled")
+        ttk.Label(self, text="Last check result", style="Section.TLabel").pack(anchor="w", pady=(14, 6))
+        self.result_box = text_box(self, height=8)
         self.result_box.pack(fill="x")
         for event, color in EVENT_COLORS.items():
             self.result_box.tag_configure(event, foreground=color)
-        self.result_box.tag_configure("heading", font=("Segoe UI", 10, "bold"))
+        self.result_box.tag_configure("heading", font=FONT_BOLD)
 
     @property
     def buttons(self):
@@ -163,9 +258,9 @@ class PlaylistPanel(ttk.Frame):
     def render(self):
         self.table.delete(*self.table.get_children())
         ordered = sorted(self.playlists.items(), key=lambda x: (not x[1]["tracked"], x[1]["name"].lower()))
-        for playlist_id, p in ordered:
+        for index, (playlist_id, p) in enumerate(ordered):
             self.table.insert(
-                "", "end", iid=playlist_id, tags=("tracked",) if p["tracked"] else (),
+                "", "end", iid=playlist_id, tags=("tracked",) if p["tracked"] else ("odd",) if index % 2 else (),
                 values=(CHECKED if p["tracked"] else UNCHECKED, p["name"], p["owner"],
                         p["track_count"], format_date(p["last_checked"]) or "—"),
             )
@@ -344,16 +439,13 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Playlist Tracker")
-        self.geometry("1050x700")
-        self.minsize(800, 500)
+        self.geometry("1100x780")
+        self.minsize(860, 600)
 
         self.busy = False
         self.panels: dict[str, PlaylistPanel] = {}
 
-        style = ttk.Style(self)
-        if "vista" in style.theme_names():
-            style.theme_use("vista")
-        style.configure("Treeview", rowheight=24)
+        apply_theme(self)
 
         self._build_ui()
         self.refresh_history()
@@ -363,14 +455,15 @@ class App(tk.Tk):
             self.after(200, self.open_settings)
 
     def _build_ui(self):
-        header = ttk.Frame(self, padding=(10, 8, 10, 0))
+        header = ttk.Frame(self, padding=(16, 12, 16, 4))
         header.pack(fill="x")
-        ttk.Button(header, text="⚙ Settings", command=self.open_settings).pack(side="right")
-        self.status_label = ttk.Label(header, text="Ready.", foreground="#555")
-        self.status_label.pack(side="left")
+        ttk.Label(header, text="Playlist Tracker", style="Title.TLabel").pack(side="left")
+        ttk.Button(header, text="⚙  Settings", command=self.open_settings).pack(side="right")
+        self.status_label = ttk.Label(header, text="Ready.", style="Muted.TLabel")
+        self.status_label.pack(side="left", padx=(16, 0), pady=(5, 0))
 
         self.tabs = ttk.Notebook(self)
-        self.tabs.pack(fill="both", expand=True, padx=10, pady=8)
+        self.tabs.pack(fill="both", expand=True, padx=16, pady=(8, 16))
         # The history tab is built first because panels update its playlist filter while loading
         self._build_history_tab()
         for index, service in enumerate(SERVICES):
@@ -381,21 +474,21 @@ class App(tk.Tk):
         self.update_history_filter()
 
     def _build_history_tab(self):
-        tab = ttk.Frame(self.tabs, padding=10)
+        tab = ttk.Frame(self.tabs, padding=16, style="Card.TFrame")
         self.tabs.add(tab, text="  History  ")
 
-        toolbar = ttk.Frame(tab)
+        toolbar = ttk.Frame(tab, style="Card.TFrame")
         toolbar.pack(fill="x")
-        ttk.Label(toolbar, text="Source:").pack(side="left")
+        ttk.Label(toolbar, text="Source:", style="Card.TLabel").pack(side="left")
         self.source_filter = ttk.Combobox(toolbar, state="readonly", width=10, values=[s.name for s in SERVICES])
         self.source_filter.current(0)
         self.source_filter.pack(side="left", padx=6)
         self.source_filter.bind("<<ComboboxSelected>>", lambda e: self._on_source_changed())
-        ttk.Label(toolbar, text="Playlist:").pack(side="left", padx=(12, 0))
+        ttk.Label(toolbar, text="Playlist:", style="Card.TLabel").pack(side="left", padx=(12, 0))
         self.playlist_filter = ttk.Combobox(toolbar, state="readonly", width=40)
         self.playlist_filter.pack(side="left", padx=6)
         self.playlist_filter.bind("<<ComboboxSelected>>", lambda e: self.refresh_history())
-        ttk.Label(toolbar, text="Event:").pack(side="left", padx=(12, 0))
+        ttk.Label(toolbar, text="Event:", style="Card.TLabel").pack(side="left", padx=(12, 0))
         self.event_filter = ttk.Combobox(toolbar, state="readonly", width=18,
                                          values=[ALL] + list(EVENT_LABELS.values()))
         self.event_filter.current(0)
@@ -404,10 +497,10 @@ class App(tk.Tk):
         ttk.Button(toolbar, text="Export CSV", command=self._export_csv).pack(side="right")
         ttk.Button(toolbar, text="Refresh", command=self.refresh_history).pack(side="right", padx=6)
 
-        table_frame = ttk.Frame(tab)
-        table_frame.pack(fill="both", expand=True, pady=(8, 0))
+        table_frame = ttk.Frame(tab, style="Card.TFrame")
+        table_frame.pack(fill="both", expand=True, pady=(12, 0))
         columns = ("checked_at", "playlist", "event", "track", "added_at")
-        self.history_table = ttk.Treeview(table_frame, columns=columns, show="headings")
+        self.history_table = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
         for column, heading, width in (
             ("checked_at", "Detected", 130),
             ("playlist", "Playlist", 200),
@@ -415,8 +508,9 @@ class App(tk.Tk):
             ("track", "Track / video", 400),
             ("added_at", "Added to playlist", 130),
         ):
-            self.history_table.heading(column, text=heading)
+            self.history_table.heading(column, text=heading, anchor="w")
             self.history_table.column(column, width=width, stretch=(column == "track"))
+        self.history_table.tag_configure("odd", background=STRIPE)
         for event, color in EVENT_COLORS.items():
             self.history_table.tag_configure(event, foreground=color)
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.history_table.yview)
@@ -425,10 +519,10 @@ class App(tk.Tk):
         scrollbar.pack(side="right", fill="y")
 
         ttk.Label(
-            tab, foreground="#666",
+            tab, style="CardMuted.TLabel",
             text="“Detected” is the time of the check that noticed the change. "
                  "The change happened between the previous check and this time.",
-        ).pack(anchor="w", pady=(6, 0))
+        ).pack(anchor="w", pady=(8, 0))
 
     def set_status(self, text):
         self.status_label.configure(text=text)
@@ -505,10 +599,11 @@ class App(tk.Tk):
         event_code = next((k for k, v in EVENT_LABELS.items() if v == selected_event), None)
 
         self.history_table.delete(*self.history_table.get_children())
-        for r in tracker.get_events(playlist_id, panel.service.db_path):
-            if event_code and r["event"] != event_code:
-                continue
-            self.history_table.insert("", "end", tags=(r["event"],), values=(
+        rows = [r for r in tracker.get_events(playlist_id, panel.service.db_path)
+                if not event_code or r["event"] == event_code]
+        for index, r in enumerate(rows):
+            tags = (r["event"], "odd") if index % 2 else (r["event"],)
+            self.history_table.insert("", "end", tags=tags, values=(
                 format_date(r["checked_at"]), r["playlist"] or "", EVENT_LABELS.get(r["event"], r["event"]),
                 track_label(r), format_date(r["added_at"]),
             ))
@@ -528,25 +623,26 @@ class App(tk.Tk):
         window.title("API settings")
         window.transient(self)
         window.resizable(False, False)
+        window.configure(background=BG)
         notebook = ttk.Notebook(window)
-        notebook.pack(fill="both", padx=10, pady=(10, 0))
+        notebook.pack(fill="both", padx=16, pady=(16, 0))
         config = tracker.load_config()
 
         def link(parent, text, url, row):
-            label = ttk.Label(parent, text=text, foreground="#1565c0", cursor="hand2")
+            label = ttk.Label(parent, text=text, style="Card.TLabel", foreground=FOCUS, cursor="hand2")
             label.grid(row=row, column=0, columnspan=2, sticky="w", pady=(4, 10))
             label.bind("<Button-1>", lambda e: webbrowser.open(url))
 
         def field(parent, label, key, row, secret=False):
-            ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=3)
+            ttk.Label(parent, text=label, style="Card.TLabel").grid(row=row, column=0, sticky="w", pady=4)
             entry = ttk.Entry(parent, width=50, show="•" if secret else "")
             entry.insert(0, config.get(key, ""))
-            entry.grid(row=row, column=1, pady=3)
+            entry.grid(row=row, column=1, sticky="ew", pady=4)
             return entry
 
-        spotify_tab = ttk.Frame(notebook, padding=14)
+        spotify_tab = ttk.Frame(notebook, padding=16, style="Card.TFrame")
         notebook.add(spotify_tab, text="  Spotify  ")
-        ttk.Label(spotify_tab, justify="left", text=(
+        ttk.Label(spotify_tab, justify="left", style="CardMuted.TLabel", text=(
             "1) Log in at developer.spotify.com/dashboard with your Spotify account\n"
             f"2) “Create app” → enter a name, Redirect URI: {tracker.REDIRECT_URI}\n"
             "3) Tick “Web API”, save → copy the Client ID and Client Secret from Settings"
@@ -557,9 +653,9 @@ class App(tk.Tk):
             "CLIENT_SECRET": field(spotify_tab, "Client Secret:", "CLIENT_SECRET", 3, secret=True),
         }
 
-        youtube_tab = ttk.Frame(notebook, padding=14)
+        youtube_tab = ttk.Frame(notebook, padding=16, style="Card.TFrame")
         notebook.add(youtube_tab, text="  YouTube  ")
-        ttk.Label(youtube_tab, justify="left", text=(
+        ttk.Label(youtube_tab, justify="left", style="CardMuted.TLabel", text=(
             "1) Open console.cloud.google.com, create a project and enable “YouTube Data API v3”\n"
             "2) Credentials → Create credentials → API key. This is enough for public and unlisted playlists.\n"
             "3) Optional, for private playlists and “Load my playlists”: set up the OAuth consent screen\n"
@@ -602,7 +698,7 @@ class App(tk.Tk):
                 panel.update_login_status()
             self.set_status("Settings saved.")
 
-        ttk.Button(window, text="Save", command=save).pack(anchor="e", padx=10, pady=10)
+        ttk.Button(window, text="Save", command=save, style="Accent.TButton").pack(anchor="e", padx=16, pady=16)
         notebook.select(youtube_tab if service is YOUTUBE else spotify_tab)
         window.grab_set()
 
