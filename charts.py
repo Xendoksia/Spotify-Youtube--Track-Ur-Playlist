@@ -146,7 +146,8 @@ class BarList(Chart):
         self.first_rank = first_rank
 
     def set_rows(self, rows: list[dict]):
-        """rows: dicts with title, subtitle, value, value_text, tooltip and optionally image (a Tk image)."""
+        """rows: dicts with title, subtitle, value, value_text, tooltip and optionally image (a Tk image)
+        and change: (text, color) shown under the rank, such as the move since the previous period."""
         self.rows = rows
         self.redraw()
 
@@ -162,7 +163,9 @@ class BarList(Chart):
             return False
         row_height = self.ROW_HEIGHT
         label_width = width * 0.5
-        rank_width = self.small_font.measure(str(self.first_rank + len(self.rows))) + 8
+        rank_width = max(self.small_font.measure(text) for text in
+                         [str(self.first_rank + len(self.rows))] + [r["change"][0] for r in self.rows if r.get("change")]
+                         ) + 8
         size = self.IMAGE_SIZE
         text_left = rank_width + size + 10
         value_width = max(self.small_font.measure(r["value_text"]) for r in self.rows) + 8
@@ -173,8 +176,12 @@ class BarList(Chart):
 
         for index, row in enumerate(self.rows):
             middle = index * row_height + row_height / 2
-            self.create_text(rank_width - 6, middle, text=str(self.first_rank + index), anchor="e", fill=P.muted,
-                             font=self.small_font)
+            change = row.get("change")
+            self.create_text(rank_width - 6, middle - 8 if change else middle, text=str(self.first_rank + index),
+                             anchor="e", fill=P.muted, font=self.small_font)
+            if change:
+                self.create_text(rank_width - 6, middle + 9, text=change[0], anchor="e", fill=change[1],
+                                 font=self.small_font)
             if row.get("image"):
                 self.create_image(rank_width, middle, image=row["image"], anchor="w")
             else:

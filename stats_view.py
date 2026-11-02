@@ -56,6 +56,12 @@ def period_title(period: str, start: datetime, end: datetime) -> str:
     return t("stats.all_time")
 
 
+def change_tip(change, key, rank) -> str:
+    """The rank change written out, as an extra tooltip line."""
+    result = change(key, rank, long=True)
+    return f"\n{result[0]}" if result else ""
+
+
 class ScrollFrame(ttk.Frame):
     """A vertically scrolling area; widgets go into .content."""
 
@@ -97,8 +103,12 @@ class Hero(ttk.Frame):
         self.title.pack(anchor="w")
         self.subtitle = ttk.Label(text, style="HeroSubtitle.TLabel")
         self.subtitle.pack(anchor="w")
-        self.detail = ttk.Label(text, style="Card.TLabel")
-        self.detail.pack(anchor="w", pady=(10, 0))
+        details = ttk.Frame(text, style="Card.TFrame")
+        details.pack(anchor="w", pady=(10, 0))
+        self.detail = ttk.Label(details, style="Card.TLabel")
+        self.detail.pack(side="left")
+        self.change = ttk.Label(details, style="Card.TLabel")
+        self.change.pack(side="left", padx=(10, 0))
         self.bind("<Configure>", lambda e: self._wrap())
 
     def _wrap(self):
@@ -106,7 +116,7 @@ class Hero(ttk.Frame):
         for label in (self.title, self.subtitle):
             label.configure(wraplength=width)
 
-    def show(self, title: str, subtitle: str, detail: str, image):
+    def show(self, title: str, subtitle: str, detail: str, image, change: tuple[str, str] | None = None):
         size = self.IMAGE_SIZE
         self.picture.delete("all")
         if image is not None:
@@ -116,6 +126,8 @@ class Hero(ttk.Frame):
         self.title.configure(text=title)
         self.subtitle.configure(text=subtitle)
         self.detail.configure(text=detail)
+        text, color = change or ("", P.muted)
+        self.change.configure(text=text, foreground=color)
 
     def show_empty(self, text: str):
         self.picture.delete("all")
@@ -126,6 +138,7 @@ class Hero(ttk.Frame):
         self.title.configure(text="—")
         self.subtitle.configure(text=text)
         self.detail.configure(text="")
+        self.change.configure(text="")
 
 
 class StatsTab(ttk.Frame):
@@ -250,40 +263,65 @@ class StatsTab(ttk.Frame):
 
         tracks = listening.top_tracks(start, end, TOP_COUNT)
         artists = listening.top_artists(start, end, TOP_COUNT)
+        track_change = self._rank_changes(start, end, "track_key")
+        artist_change = self._rank_changes(start, end, "artist_key")
         if tracks:
             top = tracks[0]
             self.track_hero.show(top["name"], top["artist"],
                                  summary_text(plays_text(top["plays"]), minutes=top["minutes"]),
-                                 self._cover(top, Hero.IMAGE_SIZE, 10))
+                                 self._cover(top, Hero.IMAGE_SIZE, 10), track_change(top["key"], 1, long=True))
         else:
             self.track_hero.show_empty(t("stats.empty"))
         if artists:
             top = artists[0]
             self.artist_hero.show(top["name"], tracks_text(top["tracks"]),
                                   summary_text(plays_text(top["plays"]), minutes=top["minutes"]),
-                                  self._artist_photo(top["name"], Hero.IMAGE_SIZE))
+                                  self._artist_photo(top["name"], Hero.IMAGE_SIZE),
+                                  artist_change(top["key"], 1, long=True))
         else:
             self.artist_hero.show_empty(t("stats.empty"))
 
         size = BarList.IMAGE_SIZE
         self.top_tracks.set_rows([{
             "title": r["name"], "subtitle": r["artist"], "value": r["plays"], "value_text": number(r["plays"]),
-            "tooltip": f"{r['name']}\n{r['artist']}\n" + summary_text(plays_text(r["plays"]), minutes=r["minutes"]),
-            "image": self._cover(r, size, 4),
-        } for r in tracks[1:]])
+            "tooltip": f"{r['name']}\n{r['artist']}\n" + summary_text(plays_text(r["plays"]), minutes=r["minutes"])
+                       + change_tip(track_change, r["key"], rank),
+            "image": self._cover(r, size, 4), "change": track_change(r["key"], rank),
+        } for rank, r in enumerate(tracks[1:], start=2)])
         self.top_artists.set_rows([{
             "title": r["name"], "subtitle": tracks_text(r["tracks"]),
             "value": r["plays"], "value_text": number(r["plays"]),
             "tooltip": f"{r['name']}\n" + summary_text(
-                plays_text(r["plays"]), tracks_text(r["tracks"]), minutes=r["minutes"]),
-            "image": self._artist_photo(r["name"], size),
-        } for r in artists[1:]])
+                plays_text(r["plays"]), tracks_text(r["tracks"]), minutes=r["minutes"])
+                       + change_tip(artist_change, r["key"], rank),
+            "image": self._artist_photo(r["name"], size), "change": artist_change(r["key"], rank),
+        } for rank, r in enumerate(artists[1:], start=2)])
         self._fill_timeline(start, end)
         hours = listening.hours(start, end)
         self.hours.set_buckets([{
             "label": f"{hour:02d}", "value": count,
             "tooltip": f"{hour:02d}:00 – {(hour + 1) % 24:02d}:00\n{plays_text(count)}",
         } for hour, count in enumerate(hours)])
+
+    def _rank_changes(self, start, end, column: str):
+        """Returns change(key, rank) → (text, color) comparing with the whole previous period, or None."""
+        if self.period == "all":
+            return lambda key, rank, long=False: None
+        previous = listening.ranks(*listening.period_range(self.period, self.offset + 1), column)
+
+        def change(key, rank, long=False):
+            before = previous.get(key)
+            if before is None:
+                return t("stats.change.new_long" if long else "stats.change.new"), P.playable
+            if before == rank:
+                return (t("stats.change.same") if long else "="), P.muted
+            arrow = "▲" if before > rank else "▼"
+            if long:
+                text = t("stats.change.moved", arrow=arrow, count=abs(before - rank), rank=before)
+            else:
+                text = f"{arrow}{abs(before - rank)}"
+            return text, P.added if before > rank else P.removed
+        return change
 
     def _fill_tiles(self, start, end):
         current = listening.summary(start, end)

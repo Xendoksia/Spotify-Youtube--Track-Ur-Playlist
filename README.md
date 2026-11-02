@@ -26,7 +26,7 @@ and compares it with the previous one, so the title, artist and original add dat
   this computer is recorded with the time actually listened, so your most played tracks and artists are
   counted from your own plays.
 - **Listening statistics** per week, month, year or all time: your number one track and artist with album cover
-  and artist photo, the rest of the top 10, listening time, plays per day or month and by hour of day, compared
+  and artist photo, the rest of the top 10 with each one's move since the previous period (▲ ▼ NEW), listening time, plays per day or month and by hour of day, compared
   with the same stretch of the previous period
 - **Runs in the background:** closing the window keeps the app in the system tray, where recording can be
   paused; it can also start with Windows. Only one copy runs at a time, opening it again shows the window.

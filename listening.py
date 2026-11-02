@@ -161,8 +161,8 @@ def summary(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
 def top_tracks(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
-            "SELECT MAX(name) AS name, MAX(artist) AS artist, MAX(album) AS album, COUNT(*) AS plays, "
-            "COALESCE(SUM(ms_played), 0) / 60000 AS minutes, MAX(played_at) AS last_played "
+            "SELECT track_key AS key, MAX(name) AS name, MAX(artist) AS artist, MAX(album) AS album, "
+            "COUNT(*) AS plays, COALESCE(SUM(ms_played), 0) / 60000 AS minutes, MAX(played_at) AS last_played "
             "FROM listens WHERE played_at >= ? AND played_at < ? "
             "GROUP BY track_key ORDER BY plays DESC, last_played DESC LIMIT ?", (*_range(start, end), limit))]
 
@@ -170,10 +170,24 @@ def top_tracks(start: datetime, end: datetime, limit: int = 10, db_path: Path = 
 def top_artists(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
-            "SELECT MAX(artist) AS name, COUNT(*) AS plays, COUNT(DISTINCT track_key) AS tracks, "
+            "SELECT artist_key AS key, MAX(artist) AS name, COUNT(*) AS plays, COUNT(DISTINCT track_key) AS tracks, "
             "COALESCE(SUM(ms_played), 0) / 60000 AS minutes "
             "FROM listens WHERE played_at >= ? AND played_at < ? "
             "GROUP BY artist_key ORDER BY plays DESC, MAX(played_at) DESC LIMIT ?", (*_range(start, end), limit))]
+
+
+def ranks(start: datetime, end: datetime, column: str, db_path: Path = DB_PATH) -> dict[str, int]:
+    """Rank (1 = most played) of every track or artist played in the period, ordered like top_tracks/top_artists.
+
+    column: "track_key" or "artist_key".
+    """
+    if column not in ("track_key", "artist_key"):
+        raise ValueError(column)
+    with open_db(db_path) as db:
+        rows = db.execute(
+            f"SELECT {column} FROM listens WHERE played_at >= ? AND played_at < ? "
+            f"GROUP BY {column} ORDER BY COUNT(*) DESC, MAX(played_at) DESC", _range(start, end))
+        return {row[0]: index for index, row in enumerate(rows, start=1)}
 
 
 def timeline(start: datetime, end: datetime, bucket: str, db_path: Path = DB_PATH) -> dict[str, int]:
