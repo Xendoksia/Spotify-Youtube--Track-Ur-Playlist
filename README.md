@@ -1,5 +1,7 @@
 # Spotify Playlist Tracker
 
+![Playlist Tracker](docs/screenshot.png)
+
 Are tracks silently disappearing from your Spotify playlists, or videos from your YouTube playlists? This app keeps
 a history of your playlists: which track was **added when**, which one was **removed when**, and which one became
 **unplayable**. Spotify and YouTube playlists are tracked side by side, each in its own tab and its own database.
