@@ -25,11 +25,13 @@ and compares it with the previous one, so the title, artist and original add dat
 - **Listening history** in its own section, without the Spotify API: what the Spotify desktop app plays on
   this computer is recorded with the time actually listened, so your most played tracks and artists are
   counted from your own plays.
-- **Listening statistics** per week, month, year or all time: most played tracks and artists, listening time,
-  plays per day or month and by hour of day, compared with the same stretch of the previous period
+- **Listening statistics** per week, month, year or all time: your number one track and artist with album cover
+  and artist photo, the rest of the top 10, listening time, plays per day or month and by hour of day, compared
+  with the same stretch of the previous period
 - English and Turkish interface, light and dark theme (or follow the Windows setting), under **Settings → General**
-- Only the Python standard library is needed. On Windows, `pip install -r requirements.txt` lets listening
-  history read the album and playback position too; without it the Spotify window title is used.
+- Playlist tracking needs only the Python standard library. On Windows, `pip install -r requirements.txt` adds
+  album covers, artist photos and the album and playback position of the playing song (without it the Spotify
+  window title is used and the statistics show initials instead of pictures).
 
 ## Requirements
 
@@ -150,10 +152,12 @@ All data stays on your computer, in the app folder:
 | `config.json` | API keys, client secrets and sessions. **Do not share it.** |
 | `history.db` | History of your Spotify playlists and changes (SQLite) |
 | `youtube_history.db` | History of your YouTube playlists and changes (SQLite) |
-| `listening.db` | Your recorded and imported plays (SQLite) |
+| `listening.db` | Your recorded plays (SQLite) |
+| `artwork/` | Cached album covers and artist photos |
 
-All of them are listed in `.gitignore` and are never committed. The app does not connect to anything other than
-Spotify and Google / YouTube.
+All of them are listed in `.gitignore` and are never committed. The app connects only to Spotify and Google /
+YouTube, plus Deezer's public search to find album covers that Windows did not provide and artist photos (only
+the artist and track names are sent, no account is involved).
 
 ## Files
 
@@ -169,5 +173,6 @@ Spotify and Google / YouTube.
 | `listening_view.py` | Listening section of the interface |
 | `stats_view.py` | Statistics tab of the Listening section |
 | `charts.py` | Bar and column charts drawn with tkinter |
+| `artwork.py` | Album covers and artist photos for the statistics |
 | `Spotify Playlist Tracker.bat` | Double-click launcher for Windows |
 | `config.example.json` | Sample configuration file |

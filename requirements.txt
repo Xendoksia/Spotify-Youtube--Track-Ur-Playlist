@@ -1,4 +1,7 @@
-# Optional: lets listening history read album and playback position from Windows' media controls
+# Optional: album covers and artist photos in the listening statistics
+Pillow
+# Optional: lets listening history read album, cover and playback position from Windows' media controls
 winrt-runtime; sys_platform == "win32"
 winrt-Windows.Foundation; sys_platform == "win32"
 winrt-Windows.Media.Control; sys_platform == "win32"
+winrt-Windows.Storage.Streams; sys_platform == "win32"

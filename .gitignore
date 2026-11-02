@@ -1,9 +1,10 @@
 # Personal settings: Client ID / Secret and Spotify session (never share)
 config.json
 
-# Local history database
+# Local history database and cached album covers / artist photos
 *.db
 *.db-journal
+artwork/
 
 # Exported history
 *.csv

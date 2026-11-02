@@ -44,6 +44,26 @@ def rounded_bar(canvas: tk.Canvas, x0: float, y0: float, x1: float, y1: float, e
     return canvas.create_polygon(points, width=0, **options)
 
 
+def rounded_rect(canvas: tk.Canvas, x0: float, y0: float, x1: float, y1: float, radius: float, **options) -> int:
+    """Draw a rectangle with all four corners rounded."""
+    points = []
+    for cx, cy, start in ((x1 - radius, y0 + radius, -90), (x1 - radius, y1 - radius, 0),
+                          (x0 + radius, y1 - radius, 90), (x0 + radius, y0 + radius, 180)):
+        for step in range(7):
+            angle = math.radians(start + step * 15)
+            points += [cx + radius * math.cos(angle), cy + radius * math.sin(angle)]
+    return canvas.create_polygon(points, width=0, **options)
+
+
+def placeholder(canvas: tk.Canvas, x: float, y: float, size: float, text: str, round_: bool, font) -> None:
+    """Draw a neutral tile with the first letter of the name, for items without a picture."""
+    if round_:
+        canvas.create_oval(x, y, x + size, y + size, fill=P.nav, outline="")
+    else:
+        rounded_rect(canvas, x, y, x + size, y + size, min(6, size / 5), fill=P.nav)
+    canvas.create_text(x + size / 2, y + size / 2, text=(text.strip()[:1] or "♪").upper(), fill=P.muted, font=font)
+
+
 def nice_max(value: float) -> int:
     """Round an axis maximum up to 1, 2 or 5 times a power of ten."""
     if value <= 0:
@@ -116,12 +136,17 @@ class Chart(tk.Canvas):
 class BarList(Chart):
     """Ranked horizontal bars: a label column on the left, bars with the value at their tip on the right."""
 
-    def __init__(self, parent, height: int, empty_text: str = ""):
-        super().__init__(parent, height, empty_text)
+    ROW_HEIGHT = 44
+    IMAGE_SIZE = 32
+
+    def __init__(self, parent, empty_text: str = "", rows: int = 10, round_images: bool = False, first_rank: int = 1):
+        super().__init__(parent, self.ROW_HEIGHT * rows, empty_text)
         self.rows: list[dict] = []
+        self.round_images = round_images
+        self.first_rank = first_rank
 
     def set_rows(self, rows: list[dict]):
-        """rows: dicts with title, subtitle, value, value_text and tooltip."""
+        """rows: dicts with title, subtitle, value, value_text, tooltip and optionally image (a Tk image)."""
         self.rows = rows
         self.redraw()
 
@@ -135,27 +160,35 @@ class BarList(Chart):
     def draw(self, width, height):
         if not self.rows:
             return False
-        row_height = min(30, height / len(self.rows))
-        label_width = width * 0.48
-        rank_width = self.small_font.measure("10") + 8
+        row_height = self.ROW_HEIGHT
+        label_width = width * 0.5
+        rank_width = self.small_font.measure(str(self.first_rank + len(self.rows))) + 8
+        size = self.IMAGE_SIZE
+        text_left = rank_width + size + 10
         value_width = max(self.small_font.measure(r["value_text"]) for r in self.rows) + 8
         bar_left = label_width + 12
         bar_space = width - bar_left - value_width
         top_value = max(r["value"] for r in self.rows) or 1
-        thickness = min(MAX_THICKNESS, max(6, row_height * 0.42))
+        thickness = 12
 
         for index, row in enumerate(self.rows):
             middle = index * row_height + row_height / 2
-            self.create_text(rank_width - 6, middle, text=str(index + 1), anchor="e", fill=P.muted,
+            self.create_text(rank_width - 6, middle, text=str(self.first_rank + index), anchor="e", fill=P.muted,
                              font=self.small_font)
-            title = self._fit(row["title"], self.font, label_width - rank_width)
-            title_item = self.create_text(rank_width, middle, text=title, anchor="w", fill=P.text, font=self.font)
+            if row.get("image"):
+                self.create_image(rank_width, middle, image=row["image"], anchor="w")
+            else:
+                placeholder(self, rank_width, middle - size / 2, size, row["title"], self.round_images,
+                            self.small_font)
+            text_width = label_width - text_left
             if row.get("subtitle"):
-                used = self.bbox(title_item)[2] - rank_width
-                subtitle = self._fit("  ·  " + row["subtitle"], self.small_font, label_width - rank_width - used)
-                if subtitle != "…":
-                    self.create_text(rank_width + used, middle, text=subtitle, anchor="w", fill=P.muted,
-                                     font=self.small_font)
+                self.create_text(text_left, middle - 8, text=self._fit(row["title"], self.font, text_width),
+                                 anchor="w", fill=P.text, font=self.font)
+                self.create_text(text_left, middle + 9, text=self._fit(row["subtitle"], self.small_font, text_width),
+                                 anchor="w", fill=P.muted, font=self.small_font)
+            else:
+                self.create_text(text_left, middle, text=self._fit(row["title"], self.font, text_width),
+                                 anchor="w", fill=P.text, font=self.font)
             length = max(2, bar_space * row["value"] / top_value)
             bar = rounded_bar(self, bar_left, middle - thickness / 2, bar_left + length, middle + thickness / 2,
                               "right", fill=P.chart)

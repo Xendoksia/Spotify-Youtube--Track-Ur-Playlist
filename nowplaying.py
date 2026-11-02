@@ -15,6 +15,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+import artwork
 import listening
 
 POLL_SECONDS = 3
@@ -44,15 +45,50 @@ try:
 
     from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionManager as SessionManager
     from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status
+    from winrt.windows.storage.streams import Buffer, InputStreamOptions
 except ImportError:
     SessionManager = None
 
 
-async def _read_media_session() -> Snapshot | None:
+async def _spotify_session():
     manager = await SessionManager.request_async()
     for session in manager.get_sessions():
-        if "spotify" not in (session.source_app_user_model_id or "").lower():
-            continue
+        if "spotify" in (session.source_app_user_model_id or "").lower():
+            return session
+    return None
+
+
+async def _read_thumbnail() -> tuple[str, str, bytes] | None:
+    session = await _spotify_session()
+    if session is None:
+        return None
+    props = await session.try_get_media_properties_async()
+    if not props.thumbnail:
+        return None
+    stream = await props.thumbnail.open_read_async()
+    buffer = Buffer(stream.size)
+    await stream.read_async(buffer, buffer.capacity, InputStreamOptions.READ_AHEAD)
+    return props.artist or "", props.title or "", bytes(buffer)
+
+
+def save_cover(play: dict) -> None:
+    """Store the album cover Spotify shows for the current song, if it is not saved yet."""
+    path = artwork.cover_path(play["artist"], play["album"], play["name"])
+    if SessionManager is None or not artwork.available or path.exists():
+        return
+    try:
+        result = asyncio.run(_read_thumbnail())
+    except Exception:
+        return
+    # Only keep it if the song did not change in the meantime
+    if (result and listening.key(result[0]) == listening.key(play["artist"])
+            and listening.key(result[1]) == listening.key(play["name"])):
+        artwork.save_image(result[2], path)
+
+
+async def _read_media_session() -> Snapshot | None:
+    session = await _spotify_session()
+    if session is not None:
         props = await session.try_get_media_properties_async()
         playing = session.get_playback_info().playback_status == Status.PLAYING
         timeline = session.get_timeline_properties()
@@ -200,8 +236,9 @@ class LocalTracker:
         self.state = "playing" if snapshot.playing else "paused"
 
         if play["ms"] >= listening.MIN_PLAY_MS and play["id"] is None:
-            play["id"] = listening.record_local(play) or 0  # 0: already known from the data export
+            play["id"] = listening.record_local(play) or 0  # 0: already recorded
             play["saved_ms"] = play["ms"]
+            save_cover(play)
             self.version += 1
         elif play["id"] and play["ms"] - play["saved_ms"] >= SAVE_EVERY_MS:
             self._save(play)

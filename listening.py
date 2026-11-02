@@ -161,7 +161,7 @@ def summary(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
 def top_tracks(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
-            "SELECT MAX(name) AS name, MAX(artist) AS artist, COUNT(*) AS plays, "
+            "SELECT MAX(name) AS name, MAX(artist) AS artist, MAX(album) AS album, COUNT(*) AS plays, "
             "COALESCE(SUM(ms_played), 0) / 60000 AS minutes, MAX(played_at) AS last_played "
             "FROM listens WHERE played_at >= ? AND played_at < ? "
             "GROUP BY track_key ORDER BY plays DESC, last_played DESC LIMIT ?", (*_range(start, end), limit))]
