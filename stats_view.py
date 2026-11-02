@@ -186,6 +186,7 @@ class StatsTab(ttk.Frame):
         self._images = []
         self._refresh_pending = False
         self.detail = None
+        self.wrapped = None
         self.overview = ttk.Frame(self, style="Card.TFrame")
         self.overview.pack(fill="both", expand=True)
         self._build()
@@ -207,6 +208,8 @@ class StatsTab(ttk.Frame):
         self.next_button.pack(side="left", padx=(px(4), 0))
         self.title_label = ttk.Label(toolbar, style="Period.TLabel")
         self.title_label.pack(side="left", padx=px(12))
+        ttk.Button(toolbar, text=t("wrapped.button"), style="Accent.TButton",
+                   command=self.open_wrapped).pack(side="right")
 
         page = ScrollFrame(self.overview)
         page.pack(fill="both", expand=True, pady=(px(12), 0))
@@ -327,25 +330,49 @@ class StatsTab(ttk.Frame):
             # Imported here because the detail page builds on this module
             from detail_view import DetailView
             self.detail = DetailView(self, on_close=self.show_overview)
-            window = self.winfo_toplevel()
-            window.bind("<Escape>", lambda e: self._detail_key(0), add="+")
-            window.bind("<Alt-Left>", lambda e: self._detail_key(-1), add="+")
-            window.bind("<Alt-Right>", lambda e: self._detail_key(1), add="+")
-        self.overview.pack_forget()
-        self.detail.pack(fill="both", expand=True)
+            self._bind_keys()
+        self._show_layer(self.detail)
         self.detail.open(column, key)
 
-    def _detail_key(self, direction: int):
-        """Alt+Left / Alt+Right go back and forward, Escape (0) closes the page."""
-        if self.detail is not None and self.detail.winfo_ismapped():
+    def open_wrapped(self, month: tuple[datetime, datetime] | None = None):
+        """Show the monthly summary of the given month, by default the last one with plays."""
+        # Imported here because the summary builds on this module
+        import wrapped_view
+        if self.wrapped is None:
+            self.wrapped = wrapped_view.WrappedView(self, on_close=self.show_overview)
+            self._bind_keys()
+        self._show_layer(self.wrapped)
+        self.wrapped.show(*(month or wrapped_view.month_to_show()))
+
+    def _bind_keys(self):
+        if getattr(self, "_keys_bound", False):
+            return
+        self._keys_bound = True
+        window = self.winfo_toplevel()
+        window.bind("<Escape>", lambda e: self._layer_key(0), add="+")
+        window.bind("<Alt-Left>", lambda e: self._layer_key(-1), add="+")
+        window.bind("<Alt-Right>", lambda e: self._layer_key(1), add="+")
+        window.bind("<Left>", lambda e: self._layer_key(-1, slides_only=True), add="+")
+        window.bind("<Right>", lambda e: self._layer_key(1, slides_only=True), add="+")
+
+    def _layer_key(self, direction: int, slides_only: bool = False):
+        """Alt+Left / Alt+Right (and plain arrows in the summary) go back and forward, Escape (0) closes."""
+        for layer in (self.detail, self.wrapped):
+            if layer is None or not layer.winfo_ismapped() or (slides_only and layer is not self.wrapped):
+                continue
             if direction:
-                self.detail.step(direction)
+                layer.step(direction)
             else:
-                self.detail.close()
+                layer.close()
+
+    def _show_layer(self, layer):
+        for other in (self.overview, self.detail, self.wrapped):
+            if other is not None and other is not layer:
+                other.pack_forget()
+        layer.pack(fill="both", expand=True)
 
     def show_overview(self):
-        self.detail.pack_forget()
-        self.overview.pack(fill="both", expand=True)
+        self._show_layer(self.overview)
 
     def _cover(self, row: dict, size: int, radius: int):
         path = self.fetcher.cover(row["artist"], row["album"] or "", row["name"], self._artwork_arrived)

@@ -398,6 +398,8 @@ class App(tk.Tk):
                 self.iconify()
         elif not any(s.has_credentials(config) for s in SERVICES):
             self.after(200, self.open_settings)
+        else:
+            self.after(500, self._open_monthly_summary)
 
     def on_close(self):
         if not background.close_to_tray(tracker.load_config()):
@@ -464,6 +466,16 @@ class App(tk.Tk):
         self.tabs.select(0)
         self.update_history_filter()
         self.show_section("playlists")
+
+    def _open_monthly_summary(self):
+        """On the first opening in a new month, show the summary of the month before (see wrapped_view.AUTO_OPEN)."""
+        import wrapped_view
+        due = wrapped_view.auto_open_due()
+        if due:
+            wrapped_view.mark_shown(due[0])
+            self.show_section("listening")
+            self.listening.tabs.select(self.listening.stats)
+            self.listening.stats.open_wrapped(due)
 
     def open_track_page(self, track_key: str):
         self.show_section("listening")
