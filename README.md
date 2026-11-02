@@ -25,6 +25,8 @@ and compares it with the previous one, so the title, artist and original add dat
 - **Listening history** in its own section, without the Spotify API: what the Spotify desktop app plays on
   this computer is recorded with the time actually listened, so your most played tracks and artists are
   counted from your own plays.
+- **Listening statistics** per week, month, year or all time: most played tracks and artists, listening time,
+  plays per day or month and by hour of day, compared with the same stretch of the previous period
 - English and Turkish interface, light and dark theme (or follow the Windows setting), under **Settings → General**
 - Only the Python standard library is needed. On Windows, `pip install -r requirements.txt` lets listening
   history read the album and playback position too; without it the Spotify window title is used.
@@ -165,5 +167,7 @@ Spotify and Google / YouTube.
 | `listening.py` | Listening history: storage, statistics and command line |
 | `nowplaying.py` | Records what the Spotify desktop app plays, without the API |
 | `listening_view.py` | Listening section of the interface |
+| `stats_view.py` | Statistics tab of the Listening section |
+| `charts.py` | Bar and column charts drawn with tkinter |
 | `Spotify Playlist Tracker.bat` | Double-click launcher for Windows |
 | `config.example.json` | Sample configuration file |

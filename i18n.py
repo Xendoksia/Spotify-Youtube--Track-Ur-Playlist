@@ -38,6 +38,35 @@ STRINGS: dict[str, dict[str, str]] = {
         "listening.column.source": "Source",
         "listening.source.local": "This computer",
         "listening.source.spotify": "Spotify (earlier)",
+        "stats.tab": "Statistics",
+        "stats.period.week": "Week",
+        "stats.period.month": "Month",
+        "stats.period.year": "Year",
+        "stats.period.all": "All time",
+        "stats.all_time": "All time",
+        "stats.tile.plays": "Plays",
+        "stats.tile.time": "Listening time",
+        "stats.tile.tracks": "Different tracks",
+        "stats.tile.artists": "Different artists",
+        "stats.vs.week": "vs. previous week",
+        "stats.vs.month": "vs. previous month",
+        "stats.vs.year": "vs. previous year",
+        "stats.percent": "{value}%",
+        "stats.top_tracks": "Most played tracks",
+        "stats.top_artists": "Most played artists",
+        "stats.per_day": "Plays per day",
+        "stats.per_month": "Plays per month",
+        "stats.per_year": "Plays per year",
+        "stats.hours": "Plays by hour of day",
+        "stats.empty": "No plays recorded in this period.",
+        "stats.plays_one": "1 play",
+        "stats.plays": "{count} plays",
+        "stats.different_tracks": "{count} different tracks",
+        "stats.minutes": "{minutes} min",
+        "stats.hours_minutes": "{hours} h {minutes} min",
+        "stats.months": "January,February,March,April,May,June,July,August,September,October,November,December",
+        "stats.months_short": "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec",
+        "stats.weekdays": "Mon,Tue,Wed,Thu,Fri,Sat,Sun",
 
         "panel.load_playlists": "Load my {service} playlists",
         "panel.or_link": "or playlist link:",
@@ -226,6 +255,35 @@ STRINGS: dict[str, dict[str, str]] = {
         "listening.column.source": "Kaynak",
         "listening.source.local": "Bu bilgisayar",
         "listening.source.spotify": "Spotify (önceki)",
+        "stats.tab": "İstatistikler",
+        "stats.period.week": "Hafta",
+        "stats.period.month": "Ay",
+        "stats.period.year": "Yıl",
+        "stats.period.all": "Tüm zamanlar",
+        "stats.all_time": "Tüm zamanlar",
+        "stats.tile.plays": "Çalma",
+        "stats.tile.time": "Dinleme süresi",
+        "stats.tile.tracks": "Farklı şarkı",
+        "stats.tile.artists": "Farklı sanatçı",
+        "stats.vs.week": "önceki haftaya göre",
+        "stats.vs.month": "önceki aya göre",
+        "stats.vs.year": "önceki yıla göre",
+        "stats.percent": "%{value}",
+        "stats.top_tracks": "En çok dinlenen şarkılar",
+        "stats.top_artists": "En çok dinlenen sanatçılar",
+        "stats.per_day": "Günlere göre çalma",
+        "stats.per_month": "Aylara göre çalma",
+        "stats.per_year": "Yıllara göre çalma",
+        "stats.hours": "Günün saatlerine göre çalma",
+        "stats.empty": "Bu dönemde kayıtlı çalma yok.",
+        "stats.plays_one": "1 çalma",
+        "stats.plays": "{count} çalma",
+        "stats.different_tracks": "{count} farklı şarkı",
+        "stats.minutes": "{minutes} dk",
+        "stats.hours_minutes": "{hours} sa {minutes} dk",
+        "stats.months": "Ocak,Şubat,Mart,Nisan,Mayıs,Haziran,Temmuz,Ağustos,Eylül,Ekim,Kasım,Aralık",
+        "stats.months_short": "Oca,Şub,Mar,Nis,May,Haz,Tem,Ağu,Eyl,Eki,Kas,Ara",
+        "stats.weekdays": "Pzt,Sal,Çar,Per,Cum,Cmt,Paz",
 
         "panel.load_playlists": "{service} listelerimi yükle",
         "panel.or_link": "veya liste linki:",
@@ -412,6 +470,12 @@ def current() -> str:
 def set_language(code: str | None) -> None:
     global _language
     _language = code if code in LANGUAGES else None
+
+
+def number(value: int) -> str:
+    """Format a whole number with the thousands separator of the current language."""
+    text = f"{value:,}"
+    return text.replace(",", ".") if current() == "tr" else text
 
 
 def t(key: str, **values) -> str:

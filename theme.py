@@ -23,6 +23,8 @@ LIGHT = {
     "added": "#1a7f37", "removed": "#c62828", "unplayable": "#b26a00", "playable": "#1565c0", "initial": "#666666",
     "spotify_tint": "#ecf8f0", "youtube_tint": "#fdf0ef",
     "banner": "#fff6db", "banner_text": "#7a4d00", "nav": "#e6e8ec",
+    # Chart marks; validated with the dataviz palette checks against this theme's surface
+    "chart": "#1aa34a", "chart_hover": "#13843b", "grid": "#eceef1",
 }
 DARK = {
     "bg": "#16181d", "surface": "#1f2228", "border": "#30343c", "text": "#e6e8eb", "muted": "#9aa1ab",
@@ -32,6 +34,7 @@ DARK = {
     "added": "#3fb950", "removed": "#f85149", "unplayable": "#d29922", "playable": "#58a6ff", "initial": "#8b949e",
     "spotify_tint": "#1b2c22", "youtube_tint": "#30201f",
     "banner": "#3a2f15", "banner_text": "#e3b341", "nav": "#262a31",
+    "chart": "#2ea043", "chart_hover": "#3fb950", "grid": "#2a2e35",
 }
 
 FONT = ("Segoe UI", 10)
@@ -109,6 +112,9 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     style.configure("CardMuted.TLabel", background=P.surface, foreground=P.muted)
     style.configure("Section.TLabel", background=P.surface, font=FONT_BOLD)
     style.configure("Title.TLabel", font=("Segoe UI Semibold", 15))
+    style.configure("Tile.TFrame", background=P.surface, bordercolor=P.border, relief="solid", borderwidth=1)
+    style.configure("TileValue.TLabel", background=P.surface, font=("Segoe UI Semibold", 20))
+    style.configure("Period.TLabel", background=P.surface, font=("Segoe UI Semibold", 12))
     style.configure("Banner.TFrame", background=P.banner)
     style.configure("Banner.TLabel", background=P.banner, foreground=P.banner_text)
     style.configure("Nav.TFrame", background=P.nav)

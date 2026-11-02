@@ -210,9 +210,10 @@ class LocalTracker:
         if play["id"]:
             listening.update_local(play["id"], play["ms"])
             play["saved_ms"] = play["ms"]
-            self.version += 1
 
     def _finish(self) -> None:
         if self._play:
             self._save(self._play)
+            if self._play["id"]:
+                self.version += 1
             self._play = None

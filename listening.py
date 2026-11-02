@@ -112,6 +112,12 @@ def update_local(play_id: int, ms_played: int, db_path: Path = DB_PATH) -> None:
         db.execute("UPDATE listens SET ms_played = ? WHERE id = ?", (ms_played, play_id))
 
 
+def first_play(db_path: Path = DB_PATH) -> datetime | None:
+    with open_db(db_path) as db:
+        first = db.execute("SELECT MIN(played_at) FROM listens").fetchone()[0]
+    return from_utc(first).astimezone() if first else None
+
+
 def counts(db_path: Path = DB_PATH) -> dict[str, int]:
     with open_db(db_path) as db:
         return {r[0]: r[1] for r in db.execute("SELECT source, COUNT(*) FROM listens GROUP BY source")}
@@ -155,7 +161,8 @@ def summary(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
 def top_tracks(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
-            "SELECT MAX(name) AS name, MAX(artist) AS artist, COUNT(*) AS plays, MAX(played_at) AS last_played "
+            "SELECT MAX(name) AS name, MAX(artist) AS artist, COUNT(*) AS plays, "
+            "COALESCE(SUM(ms_played), 0) / 60000 AS minutes, MAX(played_at) AS last_played "
             "FROM listens WHERE played_at >= ? AND played_at < ? "
             "GROUP BY track_key ORDER BY plays DESC, last_played DESC LIMIT ?", (*_range(start, end), limit))]
 
@@ -163,7 +170,8 @@ def top_tracks(start: datetime, end: datetime, limit: int = 10, db_path: Path = 
 def top_artists(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
-            "SELECT MAX(artist) AS name, COUNT(*) AS plays, COUNT(DISTINCT track_key) AS tracks "
+            "SELECT MAX(artist) AS name, COUNT(*) AS plays, COUNT(DISTINCT track_key) AS tracks, "
+            "COALESCE(SUM(ms_played), 0) / 60000 AS minutes "
             "FROM listens WHERE played_at >= ? AND played_at < ? "
             "GROUP BY artist_key ORDER BY plays DESC, MAX(played_at) DESC LIMIT ?", (*_range(start, end), limit))]
 

@@ -11,6 +11,7 @@ import listening
 import nowplaying
 import tracker
 from i18n import t
+from stats_view import StatsTab
 from theme import P
 from tracker import format_date
 
@@ -29,7 +30,7 @@ def tracking_enabled(config: dict) -> bool:
 
 
 class ListeningView(ttk.Frame):
-    """Sub-tabs for listening data; statistics are added next to “Recently played”."""
+    """Sub-tabs for listening data: statistics and the list of recent plays."""
 
     def __init__(self, parent, app, local_tracker: nowplaying.LocalTracker):
         super().__init__(parent)
@@ -43,6 +44,8 @@ class ListeningView(ttk.Frame):
     def _build(self):
         self.tabs = ttk.Notebook(self)
         self.tabs.pack(fill="both", expand=True)
+        self.stats = StatsTab(self.tabs)
+        self.tabs.add(self.stats, text=f"  {t('stats.tab')}  ")
 
         tab = ttk.Frame(self.tabs, padding=16, style="Card.TFrame")
         self.tabs.add(tab, text=f"  {t('listening.recent_tab')}  ")
@@ -103,6 +106,7 @@ class ListeningView(ttk.Frame):
         self.after(STATUS_INTERVAL_MS, self._poll_status)
 
     def refresh(self):
+        self.stats.refresh()
         self.table.delete(*self.table.get_children())
         for index, p in enumerate(listening.recent_plays(500)):
             self.table.insert("", "end", tags=("odd",) if index % 2 else (), values=(
