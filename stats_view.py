@@ -13,7 +13,7 @@ import artist_info
 import artwork
 import collage
 import listening
-from charts import BarList, ColumnChart, count_up, placeholder, rounded_rect
+from charts import BarList, CalendarHeatmap, ColumnChart, count_up, placeholder, rounded_rect
 from i18n import number, t
 from theme import P, px
 from tracker import format_date
@@ -22,6 +22,8 @@ TOP_COUNT = 10
 DISCOVERY_COUNT = 5
 GENRE_COUNT = 8
 GENRE_REDRAW_MS = 3000
+# Days in the calendar under all time
+CALENDAR_DAYS = 365
 # Side of the album collage, in design pixels
 COLLAGE_PREVIEW = 420
 FORGOTTEN_DAYS = 30
@@ -284,6 +286,17 @@ class StatsTab(ttk.Frame):
         for chart in (self.top_tracks, self.top_artists, self.timeline, self.hours):
             chart.pack(fill="x")
 
+        # Every day of the year (or the last twelve months under all time), shaded by plays
+        calendar = ttk.Frame(content, style="Card.TFrame")
+        calendar.pack(fill="x", pady=(px(24), 0))
+        self.calendar_title = ttk.Label(calendar, style="Period.TLabel")
+        self.calendar_title.pack(anchor="w")
+        self.calendar_summary = ttk.Label(calendar, style="CardMuted.TLabel")
+        self.calendar_summary.pack(anchor="w", pady=(px(2), px(12)))
+        self.calendar = CalendarHeatmap(calendar, t("stats.weekdays").split(","), t("stats.months_short").split(","),
+                                        t("stats.calendar.less"), t("stats.calendar.more"))
+        self.calendar.pack(fill="x")
+
         # The period's most played album covers in a grid; a cover opens its artist's page
         self.collage_albums = []
         self.collage_section = ttk.Frame(content, style="Card.TFrame")
@@ -420,6 +433,7 @@ class StatsTab(ttk.Frame):
         self._range = (start, end)
         self._fill_genres()
         self._fill_collage(start, end)
+        self._fill_calendar(start)
         self._fill_timeline(start, end)
         hours = listening.hours(start, end)
         self.hours.set_buckets([{
@@ -446,6 +460,28 @@ class StatsTab(ttk.Frame):
                 text = f"{arrow}{abs(before - rank)}"
             return text, P.added if before > rank else P.removed
         return change
+
+    def _fill_calendar(self, period_start):
+        today = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+        if self.period == "all":
+            first, title = today - timedelta(days=CALENDAR_DAYS - 1), t("stats.calendar.last_year")
+        else:
+            first, title = period_start.replace(month=1, day=1), str(period_start.year)
+        last = min(today, first.replace(year=first.year + 1) - timedelta(days=1))
+        counts = listening.timeline(first, last + timedelta(days=1), "day")
+        weekdays = t("stats.weekdays").split(",")
+        days = []
+        for index in range((last - first).days + 1):
+            day = first + timedelta(days=index)
+            plays = counts.get(day.strftime("%Y-%m-%d"), 0)
+            weekday = weekdays[day.weekday()]
+            days.append({"date": day.date(), "value": plays,
+                         "tooltip": f"{day.day} {month_name(day.month)} {day.year}, {weekday}\n{plays_text(plays)}"})
+        self.calendar_title.configure(text=t("stats.calendar", title=title))
+        active = sum(1 for day in days if day["value"])
+        self.calendar_summary.configure(text=t("stats.calendar.summary", active=number(active),
+                                               days=number(len(days))))
+        self.calendar.set_days(days)
 
     def _fill_collage(self, start, end):
         if not collage.available:
