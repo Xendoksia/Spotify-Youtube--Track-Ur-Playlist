@@ -176,6 +176,28 @@ def top_artists(start: datetime, end: datetime, limit: int = 10, db_path: Path =
             "GROUP BY artist_key ORDER BY plays DESC, MAX(played_at) DESC LIMIT ?", (*_range(start, end), limit))]
 
 
+def _first_heard(start: datetime, end: datetime, column: str, fields: str, db_path: Path) -> list[dict]:
+    """Tracks or artists whose very first recorded play falls in the period, most played first."""
+    with open_db(db_path) as db:
+        return [dict(r) for r in db.execute(
+            f"WITH firsts AS (SELECT {column} AS key, MIN(played_at) AS first_played FROM listens GROUP BY {column}) "
+            f"SELECT l.{column} AS key, {fields}, COUNT(*) AS plays, "
+            "COALESCE(SUM(l.ms_played), 0) / 60000 AS minutes, MIN(f.first_played) AS first_played "
+            f"FROM listens l JOIN firsts f ON f.key = l.{column} "
+            "WHERE f.first_played >= ? AND f.first_played < ? AND l.played_at >= ? AND l.played_at < ? "
+            f"GROUP BY l.{column} ORDER BY plays DESC, first_played DESC", _range(start, end) * 2)]
+
+
+def new_tracks(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list[dict]:
+    return _first_heard(start, end, "track_key",
+                        "MAX(l.name) AS name, MAX(l.artist) AS artist, MAX(l.album) AS album", db_path)
+
+
+def new_artists(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list[dict]:
+    return _first_heard(start, end, "artist_key",
+                        "MAX(l.artist) AS name, COUNT(DISTINCT l.track_key) AS tracks", db_path)
+
+
 def ranks(start: datetime, end: datetime, column: str, db_path: Path = DB_PATH) -> dict[str, int]:
     """Rank (1 = most played) of every track or artist played in the period, ordered like top_tracks/top_artists.
 

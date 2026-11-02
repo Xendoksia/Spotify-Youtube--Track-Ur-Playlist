@@ -14,8 +14,10 @@ import listening
 from charts import BarList, ColumnChart, placeholder, rounded_rect
 from i18n import number, t
 from theme import P
+from tracker import format_date
 
 TOP_COUNT = 10
+DISCOVERY_COUNT = 5
 
 
 def plays_text(count: int) -> str:
@@ -202,7 +204,22 @@ class StatsTab(ttk.Frame):
         self.top_artists = BarList(self._card(lists, t("stats.top_artists"), 1), empty, TOP_COUNT - 1,
                                    round_images=True, first_rank=2)
 
-        charts = ttk.Frame(content, style="Card.TFrame")
+        # Tracks and artists heard for the first time ever in this period
+        self.discoveries = ttk.Frame(content, style="Card.TFrame")
+        self.discoveries.pack(fill="x", pady=(24, 0))
+        ttk.Label(self.discoveries, text=t("stats.discoveries"), style="Period.TLabel").pack(anchor="w")
+        self.discovery_summary = ttk.Label(self.discoveries, style="CardMuted.TLabel")
+        self.discovery_summary.pack(anchor="w", pady=(2, 12))
+        discovery_lists = ttk.Frame(self.discoveries, style="Card.TFrame")
+        discovery_lists.pack(fill="x")
+        empty_new = t("stats.discoveries.none")
+        self.new_tracks = BarList(self._card(discovery_lists, t("stats.new_tracks"), 0), empty_new, DISCOVERY_COUNT)
+        self.new_artists = BarList(self._card(discovery_lists, t("stats.new_artists"), 1), empty_new,
+                                   DISCOVERY_COUNT, round_images=True)
+        for chart in (self.new_tracks, self.new_artists):
+            chart.pack(fill="x")
+
+        self.charts = charts = ttk.Frame(content, style="Card.TFrame")
         charts.pack(fill="x", pady=(24, 0))
         self.timeline_card = self._card(charts, "", 0, weight=3)
         self.timeline = ColumnChart(self.timeline_card, 170, empty)
@@ -296,6 +313,7 @@ class StatsTab(ttk.Frame):
                        + change_tip(artist_change, r["key"], rank),
             "image": self._artist_photo(r["name"], size), "change": artist_change(r["key"], rank),
         } for rank, r in enumerate(artists[1:], start=2)])
+        self._fill_discoveries(start, end)
         self._fill_timeline(start, end)
         hours = listening.hours(start, end)
         self.hours.set_buckets([{
@@ -322,6 +340,43 @@ class StatsTab(ttk.Frame):
                 text = f"{arrow}{abs(before - rank)}"
             return text, P.added if before > rank else P.removed
         return change
+
+    def _fill_discoveries(self, start, end):
+        # Everything is new over all time, so the section only makes sense for a week, month or year
+        if self.period == "all":
+            self.discoveries.pack_forget()
+            return
+        self.discoveries.pack(fill="x", pady=(24, 0), before=self.charts)
+        tracks = listening.new_tracks(start, end)
+        artists = listening.new_artists(start, end)
+        plays = listening.summary(start, end)["plays"]
+        if tracks or artists:
+            text = t("stats.discoveries.summary", tracks=number(len(tracks)), artists=number(len(artists)))
+            if plays:
+                share = round(sum(r["plays"] for r in tracks) * 100 / plays)
+                text += "  ·  " + t("stats.discoveries.share", percent=t("stats.percent", value=share))
+            first = listening.first_play()
+            if first and first >= start:
+                text += "\n" + t("stats.discoveries.first_period")
+        else:
+            text = t("stats.discoveries.none")
+        self.discovery_summary.configure(text=text)
+
+        size = BarList.IMAGE_SIZE
+        self.new_tracks.set_rows([{
+            "title": r["name"], "subtitle": r["artist"], "value": r["plays"], "value_text": number(r["plays"]),
+            "tooltip": f"{r['name']}\n{r['artist']}\n" + summary_text(plays_text(r["plays"]), minutes=r["minutes"])
+                       + "\n" + t("stats.discoveries.first_heard", date=format_date(r["first_played"])),
+            "image": self._cover(r, size, 4),
+        } for r in tracks[:DISCOVERY_COUNT]])
+        self.new_artists.set_rows([{
+            "title": r["name"], "subtitle": tracks_text(r["tracks"]), "value": r["plays"],
+            "value_text": number(r["plays"]),
+            "tooltip": f"{r['name']}\n" + summary_text(plays_text(r["plays"]), tracks_text(r["tracks"]),
+                                                       minutes=r["minutes"])
+                       + "\n" + t("stats.discoveries.first_heard", date=format_date(r["first_played"])),
+            "image": self._artist_photo(r["name"], size),
+        } for r in artists[:DISCOVERY_COUNT]])
 
     def _fill_tiles(self, start, end):
         current = listening.summary(start, end)
