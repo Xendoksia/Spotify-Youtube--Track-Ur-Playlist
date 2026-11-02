@@ -1,0 +1,172 @@
+"""
+Detail window of one track or artist, opened by clicking it in the statistics: all time totals,
+plays over time and, for an artist, their most played tracks.
+"""
+
+from __future__ import annotations
+
+import tkinter as tk
+from datetime import datetime, timedelta
+from tkinter import ttk
+
+import artwork
+import listening
+import theme
+from charts import BarList, ColumnChart
+from i18n import number, t
+from stats_view import Hero, ScrollFrame, duration_text, month_name, plays_text, summary_text, tracks_text
+from theme import P
+
+ARTIST_TRACKS = 15
+# Up to this many days of history the chart shows days, after that months
+DAILY_LIMIT = 62
+MIN_DAYS = 14
+
+
+def date_text(iso: str) -> str:
+    moment = listening.from_utc(iso).astimezone()
+    return f"{moment.day} {month_name(moment.month)} {moment.year}"
+
+
+def open_detail(parent, column: str, key: str) -> None:
+    """Open the detail window of a track (column "track_key") or artist ("artist_key")."""
+    DetailWindow(parent, column, key)
+
+
+class DetailWindow(tk.Toplevel):
+    def __init__(self, parent, column: str, key: str):
+        super().__init__(parent)
+        self.column, self.key = column, key
+        self.is_artist = column == "artist_key"
+        self.fetcher = artwork.Fetcher(self)
+        self._images = []
+        self._refresh_pending = False
+        self.configure(background=P.surface)
+        self.geometry("820x760")
+        self.minsize(640, 480)
+        theme.dark_title_bar(self)
+        self.bind("<Escape>", lambda e: self.destroy())
+        self._build()
+        self.refresh()
+        self.focus_set()
+
+    def _build(self):
+        page = ScrollFrame(self)
+        page.pack(fill="both", expand=True, pady=(12, 0))
+        content = page.content
+
+        caption = t("detail.artist" if self.is_artist else "detail.track")
+        self.hero = Hero(content, caption, round_image=self.is_artist)
+        self.hero.pack(fill="x")
+
+        tiles = ttk.Frame(content, style="Card.TFrame")
+        tiles.pack(fill="x", pady=(16, 0))
+        self.tiles = {}
+        for index, name in enumerate(("plays", "time", "first", "last")):
+            tiles.columnconfigure(index, weight=1, uniform="tile")
+            tile = ttk.Frame(tiles, padding=(14, 10), style="Tile.TFrame")
+            tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else 10, 0))
+            ttk.Label(tile, text=t(f"detail.tile.{name}"), style="CardMuted.TLabel").pack(anchor="w")
+            # Dates are longer than numbers, so they get a smaller font
+            value = ttk.Label(tile, style="TileValue.TLabel" if name in ("plays", "time") else "Period.TLabel")
+            value.pack(anchor="w", pady=(4, 0))
+            self.tiles[name] = value
+
+        self.timeline_title = ttk.Label(content, style="Section.TLabel")
+        self.timeline_title.pack(anchor="w", pady=(24, 8))
+        self.timeline = ColumnChart(content, 170, t("stats.empty"))
+        self.timeline.pack(fill="x")
+
+        if self.is_artist:
+            ttk.Label(content, text=t("detail.artist_tracks"), style="Section.TLabel").pack(anchor="w", pady=(24, 8))
+            self.tracks = BarList(content, t("stats.empty"), 1)
+            self.tracks.pack(fill="x")
+
+    def _artwork_arrived(self):
+        if not self._refresh_pending:
+            self._refresh_pending = True
+            self.after(400, self.refresh)
+
+    def _keep(self, image):
+        # Tk shows an image only while Python holds a reference to it
+        if image is not None:
+            self._images.append(image)
+        return image
+
+    def _cover(self, row: dict, size: int, radius: int):
+        path = self.fetcher.cover(row["artist"], row["album"] or "", row["name"], self._artwork_arrived)
+        return self._keep(artwork.photo(path, size, P.surface, radius=radius))
+
+    def _artist_photo(self, name: str, size: int):
+        path = self.fetcher.artist(name, self._artwork_arrived)
+        return self._keep(artwork.photo(path, size, P.surface, round_=True))
+
+    def refresh(self):
+        if not self.winfo_exists():
+            return
+        self._refresh_pending = False
+        self._images = []
+        info = listening.detail(self.column, self.key)
+        if not info:
+            self.title(t("app.title"))
+            self.hero.show_empty(t("stats.empty"))
+            return
+
+        title = info["artist"] if self.is_artist else info["name"]
+        self.title(title)
+        if self.is_artist:
+            self.hero.show(title, tracks_text(info["tracks"]), summary_text(plays_text(info["plays"]),
+                                                                            minutes=info["minutes"]),
+                           self._artist_photo(title, Hero.IMAGE_SIZE))
+        else:
+            subtitle = info["artist"] + (f"  ·  {info['album']}" if info["album"] else "")
+            self.hero.show(title, subtitle, summary_text(plays_text(info["plays"]), minutes=info["minutes"]),
+                           self._cover(info, Hero.IMAGE_SIZE, 10))
+            # The artist line leads to the artist's own page
+            self.hero.subtitle.configure(cursor="hand2")
+            self.hero.subtitle.bind("<Button-1>", lambda e: open_detail(self.master, "artist_key",
+                                                                       info["artist_key"]))
+
+        self.tiles["plays"].configure(text=number(info["plays"]))
+        self.tiles["time"].configure(text=duration_text(info["minutes"]) if info["minutes"] else "—")
+        self.tiles["first"].configure(text=date_text(info["first_played"]))
+        self.tiles["last"].configure(text=date_text(info["last_played"]))
+        self._fill_timeline(info)
+
+        if self.is_artist:
+            start, end = listening.period_range("all")
+            rows = listening.top_tracks(start, end, ARTIST_TRACKS, artist_key=self.key)
+            self.tracks.configure(height=BarList.ROW_HEIGHT * max(1, len(rows)))
+            self.tracks.set_rows([{
+                "title": r["name"], "subtitle": r["album"] or "", "value": r["plays"],
+                "value_text": number(r["plays"]),
+                "tooltip": f"{r['name']}\n" + summary_text(plays_text(r["plays"]), minutes=r["minutes"]),
+                "image": self._cover(r, BarList.IMAGE_SIZE, 4),
+                "on_click": lambda key=r["key"]: open_detail(self.master, "track_key", key),
+            } for r in rows])
+
+    def _fill_timeline(self, info: dict):
+        first = listening.from_utc(info["first_played"]).astimezone()
+        today = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+        # At least two weeks, so a track heard only recently does not fill the chart with two huge columns
+        start = min(first.replace(hour=0, minute=0, second=0, microsecond=0), today - timedelta(days=MIN_DAYS - 1))
+        end = today + timedelta(days=1)
+        if (end - start).days <= DAILY_LIMIT:
+            counts = listening.timeline(start, end, "day", self.column, self.key)
+            days = [start + timedelta(days=i) for i in range((end - start).days)]
+            buckets = [{
+                "label": str(day.day), "value": counts.get(day.strftime("%Y-%m-%d"), 0),
+                "tooltip": f"{day.day} {month_name(day.month)}\n{plays_text(counts.get(day.strftime('%Y-%m-%d'), 0))}",
+            } for day in days]
+            self.timeline_title.configure(text=t("stats.per_day"))
+        else:
+            counts = listening.timeline(start, end, "month", self.column, self.key)
+            buckets = []
+            year, month = start.year, start.month
+            while (year, month) <= (today.year, today.month):
+                value = counts.get(f"{year}-{month:02d}", 0)
+                buckets.append({"label": f"{month_name(month, True)} {year % 100:02d}", "value": value,
+                                "tooltip": f"{month_name(month)} {year}\n{plays_text(value)}"})
+                year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+            self.timeline_title.configure(text=t("stats.per_month"))
+        self.timeline.set_buckets(buckets)

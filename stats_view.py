@@ -114,6 +114,15 @@ class Hero(ttk.Frame):
         self.change = ttk.Label(details, style="Card.TLabel")
         self.change.pack(side="left", padx=(10, 0))
         self.bind("<Configure>", lambda e: self._wrap())
+        self._action = None
+        for widget in (self, self.picture, text, self.title, self.subtitle, details, self.detail, self.change):
+            widget.bind("<Button-1>", lambda e: self._action and self._action())
+
+    def on_click(self, action):
+        """Make the whole card clickable (None turns it off)."""
+        self._action = action
+        for widget in (self, self.picture, self.title, self.subtitle, self.detail, self.change):
+            widget.configure(cursor="hand2" if action else "")
 
     def _wrap(self):
         width = max(120, self.winfo_width() - self.IMAGE_SIZE - 60)
@@ -134,6 +143,7 @@ class Hero(ttk.Frame):
         self.change.configure(text=text, foreground=color)
 
     def show_empty(self, text: str):
+        self.on_click(None)
         self.picture.delete("all")
         if self.round_image:
             self.picture.create_oval(0, 0, self.IMAGE_SIZE, self.IMAGE_SIZE, fill=P.nav, outline="")
@@ -260,6 +270,13 @@ class StatsTab(ttk.Frame):
             self._refresh_pending = True
             self.after(400, self.refresh)
 
+    def _opener(self, column: str, key: str):
+        def open_():
+            # Imported here because the detail window builds on this module
+            from detail_view import open_detail
+            open_detail(self.winfo_toplevel(), column, key)
+        return open_
+
     def _cover(self, row: dict, size: int, radius: int):
         path = self.fetcher.cover(row["artist"], row["album"] or "", row["name"], self._artwork_arrived)
         return self._keep(artwork.photo(path, size, P.surface, radius=radius))
@@ -295,6 +312,7 @@ class StatsTab(ttk.Frame):
         artist_change = self._rank_changes(start, end, "artist_key")
         if tracks:
             top = tracks[0]
+            self.track_hero.on_click(self._opener("track_key", top["key"]))
             self.track_hero.show(top["name"], top["artist"],
                                  summary_text(plays_text(top["plays"]), minutes=top["minutes"]),
                                  self._cover(top, Hero.IMAGE_SIZE, 10), track_change(top["key"], 1, long=True))
@@ -302,6 +320,7 @@ class StatsTab(ttk.Frame):
             self.track_hero.show_empty(t("stats.empty"))
         if artists:
             top = artists[0]
+            self.artist_hero.on_click(self._opener("artist_key", top["key"]))
             self.artist_hero.show(top["name"], tracks_text(top["tracks"]),
                                   summary_text(plays_text(top["plays"]), minutes=top["minutes"]),
                                   self._artist_photo(top["name"], Hero.IMAGE_SIZE),
@@ -314,7 +333,7 @@ class StatsTab(ttk.Frame):
             "title": r["name"], "subtitle": r["artist"], "value": r["plays"], "value_text": number(r["plays"]),
             "tooltip": f"{r['name']}\n{r['artist']}\n" + summary_text(plays_text(r["plays"]), minutes=r["minutes"])
                        + change_tip(track_change, r["key"], rank),
-            "image": self._cover(r, size, 4), "change": track_change(r["key"], rank),
+            "image": self._cover(r, size, 4), "change": track_change(r["key"], rank), "on_click": self._opener("track_key", r["key"]),
         } for rank, r in enumerate(tracks[1:], start=2)])
         self.top_artists.set_rows([{
             "title": r["name"], "subtitle": tracks_text(r["tracks"]),
@@ -323,6 +342,7 @@ class StatsTab(ttk.Frame):
                 plays_text(r["plays"]), tracks_text(r["tracks"]), minutes=r["minutes"])
                        + change_tip(artist_change, r["key"], rank),
             "image": self._artist_photo(r["name"], size), "change": artist_change(r["key"], rank),
+            "on_click": self._opener("artist_key", r["key"]),
         } for rank, r in enumerate(artists[1:], start=2)])
         self._fill_discoveries(start, end)
         self._fill_timeline(start, end)
@@ -380,7 +400,7 @@ class StatsTab(ttk.Frame):
             "title": r["name"], "subtitle": r["artist"], "value": r["plays"], "value_text": number(r["plays"]),
             "tooltip": f"{r['name']}\n{r['artist']}\n" + summary_text(plays_text(r["plays"]), minutes=r["minutes"])
                        + "\n" + t("stats.discoveries.first_heard", date=format_date(r["first_played"])),
-            "image": self._cover(r, size, 4),
+            "image": self._cover(r, size, 4), "on_click": self._opener("track_key", r["key"]),
         } for r in tracks[:DISCOVERY_COUNT]])
         self.new_artists.set_rows([{
             "title": r["name"], "subtitle": tracks_text(r["tracks"]), "value": r["plays"],
@@ -388,7 +408,7 @@ class StatsTab(ttk.Frame):
             "tooltip": f"{r['name']}\n" + summary_text(plays_text(r["plays"]), tracks_text(r["tracks"]),
                                                        minutes=r["minutes"])
                        + "\n" + t("stats.discoveries.first_heard", date=format_date(r["first_played"])),
-            "image": self._artist_photo(r["name"], size),
+            "image": self._artist_photo(r["name"], size), "on_click": self._opener("artist_key", r["key"]),
         } for r in artists[:DISCOVERY_COUNT]])
 
     def _fill_forgotten(self):
@@ -402,7 +422,7 @@ class StatsTab(ttk.Frame):
                 "tooltip": f"{r['name']}\n{r['artist']}\n"
                            + summary_text(plays_text(r["plays"]), minutes=r["minutes"]) + "\n"
                            + t("stats.forgotten.last", date=format_date(r["last_played"]), days=number(days)),
-                "image": self._cover(r, BarList.IMAGE_SIZE, 4),
+                "image": self._cover(r, BarList.IMAGE_SIZE, 4), "on_click": self._opener("track_key", r["key"]),
             })
         # Only as tall as needed: the list is often short or empty
         self.forgotten.configure(height=BarList.ROW_HEIGHT * len(rows) if rows else 60)

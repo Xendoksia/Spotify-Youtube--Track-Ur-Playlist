@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 import tkinter as tk
+from collections.abc import Callable
 from tkinter import font as tkfont
 
 from i18n import number
@@ -81,14 +82,17 @@ class Chart(tk.Canvas):
         self.font = tkfont.Font(font=FONT)
         self.small_font = tkfont.Font(font=SMALL_FONT)
         self._marks: dict[int, tuple[str, list[int]]] = {}
+        self._clicks: dict[int, Callable[[], None]] = {}
         self._hovered: int | None = None
         self.bind("<Configure>", lambda e: self.redraw())
         self.bind("<Motion>", self._on_motion)
         self.bind("<Leave>", lambda e: self._hover(None, 0, 0))
+        self.bind("<Button-1>", self._on_click)
 
     def redraw(self):
         self.delete("all")
         self._marks.clear()
+        self._clicks.clear()
         self._hovered = None
         width, height = self.winfo_width(), self.winfo_height()
         if width < 50 or height < 30:
@@ -100,14 +104,27 @@ class Chart(tk.Canvas):
         """Draw the chart; return False when there is nothing to show."""
         raise NotImplementedError
 
-    def add_hit_area(self, x0, y0, x1, y1, tooltip: str, highlight: list[int]):
-        """Register an invisible area bigger than the mark that triggers its tooltip."""
+    def add_hit_area(self, x0, y0, x1, y1, tooltip: str, highlight: list[int],
+                     on_click: Callable[[], None] | None = None):
+        """Register an invisible area bigger than the mark that triggers its tooltip (and on_click)."""
         area = self.create_rectangle(x0, y0, x1, y1, outline="", fill="", tags="hit")
         self._marks[area] = (tooltip, highlight)
+        if on_click:
+            self._clicks[area] = on_click
+
+    def _area_at(self, x, y):
+        items = [i for i in self.find_overlapping(x, y, x, y) if i in self._marks]
+        return items[-1] if items else None
 
     def _on_motion(self, event):
-        items = [i for i in self.find_overlapping(event.x, event.y, event.x, event.y) if i in self._marks]
-        self._hover(items[-1] if items else None, event.x, event.y)
+        item = self._area_at(event.x, event.y)
+        self.configure(cursor="hand2" if item in self._clicks else "")
+        self._hover(item, event.x, event.y)
+
+    def _on_click(self, event):
+        action = self._clicks.get(self._area_at(event.x, event.y))
+        if action:
+            action()
 
     def _hover(self, item, x, y):
         self.delete("tooltip")
@@ -147,7 +164,8 @@ class BarList(Chart):
 
     def set_rows(self, rows: list[dict]):
         """rows: dicts with title, subtitle, value, value_text, tooltip and optionally image (a Tk image)
-        and change: (text, color) shown under the rank, such as the move since the previous period."""
+        and change: (text, color) shown under the rank, such as the move since the previous period,
+        and on_click: called when the row is clicked."""
         self.rows = rows
         self.redraw()
 
@@ -201,7 +219,8 @@ class BarList(Chart):
                               "right", fill=P.chart)
             self.create_text(bar_left + length + 6, middle, text=row["value_text"], anchor="w", fill=P.text,
                              font=self.small_font)
-            self.add_hit_area(0, middle - row_height / 2, width, middle + row_height / 2, row["tooltip"], [bar])
+            self.add_hit_area(0, middle - row_height / 2, width, middle + row_height / 2, row["tooltip"], [bar],
+                              row.get("on_click"))
         return True
 
 

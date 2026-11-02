@@ -158,13 +158,16 @@ def summary(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
             "FROM listens WHERE played_at >= ? AND played_at < ?", _range(start, end)).fetchone())
 
 
-def top_tracks(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
+def top_tracks(start: datetime, end: datetime, limit: int = 10, artist_key: str | None = None,
+               db_path: Path = DB_PATH) -> list[dict]:
+    """Most played tracks of the period, optionally of one artist only."""
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
             "SELECT track_key AS key, MAX(name) AS name, MAX(artist) AS artist, MAX(album) AS album, "
             "COUNT(*) AS plays, COALESCE(SUM(ms_played), 0) / 60000 AS minutes, MAX(played_at) AS last_played "
-            "FROM listens WHERE played_at >= ? AND played_at < ? "
-            "GROUP BY track_key ORDER BY plays DESC, last_played DESC LIMIT ?", (*_range(start, end), limit))]
+            "FROM listens WHERE played_at >= ? AND played_at < ? AND (? IS NULL OR artist_key = ?) "
+            "GROUP BY track_key ORDER BY plays DESC, last_played DESC LIMIT ?",
+            (*_range(start, end), artist_key, artist_key, limit))]
 
 
 def top_artists(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
@@ -215,8 +218,7 @@ def ranks(start: datetime, end: datetime, column: str, db_path: Path = DB_PATH) 
 
     column: "track_key" or "artist_key".
     """
-    if column not in ("track_key", "artist_key"):
-        raise ValueError(column)
+    _check_column(column)
     with open_db(db_path) as db:
         rows = db.execute(
             f"SELECT {column} FROM listens WHERE played_at >= ? AND played_at < ? "
@@ -224,13 +226,36 @@ def ranks(start: datetime, end: datetime, column: str, db_path: Path = DB_PATH) 
         return {row[0]: index for index, row in enumerate(rows, start=1)}
 
 
-def timeline(start: datetime, end: datetime, bucket: str, db_path: Path = DB_PATH) -> dict[str, int]:
-    """Plays per local day ('%Y-%m-%d') or month ('%Y-%m')."""
+def timeline(start: datetime, end: datetime, bucket: str, column: str | None = None, key: str | None = None,
+             db_path: Path = DB_PATH) -> dict[str, int]:
+    """Plays per local day ('%Y-%m-%d') or month ('%Y-%m'), optionally of one track or artist."""
     pattern = "%Y-%m-%d" if bucket == "day" else "%Y-%m"
+    where = ""
+    if column:
+        _check_column(column)
+        where = f" AND {column} = ?"
     with open_db(db_path) as db:
         return {r[0]: r[1] for r in db.execute(
             "SELECT strftime(?, played_at, 'localtime') AS bucket, COUNT(*) FROM listens "
-            "WHERE played_at >= ? AND played_at < ? GROUP BY bucket", (pattern, *_range(start, end)))}
+            f"WHERE played_at >= ? AND played_at < ?{where} GROUP BY bucket",
+            (pattern, *_range(start, end), *([key] if column else [])))}
+
+
+def _check_column(column: str) -> None:
+    if column not in ("track_key", "artist_key"):
+        raise ValueError(column)
+
+
+def detail(column: str, key: str, db_path: Path = DB_PATH) -> dict | None:
+    """All time totals of one track (column "track_key") or artist ("artist_key")."""
+    _check_column(column)
+    with open_db(db_path) as db:
+        row = db.execute(
+            "SELECT MAX(name) AS name, MAX(artist) AS artist, MAX(album) AS album, MAX(artist_key) AS artist_key, "
+            "COUNT(*) AS plays, COALESCE(SUM(ms_played), 0) / 60000 AS minutes, COUNT(DISTINCT track_key) AS tracks, "
+            "MIN(played_at) AS first_played, MAX(played_at) AS last_played "
+            f"FROM listens WHERE {column} = ?", (key,)).fetchone()
+    return dict(row) if row and row["plays"] else None
 
 
 def hours(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list[int]:
