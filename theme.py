@@ -42,6 +42,48 @@ FONT_BOLD = ("Segoe UI Semibold", 10)
 
 P = SimpleNamespace(**LIGHT, dark=False)
 
+# The layout is designed for a 1920x1080 screen; on other screens fonts, pictures and spacing are
+# multiplied by SCALE so the window covers the same part of the screen and looks the same
+DESIGN_SCREEN = (1920, 1080)
+MIN_SCALE, MAX_SCALE = 0.8, 3.0
+SCALE = 1.0
+
+
+def make_dpi_aware() -> None:
+    """Draw at the real screen resolution, so Windows does not stretch (and blur) the window.
+
+    Call before the first Tk window is created."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)  # PROCESS_SYSTEM_DPI_AWARE
+    except (AttributeError, OSError):
+        pass
+
+
+def set_scale(root: tk.Tk) -> None:
+    """Pick SCALE from the screen size; font sizes in points follow it through Tk's own scaling."""
+    global SCALE
+    width, height = root.winfo_screenwidth(), root.winfo_screenheight()
+    SCALE = min(MAX_SCALE, max(MIN_SCALE, min(width / DESIGN_SCREEN[0], height / DESIGN_SCREEN[1])))
+    # Tk's scaling is pixels per point; 96 / 72 is a 100% (96 DPI) screen
+    root.tk.call("tk", "scaling", SCALE * 96 / 72)
+
+
+def px(value: float) -> int:
+    """A size in pixels of the 1920x1080 design, on this screen."""
+    return round(value * SCALE)
+
+
+def place_window(window: tk.Misc, width: int, height: int) -> None:
+    """Size a window in design pixels and center it on the screen."""
+    width, height = px(width), px(height)
+    left = max(0, (window.winfo_screenwidth() - width) // 2)
+    # A little above the middle, leaving room for the taskbar
+    top = max(0, (window.winfo_screenheight() - height) // 2 - px(20))
+    window.geometry(f"{width}x{height}+{left}+{top}")
+
 
 def system_prefers_dark() -> bool:
     if sys.platform != "win32":
@@ -82,7 +124,7 @@ def dark_title_bar(window: tk.Misc) -> None:
 
 def _button_style(style, name, background, foreground, border, active, disabled, disabled_text):
     style.configure(name, background=background, foreground=foreground, bordercolor=border,
-                    lightcolor=background, darkcolor=background, padding=(14, 6), focusthickness=0)
+                    lightcolor=background, darkcolor=background, padding=(px(14), px(6)), focusthickness=0)
     states = [("disabled", disabled), ("pressed", active), ("active", active)]
     style.map(name, background=states, lightcolor=states, darkcolor=states,
               bordercolor=[("disabled", P.border)], foreground=[("disabled", disabled_text)])
@@ -92,6 +134,7 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     """Activate the palette and style all ttk widgets; accents maps a style prefix to (color, pressed color)."""
     P.__dict__.update(DARK if is_dark(setting) else LIGHT, dark=is_dark(setting))
 
+    set_scale(root)
     for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
         tkfont.nametofont(name).configure(family=FONT[0], size=FONT[1])
     root.configure(background=P.bg)
@@ -123,7 +166,7 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     style.configure("Nav.TFrame", background=P.nav)
     style.configure("Card.TCheckbutton", background=P.surface, foreground=P.text, indicatorbackground=P.surface,
                     indicatorforeground=P.text, upperbordercolor=P.border, lowerbordercolor=P.border,
-                    focusthickness=0, padding=(0, 4))
+                    focusthickness=0, padding=(0, px(4)))
     style.map("Card.TCheckbutton", background=[("active", P.surface)],
               indicatorbackground=[("selected", P.focus), ("active", P.hover)],
               indicatorforeground=[("selected", "#ffffff")])
@@ -135,7 +178,7 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     for name, background, foreground in (("Nav.TButton", P.nav, P.muted),
                                          ("NavSelected.TButton", P.surface, P.text)):
         style.configure(name, background=background, foreground=foreground, bordercolor=background,
-                        lightcolor=background, darkcolor=background, padding=(16, 5), focusthickness=0,
+                        lightcolor=background, darkcolor=background, padding=(px(16), px(5)), focusthickness=0,
                         font=FONT_BOLD)
         style.map(name, background=[("active", P.surface)], lightcolor=[("active", P.surface)],
                   darkcolor=[("active", P.surface)], foreground=[("active", P.text)])
@@ -146,7 +189,7 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     for widget in ("TEntry", "TCombobox"):
         style.configure(widget, fieldbackground=P.surface, background=P.surface, foreground=P.text,
                         bordercolor=P.border, lightcolor=P.surface, darkcolor=P.surface, arrowcolor=P.muted,
-                        insertcolor=P.text, padding=5)
+                        insertcolor=P.text, padding=px(5))
         style.map(widget, bordercolor=[("focus", P.focus)], lightcolor=[("focus", P.focus)],
                   fieldbackground=[("readonly", P.surface)], background=[("active", P.hover)],
                   foreground=[("readonly", P.text)],
@@ -155,7 +198,7 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     style.configure("TNotebook", background=P.bg, bordercolor=P.border, lightcolor=P.surface,
                     darkcolor=P.surface, tabmargins=(0, 0, 0, 0))
     style.configure("TNotebook.Tab", background=P.bg, foreground=P.muted, bordercolor=P.bg, lightcolor=P.bg,
-                    darkcolor=P.bg, padding=(18, 7), font=FONT_BOLD)
+                    darkcolor=P.bg, padding=(px(18), px(7)), font=FONT_BOLD)
     style.map("TNotebook.Tab",
               background=[("selected", P.surface), ("active", P.hover)],
               foreground=[("selected", P.text)],
@@ -165,16 +208,16 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
               expand=[("selected", (0, 0, 0, 0))])
 
     style.configure("Treeview", background=P.surface, fieldbackground=P.surface, foreground=P.text,
-                    bordercolor=P.border, lightcolor=P.surface, darkcolor=P.surface, rowheight=30)
+                    bordercolor=P.border, lightcolor=P.surface, darkcolor=P.surface, rowheight=px(30))
     style.map("Treeview", background=[("selected", P.selected)], foreground=[("selected", P.text)])
     style.configure("Treeview.Heading", background=P.stripe, foreground=P.muted, bordercolor=P.border,
-                    lightcolor=P.stripe, darkcolor=P.stripe, relief="flat", padding=(8, 6),
+                    lightcolor=P.stripe, darkcolor=P.stripe, relief="flat", padding=(px(8), px(6)),
                     font=("Segoe UI Semibold", 9))
     style.map("Treeview.Heading", background=[("active", P.hover)], lightcolor=[("active", P.hover)],
               darkcolor=[("active", P.hover)])
 
     style.configure("Vertical.TScrollbar", background=P.scrollbar, troughcolor=P.surface, bordercolor=P.surface,
-                    lightcolor=P.scrollbar, darkcolor=P.scrollbar, arrowcolor=P.muted, gripcount=0, arrowsize=12)
+                    lightcolor=P.scrollbar, darkcolor=P.scrollbar, arrowcolor=P.muted, gripcount=0, arrowsize=px(12))
     style.map("Vertical.TScrollbar", background=[("active", P.scrollbar_active)],
               lightcolor=[("active", P.scrollbar_active)], darkcolor=[("active", P.scrollbar_active)])
 
@@ -184,4 +227,4 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
 def text_box(parent, height: int) -> tk.Text:
     return tk.Text(parent, height=height, wrap="word", font=FONT, background=P.surface, foreground=P.text,
                    insertbackground=P.text, relief="flat", highlightthickness=1, highlightbackground=P.border,
-                   highlightcolor=P.border, padx=10, pady=8, state="disabled")
+                   highlightcolor=P.border, padx=px(10), pady=px(8), state="disabled")

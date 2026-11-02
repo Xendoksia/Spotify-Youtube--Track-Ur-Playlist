@@ -1,7 +1,7 @@
 """
 Small single-series charts drawn on a tkinter Canvas, so no plotting package is needed.
 
-Marks follow one spec: bars at most 24px thick with a 4px rounded data end and a square
+Marks follow one spec (in design pixels, see theme.px): bars at most 24px thick with a 4px rounded data end and a square
 baseline, 2px surface gaps between touching bars, hairline recessive gridlines, text in
 text colors (never the mark color) and a hover tooltip on every mark.
 """
@@ -14,7 +14,7 @@ from collections.abc import Callable
 from tkinter import font as tkfont
 
 from i18n import number
-from theme import FONT, P
+from theme import FONT, P, px
 
 RADIUS = 4
 MAX_THICKNESS = 24
@@ -24,7 +24,7 @@ SMALL_FONT = ("Segoe UI", 9)
 
 def rounded_bar(canvas: tk.Canvas, x0: float, y0: float, x1: float, y1: float, end: str, **options) -> int:
     """Draw a bar whose data end ("right" or "top") is rounded and whose baseline is square."""
-    radius = min(RADIUS, (x1 - x0) / 2, (y1 - y0) / 2)
+    radius = min(px(RADIUS), (x1 - x0) / 2, (y1 - y0) / 2)
     if radius < 1:
         return canvas.create_rectangle(x0, y0, x1, y1, width=0, **options)
     if end == "right":
@@ -61,7 +61,7 @@ def placeholder(canvas: tk.Canvas, x: float, y: float, size: float, text: str, r
     if round_:
         canvas.create_oval(x, y, x + size, y + size, fill=P.nav, outline="")
     else:
-        rounded_rect(canvas, x, y, x + size, y + size, min(6, size / 5), fill=P.nav)
+        rounded_rect(canvas, x, y, x + size, y + size, min(px(6), size / 5), fill=P.nav)
     canvas.create_text(x + size / 2, y + size / 2, text=(text.strip()[:1] or "♪").upper(), fill=P.muted, font=font)
 
 
@@ -77,7 +77,7 @@ class Chart(tk.Canvas):
     """Base class: redraws on resize and shows a tooltip for the mark under the mouse."""
 
     def __init__(self, parent, height: int, empty_text: str = ""):
-        super().__init__(parent, height=height, background=P.surface, highlightthickness=0)
+        super().__init__(parent, height=px(height), background=P.surface, highlightthickness=0)
         self.empty_text = empty_text
         self.font = tkfont.Font(font=FONT)
         self.small_font = tkfont.Font(font=SMALL_FONT)
@@ -139,13 +139,13 @@ class Chart(tk.Canvas):
             self.itemconfigure(mark, fill=P.chart_hover)
         text = self.create_text(0, 0, text=tooltip, anchor="nw", fill=P.text, font=FONT, tags="tooltip")
         x0, y0, x1, y1 = self.bbox(text)
-        box_width, box_height = x1 - x0 + 20, y1 - y0 + 14
-        left = min(x + 14, self.winfo_width() - box_width - 2)
-        top = y + 16 if y + 16 + box_height < self.winfo_height() else y - box_height - 8
+        box_width, box_height = x1 - x0 + px(20), y1 - y0 + px(14)
+        left = min(x + px(14), self.winfo_width() - box_width - 2)
+        top = y + px(16) if y + px(16) + box_height < self.winfo_height() else y - box_height - px(8)
         left, top = max(left, 2), max(top, 2)
         box = self.create_rectangle(left, top, left + box_width, top + box_height, fill=P.surface,
                                     outline=P.border, tags="tooltip")
-        self.coords(text, left + 10, top + 7)
+        self.coords(text, left + px(10), top + px(7))
         self.tag_raise(box)
         self.tag_raise(text)
 
@@ -153,6 +153,7 @@ class Chart(tk.Canvas):
 class BarList(Chart):
     """Ranked horizontal bars: a label column on the left, bars with the value at their tip on the right."""
 
+    # Design pixels: the canvas is px(ROW_HEIGHT) tall per row and pictures px(IMAGE_SIZE) wide
     ROW_HEIGHT = 44
     IMAGE_SIZE = 32
 
@@ -179,26 +180,29 @@ class BarList(Chart):
     def draw(self, width, height):
         if not self.rows:
             return False
-        row_height = self.ROW_HEIGHT
+        row_height = px(self.ROW_HEIGHT)
         label_width = width * 0.5
         rank_width = max(self.small_font.measure(text) for text in
                          [str(self.first_rank + len(self.rows))] + [r["change"][0] for r in self.rows if r.get("change")]
-                         ) + 8
-        size = self.IMAGE_SIZE
-        text_left = rank_width + size + 10
-        value_width = max(self.small_font.measure(r["value_text"]) for r in self.rows) + 8
-        bar_left = label_width + 12
+                         ) + px(8)
+        size = px(self.IMAGE_SIZE)
+        text_left = rank_width + size + px(10)
+        value_width = max(self.small_font.measure(r["value_text"]) for r in self.rows) + px(8)
+        bar_left = label_width + px(12)
         bar_space = width - bar_left - value_width
         top_value = max(r["value"] for r in self.rows) or 1
-        thickness = 12
+        thickness = px(12)
+        # Two text lines sit this far above and below the middle of the row
+        above, below = px(8), px(9)
 
         for index, row in enumerate(self.rows):
             middle = index * row_height + row_height / 2
             change = row.get("change")
-            self.create_text(rank_width - 6, middle - 8 if change else middle, text=str(self.first_rank + index),
+            self.create_text(rank_width - px(6), middle - above if change else middle,
+                             text=str(self.first_rank + index),
                              anchor="e", fill=P.muted, font=self.small_font)
             if change:
-                self.create_text(rank_width - 6, middle + 9, text=change[0], anchor="e", fill=change[1],
+                self.create_text(rank_width - px(6), middle + below, text=change[0], anchor="e", fill=change[1],
                                  font=self.small_font)
             if row.get("image"):
                 self.create_image(rank_width, middle, image=row["image"], anchor="w")
@@ -207,9 +211,10 @@ class BarList(Chart):
                             self.small_font)
             text_width = label_width - text_left
             if row.get("subtitle"):
-                self.create_text(text_left, middle - 8, text=self._fit(row["title"], self.font, text_width),
+                self.create_text(text_left, middle - above, text=self._fit(row["title"], self.font, text_width),
                                  anchor="w", fill=P.text, font=self.font)
-                self.create_text(text_left, middle + 9, text=self._fit(row["subtitle"], self.small_font, text_width),
+                self.create_text(text_left, middle + below,
+                                 text=self._fit(row["subtitle"], self.small_font, text_width),
                                  anchor="w", fill=P.muted, font=self.small_font)
             else:
                 self.create_text(text_left, middle, text=self._fit(row["title"], self.font, text_width),
@@ -217,7 +222,7 @@ class BarList(Chart):
             length = max(2, bar_space * row["value"] / top_value)
             bar = rounded_bar(self, bar_left, middle - thickness / 2, bar_left + length, middle + thickness / 2,
                               "right", fill=P.chart)
-            self.create_text(bar_left + length + 6, middle, text=row["value_text"], anchor="w", fill=P.text,
+            self.create_text(bar_left + length + px(6), middle, text=row["value_text"], anchor="w", fill=P.text,
                              font=self.small_font)
             self.add_hit_area(0, middle - row_height / 2, width, middle + row_height / 2, row["tooltip"], [bar],
                               row.get("on_click"))
@@ -240,21 +245,21 @@ class ColumnChart(Chart):
         if not self.buckets or not any(b["value"] for b in self.buckets):
             return False
         axis_max = nice_max(max(b["value"] for b in self.buckets))
-        axis_width = self.small_font.measure(str(axis_max)) + 10
-        label_height = self.small_font.metrics("linespace") + 6
-        top, bottom = 8, height - label_height
+        axis_width = self.small_font.measure(str(axis_max)) + px(10)
+        label_height = self.small_font.metrics("linespace") + px(6)
+        top, bottom = px(8), height - label_height
         plot_width = width - axis_width
 
         for tick in (0, axis_max / 2, axis_max):
             y = bottom - (bottom - top) * tick / axis_max
             self.create_line(axis_width, y, width, y, fill=P.grid if tick else P.border)
             if tick == int(tick):
-                self.create_text(axis_width - 8, y, text=number(int(tick)), anchor="e", fill=P.muted,
+                self.create_text(axis_width - px(8), y, text=number(int(tick)), anchor="e", fill=P.muted,
                                  font=self.small_font)
 
         slot = plot_width / len(self.buckets)
-        thickness = max(1, min(MAX_THICKNESS, slot - GAP))
-        widest_label = max(self.small_font.measure(b["label"]) for b in self.buckets) + 10
+        thickness = max(1, min(px(MAX_THICKNESS), slot - px(GAP)))
+        widest_label = max(self.small_font.measure(b["label"]) for b in self.buckets) + px(10)
         label_every = max(1, math.ceil(widest_label / slot))
         for index, bucket in enumerate(self.buckets):
             center = axis_width + slot * index + slot / 2
@@ -264,7 +269,7 @@ class ColumnChart(Chart):
                 marks.append(rounded_bar(self, center - thickness / 2, bar_top, center + thickness / 2, bottom,
                                          "top", fill=P.chart))
             if index % label_every == 0:
-                self.create_text(center, bottom + 4, text=bucket["label"], anchor="n", fill=P.muted,
+                self.create_text(center, bottom + px(4), text=bucket["label"], anchor="n", fill=P.muted,
                                  font=self.small_font)
             self.add_hit_area(center - slot / 2, top, center + slot / 2, bottom, bucket["tooltip"], marks)
         return True

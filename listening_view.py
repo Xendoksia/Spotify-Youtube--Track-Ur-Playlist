@@ -12,7 +12,7 @@ import nowplaying
 import tracker
 from i18n import t
 from stats_view import StatsTab
-from theme import P
+from theme import P, px
 from tracker import format_date
 
 STATUS_INTERVAL_MS = 1000
@@ -58,7 +58,7 @@ class ListeningView(ttk.Frame):
         self.stats = StatsTab(self.tabs)
         self.tabs.add(self.stats, text=f"  {t('stats.tab')}  ")
 
-        tab = ttk.Frame(self.tabs, padding=16, style="Card.TFrame")
+        tab = ttk.Frame(self.tabs, padding=px(16), style="Card.TFrame")
         self.tabs.add(tab, text=f"  {t('listening.recent_tab')}  ")
 
         toolbar = ttk.Frame(tab, style="Card.TFrame")
@@ -70,16 +70,16 @@ class ListeningView(ttk.Frame):
         self.info_label.pack(side="right")
 
         self.now_label = ttk.Label(tab, style="Card.TLabel")
-        self.now_label.pack(anchor="w", pady=(10, 0))
+        self.now_label.pack(anchor="w", pady=(px(10), 0))
 
         table_frame = ttk.Frame(tab, style="Card.TFrame")
-        table_frame.pack(fill="both", expand=True, pady=(10, 0))
+        table_frame.pack(fill="both", expand=True, pady=(px(10), 0))
         columns = ("played_at", "track", "artist", "album", "listened", "source")
         self.table = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
         for column, width, anchor in (("played_at", 140, "w"), ("track", 280, "w"), ("artist", 200, "w"),
                                       ("album", 200, "w"), ("listened", 80, "center"), ("source", 130, "w")):
             self.table.heading(column, text=t(f"listening.column.{column}"), anchor=anchor)
-            self.table.column(column, width=width, anchor=anchor, stretch=column in ("track", "artist", "album"))
+            self.table.column(column, width=px(width), anchor=anchor, stretch=column in ("track", "artist", "album"))
         self.table.tag_configure("odd", background=P.stripe)
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.table.yview)
         self.table.configure(yscrollcommand=scrollbar.set)

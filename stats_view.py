@@ -13,7 +13,7 @@ import artwork
 import listening
 from charts import BarList, ColumnChart, placeholder, rounded_rect
 from i18n import number, t
-from theme import P
+from theme import P, px
 from tracker import format_date
 
 TOP_COUNT = 10
@@ -76,13 +76,15 @@ class ScrollFrame(ttk.Frame):
         self.canvas.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
-        self.content = ttk.Frame(self.canvas, padding=(16, 4, 16, 16), style="Card.TFrame")
+        self.content = ttk.Frame(self.canvas, padding=(px(16), px(4), px(16), px(16)), style="Card.TFrame")
         window = self.canvas.create_window(0, 0, window=self.content, anchor="nw")
         self.content.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(window, width=e.width))
         # The wheel scrolls this area only while the mouse is over it
         self.bind("<Enter>", lambda e: self.bind_all("<MouseWheel>", self._on_wheel))
         self.bind("<Leave>", lambda e: self.unbind_all("<MouseWheel>"))
+        # A page swapped in under the mouse gets no <Enter>, so it takes the wheel when shown
+        self.bind("<Map>", lambda e: self.bind_all("<MouseWheel>", self._on_wheel))
 
     def _on_wheel(self, event):
         if self.content.winfo_height() > self.canvas.winfo_height():
@@ -95,24 +97,24 @@ class Hero(ttk.Frame):
     IMAGE_SIZE = 132
 
     def __init__(self, parent, caption: str, round_image: bool):
-        super().__init__(parent, padding=16, style="Tile.TFrame")
+        super().__init__(parent, padding=px(16), style="Tile.TFrame")
         self.round_image = round_image
-        size = self.IMAGE_SIZE
+        size = px(self.IMAGE_SIZE)
         self.picture = tk.Canvas(self, width=size, height=size, background=P.surface, highlightthickness=0)
         self.picture.pack(side="left")
         text = ttk.Frame(self, style="Card.TFrame")
-        text.pack(side="left", fill="both", expand=True, padx=(18, 0))
-        ttk.Label(text, text=caption.upper(), style="Caption.TLabel").pack(anchor="w", pady=(10, 4))
+        text.pack(side="left", fill="both", expand=True, padx=(px(18), 0))
+        ttk.Label(text, text=caption.upper(), style="Caption.TLabel").pack(anchor="w", pady=(px(10), px(4)))
         self.title = ttk.Label(text, style="HeroTitle.TLabel")
         self.title.pack(anchor="w")
         self.subtitle = ttk.Label(text, style="HeroSubtitle.TLabel")
         self.subtitle.pack(anchor="w")
         details = ttk.Frame(text, style="Card.TFrame")
-        details.pack(anchor="w", pady=(10, 0))
+        details.pack(anchor="w", pady=(px(10), 0))
         self.detail = ttk.Label(details, style="Card.TLabel")
         self.detail.pack(side="left")
         self.change = ttk.Label(details, style="Card.TLabel")
-        self.change.pack(side="left", padx=(10, 0))
+        self.change.pack(side="left", padx=(px(10), 0))
         self.bind("<Configure>", lambda e: self._wrap())
         self._action = None
         for widget in (self, self.picture, text, self.title, self.subtitle, details, self.detail, self.change):
@@ -125,12 +127,12 @@ class Hero(ttk.Frame):
             widget.configure(cursor="hand2" if action else "")
 
     def _wrap(self):
-        width = max(120, self.winfo_width() - self.IMAGE_SIZE - 60)
+        width = max(px(120), self.winfo_width() - px(self.IMAGE_SIZE + 60))
         for label in (self.title, self.subtitle):
             label.configure(wraplength=width)
 
     def show(self, title: str, subtitle: str, detail: str, image, change: tuple[str, str] | None = None):
-        size = self.IMAGE_SIZE
+        size = px(self.IMAGE_SIZE)
         self.picture.delete("all")
         if image is not None:
             self.picture.create_image(0, 0, image=image, anchor="nw")
@@ -146,9 +148,9 @@ class Hero(ttk.Frame):
         self.on_click(None)
         self.picture.delete("all")
         if self.round_image:
-            self.picture.create_oval(0, 0, self.IMAGE_SIZE, self.IMAGE_SIZE, fill=P.nav, outline="")
+            self.picture.create_oval(0, 0, px(self.IMAGE_SIZE), px(self.IMAGE_SIZE), fill=P.nav, outline="")
         else:
-            rounded_rect(self.picture, 0, 0, self.IMAGE_SIZE, self.IMAGE_SIZE, 10, fill=P.nav)
+            rounded_rect(self.picture, 0, 0, px(self.IMAGE_SIZE), px(self.IMAGE_SIZE), px(10), fill=P.nav)
         self.title.configure(text="—")
         self.subtitle.configure(text=text)
         self.detail.configure(text="")
@@ -163,12 +165,15 @@ class StatsTab(ttk.Frame):
         self.fetcher = artwork.Fetcher(self)
         self._images = []
         self._refresh_pending = False
+        self.detail = None
+        self.overview = ttk.Frame(self, style="Card.TFrame")
+        self.overview.pack(fill="both", expand=True)
         self._build()
 
     def _build(self):
-        toolbar = ttk.Frame(self, style="Card.TFrame")
-        toolbar.pack(fill="x", padx=16, pady=(16, 0))
-        switcher = ttk.Frame(toolbar, padding=3, style="Nav.TFrame")
+        toolbar = ttk.Frame(self.overview, style="Card.TFrame")
+        toolbar.pack(fill="x", padx=px(16), pady=(px(16), 0))
+        switcher = ttk.Frame(toolbar, padding=px(3), style="Nav.TFrame")
         switcher.pack(side="left")
         self.period_buttons = {}
         for period in listening.PERIODS:
@@ -177,14 +182,14 @@ class StatsTab(ttk.Frame):
             button.pack(side="left")
             self.period_buttons[period] = button
         self.previous_button = ttk.Button(toolbar, text="‹", width=3, command=lambda: self.move(1))
-        self.previous_button.pack(side="left", padx=(16, 0))
+        self.previous_button.pack(side="left", padx=(px(16), 0))
         self.next_button = ttk.Button(toolbar, text="›", width=3, command=lambda: self.move(-1))
-        self.next_button.pack(side="left", padx=(4, 0))
+        self.next_button.pack(side="left", padx=(px(4), 0))
         self.title_label = ttk.Label(toolbar, style="Period.TLabel")
-        self.title_label.pack(side="left", padx=12)
+        self.title_label.pack(side="left", padx=px(12))
 
-        page = ScrollFrame(self)
-        page.pack(fill="both", expand=True, pady=(12, 0))
+        page = ScrollFrame(self.overview)
+        page.pack(fill="both", expand=True, pady=(px(12), 0))
         content = page.content
 
         tiles = ttk.Frame(content, style="Card.TFrame")
@@ -192,8 +197,8 @@ class StatsTab(ttk.Frame):
         self.tiles = {}
         for index, name in enumerate(("plays", "time", "tracks", "artists")):
             tiles.columnconfigure(index, weight=1, uniform="tile")
-            tile = ttk.Frame(tiles, padding=(14, 10), style="Tile.TFrame")
-            tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else 10, 0))
+            tile = ttk.Frame(tiles, padding=(px(14), px(10)), style="Tile.TFrame")
+            tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else px(10), 0))
             ttk.Label(tile, text=t(f"stats.tile.{name}"), style="CardMuted.TLabel").pack(anchor="w")
             value = ttk.Label(tile, style="TileValue.TLabel")
             value.pack(anchor="w")
@@ -202,26 +207,26 @@ class StatsTab(ttk.Frame):
             self.tiles[name] = (value, delta)
 
         heroes = ttk.Frame(content, style="Card.TFrame")
-        heroes.pack(fill="x", pady=(16, 0))
+        heroes.pack(fill="x", pady=(px(16), 0))
         heroes.columnconfigure((0, 1), weight=1, uniform="hero")
         self.track_hero = Hero(heroes, t("stats.hero.track"), round_image=False)
         self.track_hero.grid(row=0, column=0, sticky="nsew")
         self.artist_hero = Hero(heroes, t("stats.hero.artist"), round_image=True)
-        self.artist_hero.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+        self.artist_hero.grid(row=0, column=1, sticky="nsew", padx=(px(10), 0))
 
         empty = t("stats.empty")
         lists = ttk.Frame(content, style="Card.TFrame")
-        lists.pack(fill="x", pady=(24, 0))
+        lists.pack(fill="x", pady=(px(24), 0))
         self.top_tracks = BarList(self._card(lists, t("stats.top_tracks"), 0), empty, TOP_COUNT - 1, first_rank=2)
         self.top_artists = BarList(self._card(lists, t("stats.top_artists"), 1), empty, TOP_COUNT - 1,
                                    round_images=True, first_rank=2)
 
         # Tracks and artists heard for the first time ever in this period
         self.discoveries = ttk.Frame(content, style="Card.TFrame")
-        self.discoveries.pack(fill="x", pady=(24, 0))
+        self.discoveries.pack(fill="x", pady=(px(24), 0))
         ttk.Label(self.discoveries, text=t("stats.discoveries"), style="Period.TLabel").pack(anchor="w")
         self.discovery_summary = ttk.Label(self.discoveries, style="CardMuted.TLabel")
-        self.discovery_summary.pack(anchor="w", pady=(2, 12))
+        self.discovery_summary.pack(anchor="w", pady=(px(2), px(12)))
         discovery_lists = ttk.Frame(self.discoveries, style="Card.TFrame")
         discovery_lists.pack(fill="x")
         empty_new = t("stats.discoveries.none")
@@ -236,12 +241,12 @@ class StatsTab(ttk.Frame):
         ttk.Label(self.forgotten_section, text=t("stats.forgotten"), style="Period.TLabel").pack(anchor="w")
         ttk.Label(self.forgotten_section, style="CardMuted.TLabel",
                   text=t("stats.forgotten.summary", days=FORGOTTEN_DAYS, plays=FORGOTTEN_MIN_PLAYS)
-                  ).pack(anchor="w", pady=(2, 12))
+                  ).pack(anchor="w", pady=(px(2), px(12)))
         self.forgotten = BarList(self.forgotten_section, t("stats.forgotten.none", days=FORGOTTEN_DAYS), TOP_COUNT)
         self.forgotten.pack(fill="x")
 
         self.charts = charts = ttk.Frame(content, style="Card.TFrame")
-        charts.pack(fill="x", pady=(24, 0))
+        charts.pack(fill="x", pady=(px(24), 0))
         self.timeline_card = self._card(charts, "", 0, weight=3)
         self.timeline = ColumnChart(self.timeline_card, 170, empty)
         self.hours = ColumnChart(self._card(charts, t("stats.hours"), 1, weight=2), 170, empty)
@@ -251,9 +256,9 @@ class StatsTab(ttk.Frame):
     def _card(self, parent, title: str, column: int, weight: int = 1) -> ttk.Frame:
         parent.columnconfigure(column, weight=weight, uniform="card")
         card = ttk.Frame(parent, style="Card.TFrame")
-        card.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else 32, 0))
+        card.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else px(32), 0))
         card.title = ttk.Label(card, text=title, style="Section.TLabel")
-        card.title.pack(anchor="w", pady=(0, 8))
+        card.title.pack(anchor="w", pady=(0, px(8)))
         return card
 
     def select_period(self, period: str):
@@ -271,19 +276,41 @@ class StatsTab(ttk.Frame):
             self.after(400, self.refresh)
 
     def _opener(self, column: str, key: str):
-        def open_():
-            # Imported here because the detail window builds on this module
-            from detail_view import open_detail
-            open_detail(self.winfo_toplevel(), column, key)
-        return open_
+        return lambda: self.open_detail(column, key)
+
+    def open_detail(self, column: str, key: str):
+        """Show a track or artist page in place of the statistics."""
+        if self.detail is None:
+            # Imported here because the detail page builds on this module
+            from detail_view import DetailView
+            self.detail = DetailView(self, on_close=self.show_overview)
+            window = self.winfo_toplevel()
+            window.bind("<Escape>", lambda e: self._detail_key(0), add="+")
+            window.bind("<Alt-Left>", lambda e: self._detail_key(-1), add="+")
+            window.bind("<Alt-Right>", lambda e: self._detail_key(1), add="+")
+        self.overview.pack_forget()
+        self.detail.pack(fill="both", expand=True)
+        self.detail.open(column, key)
+
+    def _detail_key(self, direction: int):
+        """Alt+Left / Alt+Right go back and forward, Escape (0) closes the page."""
+        if self.detail is not None and self.detail.winfo_ismapped():
+            if direction:
+                self.detail.step(direction)
+            else:
+                self.detail.close()
+
+    def show_overview(self):
+        self.detail.pack_forget()
+        self.overview.pack(fill="both", expand=True)
 
     def _cover(self, row: dict, size: int, radius: int):
         path = self.fetcher.cover(row["artist"], row["album"] or "", row["name"], self._artwork_arrived)
-        return self._keep(artwork.photo(path, size, P.surface, radius=radius))
+        return self._keep(artwork.photo(path, px(size), P.surface, radius=px(radius)))
 
     def _artist_photo(self, name: str, size: int):
         path = self.fetcher.artist(name, self._artwork_arrived)
-        return self._keep(artwork.photo(path, size, P.surface, round_=True))
+        return self._keep(artwork.photo(path, px(size), P.surface, round_=True))
 
     def _keep(self, image):
         # Tk shows an image only while Python holds a reference to it
@@ -292,6 +319,8 @@ class StatsTab(ttk.Frame):
         return image
 
     def refresh(self):
+        if self.detail is not None:
+            self.detail.refresh()
         self._refresh_pending = False
         self._images = []
         for period, button in self.period_buttons.items():
@@ -379,7 +408,7 @@ class StatsTab(ttk.Frame):
             self._fill_forgotten()
             return
         self.forgotten_section.pack_forget()
-        self.discoveries.pack(fill="x", pady=(24, 0), before=self.charts)
+        self.discoveries.pack(fill="x", pady=(px(24), 0), before=self.charts)
         tracks = listening.new_tracks(start, end)
         artists = listening.new_artists(start, end)
         plays = listening.summary(start, end)["plays"]
@@ -412,7 +441,7 @@ class StatsTab(ttk.Frame):
         } for r in artists[:DISCOVERY_COUNT]])
 
     def _fill_forgotten(self):
-        self.forgotten_section.pack(fill="x", pady=(24, 0), before=self.charts)
+        self.forgotten_section.pack(fill="x", pady=(px(24), 0), before=self.charts)
         today = datetime.now().astimezone()
         rows = []
         for r in listening.forgotten(FORGOTTEN_DAYS, FORGOTTEN_MIN_PLAYS, TOP_COUNT):
@@ -425,7 +454,7 @@ class StatsTab(ttk.Frame):
                 "image": self._cover(r, BarList.IMAGE_SIZE, 4), "on_click": self._opener("track_key", r["key"]),
             })
         # Only as tall as needed: the list is often short or empty
-        self.forgotten.configure(height=BarList.ROW_HEIGHT * len(rows) if rows else 60)
+        self.forgotten.configure(height=px(BarList.ROW_HEIGHT * len(rows) if rows else 60))
         self.forgotten.set_rows(rows)
 
     def _fill_tiles(self, start, end):
