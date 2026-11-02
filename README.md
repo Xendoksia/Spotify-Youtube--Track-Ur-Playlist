@@ -82,6 +82,16 @@ python app.py
 
 On Windows you can also double-click **`Spotify Playlist Tracker.bat`**.
 
+#### Build a single .exe (Windows, optional)
+
+```
+python -m pip install pyinstaller -r requirements.txt
+python build.py
+```
+
+This creates `dist\Spotify Playlist Tracker.exe`, which runs without Python. It keeps its settings and history
+next to itself: to take your existing data along, copy `config.json` and the `.db` files into the same folder.
+
 On first launch, enter your Client ID and Client Secret in the settings window. Then click **Log in with Spotify**
 and approve access in the browser. You only need to do this once; the app remembers your session.
 
@@ -179,5 +189,6 @@ the artist and track names are sent, no account is involved).
 | `background.py` | System tray icon, single running copy and starting with Windows |
 | `charts.py` | Bar and column charts drawn with tkinter |
 | `artwork.py` | Album covers and artist photos for the statistics |
+| `build.py` | Builds the single-file Windows program with PyInstaller |
 | `Spotify Playlist Tracker.bat` | Double-click launcher for Windows |
 | `config.example.json` | Sample configuration file |

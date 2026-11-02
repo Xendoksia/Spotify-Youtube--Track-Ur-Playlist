@@ -34,7 +34,8 @@ from pathlib import Path
 
 from i18n import t
 
-BASE_DIR = Path(__file__).resolve().parent
+# Settings and history live next to the program: the scripts, or the .exe when it is built with PyInstaller
+BASE_DIR = Path(sys.executable if getattr(sys, "frozen", False) else __file__).resolve().parent
 DB_PATH = BASE_DIR / "history.db"
 CONFIG_PATH = BASE_DIR / "config.json"
 
