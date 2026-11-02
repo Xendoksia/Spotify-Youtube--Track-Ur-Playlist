@@ -5,12 +5,15 @@ year, counted from the plays recorded in listening.db.
 
 from __future__ import annotations
 
+import re
 import tkinter as tk
 from datetime import datetime, timedelta
+from pathlib import Path
 from tkinter import ttk
 
 import artist_info
 import artwork
+import collage
 import listening
 from charts import BarList, ColumnChart, count_up, placeholder, rounded_rect
 from i18n import number, t
@@ -21,6 +24,8 @@ TOP_COUNT = 10
 DISCOVERY_COUNT = 5
 GENRE_COUNT = 8
 GENRE_REDRAW_MS = 3000
+# Width of the album collage preview, in design pixels
+COLLAGE_PREVIEW = 420
 FORGOTTEN_DAYS = 30
 FORGOTTEN_MIN_PLAYS = 3
 
@@ -281,6 +286,33 @@ class StatsTab(ttk.Frame):
         for chart in (self.top_tracks, self.top_artists, self.timeline, self.hours):
             chart.pack(fill="x")
 
+        # The period's most played album covers in a grid, to save as a picture
+        self.collage_size = collage.SIZES[0]
+        self.collage_image = None
+        self.collage_section = ttk.Frame(content, style="Card.TFrame")
+        if collage.available:
+            self.collage_section.pack(fill="x", pady=(px(24), 0))
+        ttk.Label(self.collage_section, text=t("stats.collage"), style="Period.TLabel").pack(anchor="w")
+        ttk.Label(self.collage_section, text=t("stats.collage.summary"), style="CardMuted.TLabel"
+                  ).pack(anchor="w", pady=(px(2), px(12)))
+        controls = ttk.Frame(self.collage_section, style="Card.TFrame")
+        controls.pack(fill="x")
+        sizes = ttk.Frame(controls, padding=px(3), style="Nav.TFrame")
+        sizes.pack(side="left")
+        self.collage_buttons = {}
+        for size in collage.SIZES:
+            button = ttk.Button(sizes, text=f"{size}×{size}", style="Nav.TButton",
+                                command=lambda size=size: self.select_collage_size(size))
+            button.pack(side="left")
+            self.collage_buttons[size] = button
+        self.collage_save = ttk.Button(controls, text=t("stats.collage.save"), style="Accent.TButton",
+                                       command=self.save_collage)
+        self.collage_save.pack(side="left", padx=(px(12), 0))
+        self.collage_saved = ttk.Label(controls, style="CardMuted.TLabel")
+        self.collage_saved.pack(side="left", padx=(px(12), 0))
+        self.collage_preview = ttk.Label(self.collage_section, style="Card.TLabel")
+        self.collage_preview.pack(anchor="w", pady=(px(12), 0))
+
     def _card(self, parent, title: str, column: int, weight: int = 1) -> ttk.Frame:
         parent.columnconfigure(column, weight=weight, uniform="card")
         card = ttk.Frame(parent, style="Card.TFrame")
@@ -404,6 +436,7 @@ class StatsTab(ttk.Frame):
         self._fill_discoveries(start, end)
         self._range = (start, end)
         self._fill_genres()
+        self._fill_collage(start, end)
         self._fill_timeline(start, end)
         hours = listening.hours(start, end)
         self.hours.set_buckets([{
@@ -430,6 +463,46 @@ class StatsTab(ttk.Frame):
                 text = f"{arrow}{abs(before - rank)}"
             return text, P.added if before > rank else P.removed
         return change
+
+    def select_collage_size(self, size: int):
+        self.collage_size = size
+        if self._range:
+            self._fill_collage(*self._range)
+
+    def _fill_collage(self, start, end):
+        if not collage.available:
+            return
+        for size, button in self.collage_buttons.items():
+            button.configure(style="NavSelected.TButton" if size == self.collage_size else "Nav.TButton")
+        # Twice as many as fit, as some are left out for sharing a cover with another
+        albums = listening.top_albums(start, end, self.collage_size ** 2 * 2)
+        self.collage_saved.configure(text="")
+        if not albums:
+            self.collage_image = None
+            self.collage_preview.configure(image="", text=t("stats.empty"))
+            self.collage_save.configure(state="disabled")
+            return
+        for album in albums:
+            album["cover"] = self.fetcher.cover(album["artist"], album["album"], album["name"], self._artwork_arrived)
+        albums = collage.distinct(albums, self.collage_size ** 2)
+        self.collage_image = collage.build(albums, self.collage_size, t("stats.collage.title"),
+                                           self.title_label.cget("text"))
+        from PIL import ImageTk
+        side = px(COLLAGE_PREVIEW)
+        preview = self.collage_image.resize((side, round(side * self.collage_image.height / self.collage_image.width)))
+        self.collage_preview.configure(image=self._keep(ImageTk.PhotoImage(preview)), text="")
+        self.collage_save.configure(state="normal")
+
+    def save_collage(self):
+        if self.collage_image is None:
+            return
+        from tkinter import filedialog
+        name = re.sub(r"[^\w-]+", "-", self.title_label.cget("text")).strip("-").lower()
+        path = filedialog.asksaveasfilename(parent=self, defaultextension=".png", filetypes=[("PNG", "*.png")],
+                                            initialfile=f"{t('stats.collage.file')}-{name}.png")
+        if path:
+            self.collage_image.save(path)
+            self.collage_saved.configure(text=t("stats.collage.saved", name=Path(path).name))
 
     def _genre_arrived(self):
         # Genres arrive one artist at a time, so redraw only this section, at most every few seconds

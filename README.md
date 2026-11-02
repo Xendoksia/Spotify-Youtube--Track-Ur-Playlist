@@ -29,7 +29,8 @@ and compares it with the previous one, so the title, artist and original add dat
   and artist photo, the rest of the top 10 with each one's move since the previous period (▲ ▼ NEW), the tracks
   and artists you discovered in it, the share of each genre, listening time, plays per day or month and by hour of day, compared with the
   same stretch of the previous period, and (under all time) the tracks you used to play a lot but have not played
-  for 30 days. Click a track or artist for its own page: first and last play, totals, plays over time and an
+  for 30 days, and an album collage of the period's most played covers (3×3, 4×4 or 5×5) to save as a picture.
+  Click a track or artist for its own page: first and last play, totals, plays over time and an
   artist's most played tracks. An artist's page also says in a sentence or two what kind of band or artist it is,
   where and when it started and who its members are (from MusicBrainz, no account needed). Pages open in the statistics tab, with back / forward buttons (Alt+← / Alt+→) and
   a close button (Esc).
