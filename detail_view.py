@@ -15,7 +15,7 @@ import listening
 from charts import BarList, ColumnChart, count_up
 from i18n import number, t
 from stats_view import Hero, ScrollFrame, duration_text, month_name, plays_text, summary_text, tracks_text
-from theme import P, px
+from theme import P, icon, px
 
 ARTIST_TRACKS = 15
 # Up to this many days of history the chart shows days, after that months
@@ -39,13 +39,13 @@ class DetailView(ttk.Frame):
         self.page = None
         bar = ttk.Frame(self, style="Card.TFrame")
         bar.pack(fill="x", padx=px(16), pady=(px(16), 0))
-        self.back_button = ttk.Button(bar, text="‹", width=3, command=lambda: self.step(-1))
+        self.back_button = ttk.Button(bar, text=icon("back"), style="Icon.TButton", command=lambda: self.step(-1))
         self.back_button.pack(side="left")
-        self.forward_button = ttk.Button(bar, text="›", width=3, command=lambda: self.step(1))
+        self.forward_button = ttk.Button(bar, text=icon("forward"), style="Icon.TButton", command=lambda: self.step(1))
         self.forward_button.pack(side="left", padx=(px(4), 0))
         self.title_label = ttk.Label(bar, style="Period.TLabel")
         self.title_label.pack(side="left", padx=px(12))
-        ttk.Button(bar, text="✕", width=3, command=self.close).pack(side="right")
+        ttk.Button(bar, text=icon("close"), style="Icon.TButton", command=self.close).pack(side="right")
 
     def open(self, column: str, key: str):
         """Show a page, dropping the pages that were ahead of the current one."""

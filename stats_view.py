@@ -16,7 +16,7 @@ import collage
 import listening
 from charts import BarList, ColumnChart, count_up, mix, placeholder, rounded_rect
 from i18n import number, t
-from theme import P, px
+from theme import P, icon, px
 from tracker import format_date
 
 available = artwork.available
@@ -287,9 +287,9 @@ class StatsTab(ttk.Frame):
                                 command=lambda period=period: self.select_period(period))
             button.pack(side="left")
             self.period_buttons[period] = button
-        self.previous_button = ttk.Button(toolbar, text="‹", width=3, command=lambda: self.move(1))
+        self.previous_button = ttk.Button(toolbar, text=icon("back"), style="Icon.TButton", command=lambda: self.move(1))
         self.previous_button.pack(side="left", padx=(px(16), 0))
-        self.next_button = ttk.Button(toolbar, text="›", width=3, command=lambda: self.move(-1))
+        self.next_button = ttk.Button(toolbar, text=icon("forward"), style="Icon.TButton", command=lambda: self.move(-1))
         self.next_button.pack(side="left", padx=(px(4), 0))
         self.title_label = ttk.Label(toolbar, style="Period.TLabel")
         self.title_label.pack(side="left", padx=px(12))

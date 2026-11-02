@@ -19,7 +19,7 @@ import tracker
 from charts import Animation, BarList, ColumnChart, count_up, mix
 from i18n import number, t
 from stats_view import duration_text, month_name, period_title, plays_text
-from theme import P, px
+from theme import P, icon, px
 
 try:
     from PIL import Image, ImageTk
@@ -91,13 +91,13 @@ class WrappedView(ttk.Frame):
 
         bar = ttk.Frame(self, style="Card.TFrame")
         bar.pack(fill="x", padx=px(16), pady=(px(16), 0))
-        self.back_button = ttk.Button(bar, text="‹", width=3, command=lambda: self.step(-1))
+        self.back_button = ttk.Button(bar, text=icon("back"), style="Icon.TButton", command=lambda: self.step(-1))
         self.back_button.pack(side="left")
-        self.next_button = ttk.Button(bar, text="›", width=3, command=lambda: self.step(1))
+        self.next_button = ttk.Button(bar, text=icon("forward"), style="Icon.TButton", command=lambda: self.step(1))
         self.next_button.pack(side="left", padx=(px(4), 0))
         self.title_label = ttk.Label(bar, style="Period.TLabel")
         self.title_label.pack(side="left", padx=px(12))
-        ttk.Button(bar, text="✕", width=3, command=self.close).pack(side="right")
+        ttk.Button(bar, text=icon("close"), style="Icon.TButton", command=self.close).pack(side="right")
         self.dots = ttk.Label(bar, style="CardMuted.TLabel")
         self.dots.pack(side="right", padx=px(16))
         self.stage = ttk.Frame(self, style="Card.TFrame")

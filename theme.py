@@ -39,6 +39,11 @@ DARK = {
 
 FONT = ("Segoe UI", 10)
 FONT_BOLD = ("Segoe UI Semibold", 10)
+# Windows' own icon fonts, newest first; ICON_GLYPHS are their code points, TEXT_GLYPHS stand in without them
+ICON_FONTS = ("Segoe Fluent Icons", "Segoe MDL2 Assets")
+ICON_GLYPHS = {"back": "\ue76b", "forward": "\ue76c", "close": "\ue711"}
+TEXT_GLYPHS = {"back": "‹", "forward": "›", "close": "✕"}
+_icon_font: str | None = None
 
 P = SimpleNamespace(**LIGHT, dark=False)
 
@@ -122,6 +127,11 @@ def dark_title_bar(window: tk.Misc) -> None:
         pass
 
 
+def icon(name: str) -> str:
+    """The character of an icon (back, forward, close) for Icon.TButton."""
+    return (ICON_GLYPHS if _icon_font else TEXT_GLYPHS)[name]
+
+
 def _button_style(style, name, background, foreground, border, active, disabled, disabled_text):
     style.configure(name, background=background, foreground=foreground, bordercolor=border,
                     lightcolor=background, darkcolor=background, padding=(px(14), px(6)), focusthickness=0)
@@ -182,6 +192,15 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
                         font=FONT_BOLD)
         style.map(name, background=[("active", P.surface)], lightcolor=[("active", P.surface)],
                   darkcolor=[("active", P.surface)], foreground=[("active", P.text)])
+    # Square buttons with an icon: back, forward and close
+    global _icon_font
+    families = set(tkfont.families(root))
+    _icon_font = next((family for family in ICON_FONTS if family in families), None)
+    _button_style(style, "Icon.TButton", P.surface, P.text, P.border, P.hover, P.bg, P.button_disabled_text)
+    style.configure("Icon.TButton", font=(_icon_font, 11) if _icon_font else ("Segoe UI Semibold", 14),
+                    padding=(px(12), px(7)) if _icon_font else (px(10), px(1)), width=0)
+    style.map("Icon.TButton", bordercolor=[("disabled", P.border), ("active", P.muted)],
+              foreground=[("disabled", P.button_disabled_text), ("active", P.text)])
     for prefix, (color, active) in accents.items():
         _button_style(style, f"{prefix}.Accent.TButton", color, "#ffffff", color, active, P.disabled,
                       P.disabled_text)
