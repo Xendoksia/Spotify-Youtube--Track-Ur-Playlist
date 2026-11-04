@@ -23,7 +23,8 @@ from playlist_tracker.ui.listening_view import ListeningView
 from playlist_tracker.ui.mini_player import MiniPlayer
 from playlist_tracker.ui.playlist_panel import PlaylistPanel
 from playlist_tracker.ui.services import SERVICES, SPOTIFY, Service
-from playlist_tracker.ui.settings_dialog import open_settings
+from playlist_tracker.ui.settings_page import SettingsPage
+from playlist_tracker.ui.sidebar import Sidebar
 from playlist_tracker.ui.tabs import Tabs
 from playlist_tracker.ui.theme import px
 
@@ -33,7 +34,8 @@ SUMMARY_FLAG = "--summary"
 
 class App(tk.Tk):
     def __init__(self, local_tracker: nowplaying.LocalTracker, commands: queue.Queue[str],
-                 tray: background.Tray, hidden: bool = False):
+                 tray: background.Tray, hidden: bool = False, section: str = "listening"):
+        """section: the page shown first (after a language or theme change, the settings again)."""
         super().__init__()
         self.local_tracker = local_tracker
         self.commands = commands
@@ -45,8 +47,11 @@ class App(tk.Tk):
 
         self.busy = False
         self.restart = False
+        # The page to show when the window is rebuilt
+        self.restart_section = "listening"
         self.panels: dict[str, PlaylistPanel] = {}
-        self.sections: dict[str, tuple[ttk.Frame, ttk.Button]] = {}
+        self.sections: dict[str, ttk.Frame] = {}
+        self.section: str | None = None
 
         theme.apply_theme(self, config.get("THEME"), {s.name: (s.accent, s.accent_active) for s in SERVICES})
         # After the theme, which sets the scale for this screen
@@ -59,7 +64,7 @@ class App(tk.Tk):
             self.iconphoto(True, self._icon)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
-        self._build_ui()
+        self._build_ui(section)
         self.history.refresh()
         # Plays stored without a listening time by an earlier version get their track's length
         threading.Thread(target=artwork.fill_missing_lengths, name="lengths", daemon=True,
@@ -73,7 +78,7 @@ class App(tk.Tk):
             else:
                 self.iconify()
         elif not any(s.has_credentials(config) for s in SERVICES):
-            self.after(200, self.open_settings)
+            self.after(200, lambda: self.open_settings(SPOTIFY))
         elif SUMMARY_FLAG in sys.argv[1:]:
             self.after(500, lambda: self._open_monthly_summary(force=True))
         else:
@@ -121,32 +126,28 @@ class App(tk.Tk):
                 self.panels[service_name].show_results(results, automatic=True)
         self.after(200, self._poll_commands)
 
-    def _build_ui(self):
-        header = ttk.Frame(self, padding=(px(16), px(12), px(16), px(4)))
-        header.pack(fill="x")
-        if background.TRAY_AVAILABLE:
-            from PIL import ImageTk
-            self._header_icon = ImageTk.PhotoImage(background.icon_image(px(28)))
-            ttk.Label(header, image=self._header_icon).pack(side="left", padx=(0, px(8)))
-        ttk.Label(header, text=t("app.title"), style="Title.TLabel").pack(side="left")
-        ttk.Button(header, text=t("button.settings"), command=self.open_settings).pack(side="right")
-        nav = ttk.Frame(header, padding=px(4), style="Nav.TFrame")
-        nav.pack(side="left", padx=(px(24), 0))
-        # Messages about what the app is doing, on the right; empty while there is nothing to say
-        self.status_label = ttk.Label(header, style="Muted.TLabel")
-        self.status_label.pack(side="right", padx=(0, px(16)))
-        self.mini_player = MiniPlayer(self, self.local_tracker, self.open_track_page, header)
+    def _build_ui(self, section: str):
+        body = ttk.Frame(self)
+        body.pack(fill="both", expand=True)
+        self.sidebar = Sidebar(body, t("app.title"))
+        self.sidebar.pack(side="left", fill="y")
+        self.content = ttk.Frame(body, padding=(px(24), px(16), px(24), px(16)))
+        self.content.pack(side="left", fill="both", expand=True)
+        # Along the bottom of the window, under the sidebar too
+        self.mini_player = MiniPlayer(self, self.local_tracker, self.open_track_page, body)
 
-        # Playlist tracking and listening statistics are separate sections with their own tabs
-        playlist_section = ttk.Frame(self)
+        # Listening comes first: it is the home page; playlist tracking and settings are pages of their own
+        self.listening = ListeningView(self.content, self, self.local_tracker)
+        playlist_section = ttk.Frame(self.content)
         self.tabs = Tabs(playlist_section)
         self.tabs.pack(fill="both", expand=True)
-        self.listening = ListeningView(self, self, self.local_tracker)
-        for name, frame in (("playlists", playlist_section), ("listening", self.listening)):
-            button = ttk.Button(nav, text=t(f"nav.{name}"), style="Nav.TButton",
-                                command=lambda name=name: self.show_section(name))
-            button.pack(side="left")
-            self.sections[name] = (frame, button)
+        self.settings = SettingsPage(self.content, self)
+        for name, frame, glyph, bottom in (("listening", self.listening, "tracks", False),
+                                           ("playlists", playlist_section, "list", False),
+                                           ("settings", self.settings, "settings", True)):
+            self.sections[name] = frame
+            text = t("settings.title") if name == "settings" else t(f"nav.{name}")
+            self.sidebar.add(name, text, glyph, lambda name=name: self.show_section(name), bottom=bottom)
         # The history tab is built first because panels update its playlist filter while loading
         self.history = HistoryTab(self.tabs, self)
         self.tabs.add(self.history, text=t("tab.history"))
@@ -156,7 +157,7 @@ class App(tk.Tk):
             self.tabs.insert(index, panel, text=service.name)
         self.tabs.select(0)
         self.history.update_filter()
-        self.show_section("playlists")
+        self.show_section(section if section in self.sections else "listening")
 
     def _open_monthly_summary(self, force: bool = False):
         """On the first days of a month, show the summary of the month before once (see wrapped.SHOW_DAYS);
@@ -175,17 +176,23 @@ class App(tk.Tk):
         self.listening.tabs.select(self.listening.stats)
         self.listening.stats.open_detail("track_key", track_key)
 
-    def show_section(self, name):
-        for key, (frame, button) in self.sections.items():
+    def show_section(self, name, service: Service | None = None):
+        """Show a page; service picks the settings tab of a service with missing credentials."""
+        if name == "settings" and (name != self.section or service):
+            # Built anew from the saved settings each time it is opened
+            self.settings.show(service)
+        if name == self.section:
+            return
+        for key, frame in self.sections.items():
             if key == name:
-                frame.pack(fill="both", expand=True, padx=px(16), pady=(px(8), px(16)))
-                button.configure(style="NavSelected.TButton")
+                frame.pack(fill="both", expand=True)
             else:
                 frame.pack_forget()
-                button.configure(style="Nav.TButton")
+        self.section = name
+        self.sidebar.select(name)
 
     def set_status(self, text):
-        self.status_label.configure(text=text)
+        self.sidebar.status.configure(text=text)
 
     def _set_busy(self, busy):
         self.busy = busy
@@ -231,5 +238,5 @@ class App(tk.Tk):
         else:
             on_success(result)
 
-    def open_settings(self, service: Service = SPOTIFY):
-        open_settings(self, service)
+    def open_settings(self, service: Service | None = None):
+        self.show_section("settings", service)

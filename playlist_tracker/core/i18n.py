@@ -17,7 +17,6 @@ DEFAULT_LANGUAGE = "en"
 STRINGS: dict[str, dict[str, str]] = {
     "en": {
         "app.title": "Playlist Tracker",
-        "button.settings": "⚙  Settings",
         "tab.history": "History",
         "nav.playlists": "Playlist tracking",
         "nav.listening": "Listening",
@@ -368,7 +367,6 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "tr": {
         "app.title": "Playlist Takipçisi",
-        "button.settings": "⚙  Ayarlar",
         "tab.history": "Geçmiş",
         "nav.playlists": "Playlist takibi",
         "nav.listening": "Dinleme",

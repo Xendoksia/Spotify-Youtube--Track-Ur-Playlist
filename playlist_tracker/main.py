@@ -38,11 +38,12 @@ def main():
     checker = AutoChecker(tray.notify, lambda service, results: commands.put(("checked", service, results)))
     checker.start()
     hidden = background.start_minimized()
+    section = "listening"
     try:
         while True:
-            app = App(local_tracker, commands, tray, hidden)
+            app = App(local_tracker, commands, tray, hidden, section)
             app.mainloop()
-            hidden = False
+            hidden, section = False, app.restart_section
             if not app.restart:
                 break
     finally:
