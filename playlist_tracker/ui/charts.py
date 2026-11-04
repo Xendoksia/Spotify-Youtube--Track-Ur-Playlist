@@ -375,3 +375,67 @@ class ColumnChart(Chart):
                                  font=self.small_font)
             self.add_hit_area(center - slot / 2, top, center + slot / 2, bottom, bucket["tooltip"], marks)
         return True
+
+
+# Categorical colors in a fixed order (validated for colorblind separation on both surfaces); "other" is neutral
+SERIES = {"light": ("#2a78d6", "#eb6834", "#1baf7a", "#eda100"), "dark": ("#3987e5", "#d95926", "#199e70", "#c98500")}
+OTHER = {"light": "#b6bbc3", "dark": "#4a505a"}
+
+
+def series_colors() -> tuple[tuple[str, ...], str]:
+    """The categorical colors and the "other" color of the active theme."""
+    mode = "dark" if P.dark else "light"
+    return SERIES[mode], OTHER[mode]
+
+
+class StackedColumns(Chart):
+    """Columns that each fill to 100%, split into colored segments: the shares of a few groups per bucket."""
+
+    def __init__(self, parent, height: int, empty_text: str = ""):
+        super().__init__(parent, height, empty_text)
+        self.buckets: list[dict] = []
+
+    def set_buckets(self, buckets: list[dict]):
+        """buckets: dicts with label, tooltip and segments: [(share 0-1, color)], bottom first; a bucket without
+        segments is left empty."""
+        self.buckets = buckets
+        self.redraw()
+
+    def draw(self, width, height):
+        if not any(b["segments"] for b in self.buckets):
+            return False
+        axis_width = self.small_font.measure(number(100) + "%") + px(10)
+        label_height = self.small_font.metrics("linespace") + px(6)
+        top, bottom = px(8), height - label_height
+        for share in (0, 0.5, 1):
+            y = bottom - (bottom - top) * share
+            self.create_line(axis_width, y, width, y, fill=P.grid if share else P.border)
+            self.create_text(axis_width - px(8), y, text=f"{round(share * 100)}%", anchor="e", fill=P.muted,
+                             font=self.small_font)
+        slot = (width - axis_width) / len(self.buckets)
+        thickness = max(1, min(px(MAX_THICKNESS), slot - px(GAP)))
+        widest_label = max(self.small_font.measure(b["label"]) for b in self.buckets) + px(10)
+        label_every = max(1, math.ceil(widest_label / slot))
+        for index, bucket in enumerate(self.buckets):
+            center = axis_width + slot * index + slot / 2
+            left, right = center - thickness / 2, center + thickness / 2
+            background = rounded_rect(self, center - slot / 2 + 1, top, center + slot / 2 - 1, bottom, px(4), fill="")
+            y = bottom
+            segments = [segment for segment in bucket["segments"] if segment[0] > 0]
+            for position, (share, color) in enumerate(segments):
+                segment_top = y - (bottom - top) * share
+                last = position == len(segments) - 1
+                # A 2px surface gap between segments; the top one gets the rounded data end
+                lower = y if position == 0 else y - px(GAP)
+                if last:
+                    rounded_bar(self, left, segment_top, right, lower, "top", fill=color)
+                elif lower - segment_top > 0:
+                    self.create_rectangle(left, segment_top, right, lower, fill=color, width=0)
+                y = segment_top
+            if index % label_every == 0:
+                self.create_text(center, bottom + px(4), text=bucket["label"], anchor="n", fill=P.muted,
+                                 font=self.small_font)
+            self.tag_lower(background)
+            self.add_hit_area(center - slot / 2, top, center + slot / 2, bottom, bucket["tooltip"], [],
+                              background=background)
+        return True

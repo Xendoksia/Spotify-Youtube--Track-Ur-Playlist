@@ -247,6 +247,14 @@ def diversity(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
     return row
 
 
+def artist_days(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list[tuple[str, str, int]]:
+    """Plays per local day ('%Y-%m-%d') and artist in the period: (day, artist_key, plays)."""
+    with open_db(db_path) as db:
+        return [tuple(r) for r in db.execute(
+            "SELECT strftime('%Y-%m-%d', played_at, 'localtime') AS day, artist_key, COUNT(*) FROM listens "
+            "WHERE played_at >= ? AND played_at < ? GROUP BY day, artist_key ORDER BY day", _range(start, end))]
+
+
 def plays_without_length(db_path: Path = DB_PATH) -> list[dict]:
     """Tracks with plays stored without a listening time (by an earlier version), with the longest
     time recorded for the same track, if any."""

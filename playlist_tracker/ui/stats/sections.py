@@ -6,16 +6,17 @@ period the overview shows.
 
 from __future__ import annotations
 
-from datetime import datetime
+import tkinter as tk
+from datetime import datetime, timedelta
 from tkinter import ttk
 
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import format_date
 from playlist_tracker.music import artist_info, collage, listening
-from playlist_tracker.ui.charts import BarList
-from playlist_tracker.ui.stats.text import plays_text, summary_text, tracks_text
+from playlist_tracker.ui.charts import BarList, StackedColumns, series_colors
+from playlist_tracker.ui.stats.text import month_name, plays_text, summary_text, tracks_text
 from playlist_tracker.ui.stats.widgets import SECTION_GAP, card, card_column
-from playlist_tracker.ui.theme import px
+from playlist_tracker.ui.theme import TYPE, P, px
 
 DISCOVERY_COUNT = 5
 FORGOTTEN_COUNT = 10
@@ -126,6 +127,8 @@ class Genres:
         self.chart.pack(fill="x")
         self._pending = False
         self._range = None
+        # Called when genres arrive, for the cards that use them too
+        self.on_change = None
 
     def fill(self, start, end):
         self._range = (start, end)
@@ -135,7 +138,12 @@ class Genres:
         # Redraw only this card, at most every few seconds
         if not self._pending:
             self._pending = True
-            self.card.after(GENRE_REDRAW_MS, self._fill)
+            self.card.after(GENRE_REDRAW_MS, self._refill)
+
+    def _refill(self):
+        self._fill()
+        if self.on_change and self.card.winfo_exists():
+            self.on_change()
 
     def _fill(self):
         self._pending = False
@@ -171,6 +179,124 @@ class Genres:
             "tooltip": f"{name}\n{plays_text(genre['plays'])}\n"
                        + t("stats.genres.artists", names=", ".join(genre["artists"][:5])),
         } for name, genre in rows])
+
+
+def main_genre(artist_key: str) -> str | None:
+    """An artist's main genre once it is known (the genres card looks them up)."""
+    facts = artist_info.cached(artist_key)
+    return facts["genres"][0] if facts and facts["genres"] else None
+
+
+class GenreShift:
+    """How the share of the period's main genres changed over it: per day of a week, per week of a month, per month
+    of a year (or of all time, per year past three years). The four biggest genres get a color, the rest is
+    "other"; plays by artists of unknown genre are left out."""
+
+    GENRES = 4
+    MAX_MONTHS = 36
+
+    def __init__(self, row, column: int):
+        self._yearly = False
+        self.card = card(row, "area", t("stats.genre_shift"), column, summary=True)
+        self.legend = ttk.Frame(self.card, style="Card.TFrame")
+        self.legend.pack(fill="x", pady=(0, px(8)))
+        self.chart = StackedColumns(self.card, 170, t("stats.genres.none"))
+        self.chart.pack(fill="x")
+
+    def fill(self, period: str, start, end):
+        days = listening.artist_days(start, end)
+        self._yearly = False
+        if period == "all" and days:
+            first = datetime.strptime(days[0][0], "%Y-%m-%d")
+            today = datetime.now()
+            self._yearly = (today.year - first.year) * 12 + today.month - first.month >= self.MAX_MONTHS
+        buckets: dict[str, dict[str, int]] = {}
+        totals: dict[str, int] = {}
+        known = everything = 0
+        for day, artist_key, plays in days:
+            everything += plays
+            genre = main_genre(artist_key)
+            if genre is None:
+                continue
+            known += plays
+            bucket = buckets.setdefault(self._bucket(period, day), {})
+            bucket[genre] = bucket.get(genre, 0) + plays
+            totals[genre] = totals.get(genre, 0) + plays
+        colors, other_color = series_colors()
+        top = [name for name, _ in sorted(totals.items(), key=lambda item: -item[1])[:self.GENRES]]
+        color = dict(zip(top, colors))
+        keys = self._bucket_keys(period, start, end, days)
+        self.chart.set_buckets([self._column(period, key, buckets.get(key, {}), top, color, other_color)
+                                for key in keys])
+        unit = "year" if self._yearly else period
+        self.card.summary.configure(text=t("stats.genre_shift.summary", unit=t(f"stats.genre_shift.unit.{unit}"))
+                                    if known else "")
+        for child in self.legend.winfo_children():
+            child.destroy()
+        others = known - sum(totals[name] for name in top)
+        for name, plays, swatch in [*((name, totals[name], color[name]) for name in top),
+                                    *([(t("stats.genre_shift.other"), others, other_color)] if others else [])]:
+            item = ttk.Frame(self.legend, style="Card.TFrame")
+            item.pack(side="left", padx=(0, px(16)))
+            mark = tk.Canvas(item, width=px(10), height=px(10), background=P.surface, highlightthickness=0)
+            mark.create_rectangle(0, 0, px(10), px(10), fill=swatch, width=0)
+            mark.pack(side="left", padx=(0, px(6)))
+            ttk.Label(item, text=f"{name[:1].upper() + name[1:]}  {t('stats.percent', value=share(plays, known))}",
+                      style="Card.TLabel", font=TYPE["small"]).pack(side="left")
+
+    def _bucket(self, period: str, day: str) -> str:
+        if self._yearly:
+            return day[:4]
+        if period == "week":
+            return day
+        if period == "month":
+            # A week begins on Monday, or on the 1st when the month begins in the middle of it
+            moment = datetime.strptime(day, "%Y-%m-%d")
+            return max(moment - timedelta(days=moment.weekday()), moment.replace(day=1)).strftime("%Y-%m-%d")
+        return day[:7]
+
+    def _bucket_keys(self, period: str, start, end, days) -> list[str]:
+        """Every bucket of the period in order, also the ones without plays; all time starts at the first play."""
+        if period == "all":
+            if not days:
+                return []
+            first = datetime.strptime(days[0][0], "%Y-%m-%d")
+            start = first.astimezone()
+        keys, day = [], start
+        # Up to today: the days still to come of a running period have nothing to show
+        today = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+        last = min(end, today + timedelta(days=1))
+        while day < last:
+            key = self._bucket(period, day.strftime("%Y-%m-%d"))
+            if key not in keys:
+                keys.append(key)
+            day += timedelta(days=1)
+        return keys
+
+    def _label(self, period: str, key: str) -> str:
+        if self._yearly:
+            return key
+        if period == "week":
+            moment = datetime.strptime(key, "%Y-%m-%d")
+            return t("stats.weekdays").split(",")[moment.weekday()]
+        if period == "month":
+            moment = datetime.strptime(key, "%Y-%m-%d")
+            return f"{moment.day} {month_name(moment.month, True)}"
+        year, month = int(key[:4]), int(key[5:7])
+        return month_name(month, True) + (f" {year % 100:02d}" if period == "all" else "")
+
+    def _column(self, period, key, genres: dict[str, int], top, color, other_color) -> dict:
+        total = sum(genres.values())
+        label = self._label(period, key)
+        if not total:
+            return {"label": label, "segments": [], "tooltip": f"{label}\n{t('stats.genres.none')}"}
+        others = total - sum(genres.get(name, 0) for name in top)
+        segments = [(genres.get(name, 0) / total, color[name]) for name in top] + [(others / total, other_color)]
+        lines = [f"{name[:1].upper() + name[1:]}: {t('stats.percent', value=share(genres.get(name, 0), total))}"
+                 for name in top if genres.get(name)]
+        if others:
+            lines.append(f"{t('stats.genre_shift.other')}: {t('stats.percent', value=share(others, total))}")
+        return {"label": label, "segments": segments, "tooltip": "\n".join([label, *lines])}
 
 
 def share(part: int, whole: int) -> int:
