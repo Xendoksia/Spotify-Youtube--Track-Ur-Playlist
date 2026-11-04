@@ -12,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-import background
+from playlist_tracker import background
 
 ROOT = Path(__file__).resolve().parent
 BUILD_DIR = ROOT / "build"

@@ -14,8 +14,8 @@ import threading
 from pathlib import Path
 from typing import Callable
 
-from i18n import t
-from tracker import BASE_DIR
+from playlist_tracker.core.config import BASE_DIR
+from playlist_tracker.core.i18n import t
 
 try:
     import pystray
@@ -208,4 +208,3 @@ def start_minimized() -> bool:
 
 def close_to_tray(config: dict) -> bool:
     return TRAY_AVAILABLE and config.get("CLOSE_TO_TRAY", True) is not False
-

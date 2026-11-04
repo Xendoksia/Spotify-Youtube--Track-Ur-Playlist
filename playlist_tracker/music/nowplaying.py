@@ -15,8 +15,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-import artwork
-import listening
+from playlist_tracker.music import artwork, listening
 
 POLL_SECONDS = 3
 # Spotify not seen for this long (closed, not between two songs): looked for less often, as nothing is
@@ -56,8 +55,8 @@ class Snapshot:
 try:
     import asyncio
 
-    from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionManager as SessionManager
-    from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status
+    from winrt.windows.media.control import (GlobalSystemMediaTransportControlsSessionManager as SessionManager,
+                                             GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status)
     from winrt.windows.storage.streams import Buffer, InputStreamOptions
 except ImportError:
     SessionManager = None

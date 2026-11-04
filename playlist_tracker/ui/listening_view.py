@@ -7,24 +7,16 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
-import listening
-import nowplaying
-import tracker
-from i18n import t
-from stats_view import StatsTab
-from theme import P, px
-from tracker import format_date
+from playlist_tracker.core.config import load_config, save_config
+from playlist_tracker.core.i18n import t
+from playlist_tracker.core.text import format_date, format_length, track_label
+from playlist_tracker.music import listening, nowplaying
+from playlist_tracker.ui.stats.tab import StatsTab
+from playlist_tracker.ui.theme import P, px
 
 STATUS_INTERVAL_MS = 1000
 # In the tray or behind the playlist section nothing is drawn, so the status is only looked at for new plays
 HIDDEN_INTERVAL_MS = 5000
-
-
-def format_length(ms: int | None) -> str:
-    if not ms:
-        return "—"
-    seconds = ms // 1000
-    return f"{seconds // 60}:{seconds % 60:02d}"
 
 
 def tracking_enabled(config: dict) -> bool:
@@ -33,9 +25,9 @@ def tracking_enabled(config: dict) -> bool:
 
 def set_tracking(local_tracker: nowplaying.LocalTracker, enabled: bool) -> None:
     """Turn recording on or off and remember the choice (used by the checkbox and the tray menu)."""
-    config = tracker.load_config()
+    config = load_config()
     config["LOCAL_TRACKING"] = enabled
-    tracker.save_config(config)
+    save_config(config)
     if enabled:
         local_tracker.start()
     else:
@@ -67,7 +59,7 @@ class ListeningView(ttk.Frame):
 
         toolbar = ttk.Frame(tab, style="Card.TFrame")
         toolbar.pack(fill="x")
-        self.tracking = tk.BooleanVar(value=tracking_enabled(tracker.load_config()))
+        self.tracking = tk.BooleanVar(value=tracking_enabled(load_config()))
         ttk.Checkbutton(toolbar, text=t("listening.track_toggle"), variable=self.tracking,
                         command=self._toggle_tracking, style="Card.TCheckbutton").pack(side="left")
         self.info_label = ttk.Label(toolbar, style="CardMuted.TLabel")
@@ -120,7 +112,7 @@ class ListeningView(ttk.Frame):
             text, color = t("listening.now.error", error=status["error"]), P.removed
         elif play and state in ("playing", "paused"):
             key = "listening.now.playing" if state == "playing" else "listening.now.paused"
-            text = t(key, track=tracker.track_label(play), listened=format_length(play["ms"]) if play["ms"] else "0:00")
+            text = t(key, track=track_label(play), listened=format_length(play["ms"]) if play["ms"] else "0:00")
             if play["id"] is not None:
                 text += t("listening.now.recorded")
             color = P.added if state == "playing" else P.muted
@@ -135,6 +127,6 @@ class ListeningView(ttk.Frame):
         self.table.delete(*self.table.get_children())
         for index, p in enumerate(listening.recent_plays(500)):
             self.table.insert("", "end", tags=("odd",) if index % 2 else (), values=(
-                format_date(p["played_at"]), p["name"], p["artist"], p["album"], format_length(p["ms_played"]),
+                format_date(p["played_at"]), p["name"], p["artist"], p["album"], format_length(p["ms_played"]) or "—",
                 t(f"listening.source.{p['source']}")))
         self.info_label.configure(text=t("listening.info", count=sum(listening.counts().values())))

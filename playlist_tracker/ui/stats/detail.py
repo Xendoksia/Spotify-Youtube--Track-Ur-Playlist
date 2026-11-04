@@ -11,13 +11,14 @@ import tkinter as tk
 from datetime import datetime, timedelta
 from tkinter import ttk
 
-import artist_info
-import artwork
-import listening
-from charts import Animation, BarList, ColumnChart, count_up, rounded_rect
-from i18n import number, t
-from stats_view import Hero, ScrollFrame, duration_text, month_name, plays_text, summary_text, tracks_text
-from theme import TYPE, P, icon, px
+from playlist_tracker.core.i18n import number, t
+from playlist_tracker.core.text import format_length
+from playlist_tracker.music import artist_info, artwork, listening
+from playlist_tracker.ui.charts import Animation, BarList, ColumnChart, count_up, rounded_rect
+from playlist_tracker.ui.stats.text import (date_text, duration_text, hour_buckets, month_name, plays_text,
+                                            summary_text, tracks_text)
+from playlist_tracker.ui.stats.widgets import Hero, Pictures, ScrollFrame
+from playlist_tracker.ui.theme import TYPE, P, icon, px
 
 ARTIST_TRACKS = 15
 # Plays of tracks of an album fetched at most (the album's own tracks come from Deezer)
@@ -28,19 +29,6 @@ ALBUM_CARD_IMAGE = 72
 # Up to this many days of history the chart shows days, after that months
 DAILY_LIMIT = 62
 MIN_DAYS = 14
-
-
-def format_length(ms: int) -> str:
-    """A track length as m:ss, or "" when unknown."""
-    if not ms:
-        return ""
-    seconds = round(ms / 1000)
-    return f"{seconds // 60}:{seconds % 60:02d}"
-
-
-def date_text(iso: str) -> str:
-    moment = listening.from_utc(iso).astimezone()
-    return f"{moment.day} {month_name(moment.month)} {moment.year}"
 
 
 class DetailView(ttk.Frame):
@@ -112,9 +100,7 @@ class DetailPage(ttk.Frame):
         self.is_album = column == listening.ALBUM
         self.is_track = not self.is_artist and not self.is_album
         self._looked_up: set[tuple[str, str]] = set()
-        self.fetcher = artwork.Fetcher(self)
-        self._images = []
-        self._refresh_pending = False
+        self.pictures = Pictures(self, self.refresh)
         self._build()
 
     # Building
@@ -214,21 +200,6 @@ class DetailPage(ttk.Frame):
 
     # Data
 
-    def _artwork_arrived(self):
-        if not self._refresh_pending:
-            self._refresh_pending = True
-            self.after(400, self.refresh)
-
-    def _keep(self, image):
-        # Tk shows an image only while Python holds a reference to it
-        if image is not None:
-            self._images.append(image)
-        return image
-
-    def _cover(self, row: dict, size: int, radius: int):
-        path = self.fetcher.cover(row["artist"], row["album"] or "", row["name"], self._artwork_arrived)
-        return self._keep(artwork.photo(path, px(size), P.surface, radius=px(radius)))
-
     def _tracklist(self, artist: str, album: str) -> list[dict] | None:
         """The album's tracks from Deezer, looked up in the background the first time."""
         tracklist = artwork.cached_tracklist(artist, album)
@@ -240,15 +211,14 @@ class DetailPage(ttk.Frame):
                     artwork.fetch_tracklist(artist, album)
                 except Exception:  # offline: shown without the album's own track list
                     return
-                self.after(0, self._artwork_arrived)
+                self.after(0, self.pictures.arrived)
             threading.Thread(target=look_up, name="tracklist", daemon=True).start()
         return tracklist
 
     def refresh(self):
         if not self.winfo_exists():
             return
-        self._refresh_pending = False
-        self._images = []
+        self.pictures.clear()
         info = listening.detail(self.column, self.key)
         if not info:
             self.view.title_label.configure(text="")
@@ -259,12 +229,12 @@ class DetailPage(ttk.Frame):
         self.view.title_label.configure(text=title)
         summary = summary_text(plays_text(info["plays"]), minutes=info["minutes"])
         if self.is_artist:
-            self.hero.show(title, tracks_text(info["tracks"]), summary, self.fetcher.artist(title, self._artwork_arrived))
-            facts = artist_info.request(title, self.key, self, self._artwork_arrived)
+            self.hero.show(title, tracks_text(info["tracks"]), summary, self.pictures.artist_path(title))
+            facts = artist_info.request(title, self.key, self, self.pictures.arrived)
             self.hero.set_about(artist_info.describe(facts) if facts else "")
         else:
             self.hero.show(title, info["artist"], summary,
-                           self.fetcher.cover(info["artist"], info["album"] or "", info["name"], self._artwork_arrived))
+                           self.pictures.cover_path(info["artist"], info["album"], info["name"]))
             # The artist line leads to the artist's own page
             self.hero.on_subtitle_click(lambda: self.open_page("artist_key", info["artist_key"]))
 
@@ -287,7 +257,7 @@ class DetailPage(ttk.Frame):
                 "title": r["name"], "subtitle": r["album"] or "", "value": r["plays"],
                 "value_text": number(r["plays"]),
                 "tooltip": f"{r['name']}\n" + summary_text(plays_text(r["plays"]), minutes=r["minutes"]),
-                "image": self._cover(r, BarList.IMAGE_SIZE, 4),
+                "image": self.pictures.cover(r, BarList.IMAGE_SIZE, 4),
                 "on_click": lambda key=r["key"]: self.open_page("track_key", key),
             } for r in rows])
 
@@ -343,16 +313,14 @@ class DetailPage(ttk.Frame):
     def _fill_track(self, info: dict):
         start, end = listening.period_range("all")
         hours = listening.hours(start, end, self.column, self.key)
-        self.hours.set_buckets([{"label": f"{hour:02d}", "value": count,
-                                 "tooltip": f"{hour:02d}:00 – {(hour + 1) % 24:02d}:00\n{plays_text(count)}"}
-                                for hour, count in enumerate(hours)])
+        self.hours.set_buckets(hour_buckets(hours))
         if not info["album"]:
             self.album_card.grid_remove()
             return
         album_key = listening.album_key(info["artist_key"], info["album_lower"])
         self._album_action = lambda: self.open_page(listening.ALBUM, album_key)
         self.album_name.configure(text=info["album"])
-        self.album_cover.configure(image=self._cover(info, ALBUM_CARD_IMAGE, 6))
+        self.album_cover.configure(image=self.pictures.cover(info, ALBUM_CARD_IMAGE, 6))
         rows, tracklist = self._album_rows(info["artist"], info["album"], album_key)
         heard = sum(1 for row in rows if row["value"])
         self.album_heard.configure(text=t("detail.album_heard", heard=number(heard), total=number(len(rows)))

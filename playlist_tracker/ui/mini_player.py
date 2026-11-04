@@ -10,11 +10,10 @@ import time
 import tkinter as tk
 from tkinter import ttk
 
-import artwork
-import nowplaying
-from charts import placeholder
-from i18n import t
-from theme import FONT, P, px
+from playlist_tracker.core.i18n import t
+from playlist_tracker.music import artwork, nowplaying
+from playlist_tracker.ui.charts import placeholder
+from playlist_tracker.ui.theme import FONT, P, px
 
 # Often enough for the clock to tick each second; paused, hidden or in the tray only a change has to show
 UPDATE_MS = 500

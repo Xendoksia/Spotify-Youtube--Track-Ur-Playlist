@@ -14,8 +14,8 @@ import tkinter as tk
 from collections.abc import Callable
 from tkinter import font as tkfont
 
-from i18n import number
-from theme import FONT, TYPE, P, px
+from playlist_tracker.core.i18n import number
+from playlist_tracker.ui.theme import FONT, TYPE, P, px
 
 RADIUS = 4
 MAX_THICKNESS = 24

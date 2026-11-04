@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import artwork
+from playlist_tracker.music import artwork
 
 try:
     from PIL import Image, ImageDraw, ImageFont

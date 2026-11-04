@@ -22,10 +22,10 @@ import urllib.parse
 import urllib.request
 from typing import Callable
 
-import listening
-from artwork import ART_DIR, RETRY_SECONDS, SSL_CONTEXT
-from i18n import current as current_language, t
-from listening import key
+from playlist_tracker.core.i18n import current as current_language, t
+from playlist_tracker.music import listening
+from playlist_tracker.music.artwork import ART_DIR, RETRY_SECONDS, SSL_CONTEXT
+from playlist_tracker.music.listening import key
 
 CACHE_PATH = ART_DIR / "artist_info.json"
 MUSICBRAINZ_URL = "https://musicbrainz.org/ws/2"

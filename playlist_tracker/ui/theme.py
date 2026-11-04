@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import sys
 import tkinter as tk
-from tkinter import font as tkfont
-from tkinter import ttk
+from tkinter import font as tkfont, ttk
 from types import SimpleNamespace
 
 THEMES = ("system", "light", "dark")
@@ -23,7 +22,7 @@ LIGHT = {
     "scrollbar": "#c9ced5", "scrollbar_active": "#b3b9c2",
     "added": "#177a33", "removed": "#c62828", "unplayable": "#9a5a00", "playable": "#1565c0", "initial": "#5f5f5f",
     "spotify_tint": "#e1eee5", "youtube_tint": "#f1e3e2",
-    "banner": "#f5ead0", "banner_text": "#6e4500", "nav": "#d8dbe0",
+    "nav": "#d8dbe0",
     # Chart marks: at least 3:1 against this theme's surface
     "chart": "#16924a", "chart_hover": "#10753a", "grid": "#dfe2e6",
 }
@@ -34,7 +33,7 @@ DARK = {
     "scrollbar": "#3a3f48", "scrollbar_active": "#4b515b",
     "added": "#3fb950", "removed": "#f85149", "unplayable": "#d29922", "playable": "#58a6ff", "initial": "#8b949e",
     "spotify_tint": "#1b2c22", "youtube_tint": "#30201f",
-    "banner": "#3a2f15", "banner_text": "#e3b341", "nav": "#262a31",
+    "nav": "#262a31",
     "chart": "#2ea043", "chart_hover": "#3fb950", "grid": "#2a2e35",
 }
 
@@ -53,9 +52,8 @@ TYPE = {
 }
 FONT = TYPE["body"]
 FONT_BOLD = TYPE["body_bold"]
-# Spacing between and inside parts of a page uses only these steps (design pixels, through px());
-# controls such as buttons keep their own inner padding
-SPACING = (4, 8, 12, 16, 24)
+# Spacing between and inside parts of a page uses only the steps 4, 8, 12, 16 and 24 (design pixels,
+# through px()); controls such as buttons keep their own inner padding
 # Windows' own icon fonts, newest first; ICON_GLYPHS are their code points, TEXT_GLYPHS stand in without them
 ICON_FONTS = ("Segoe Fluent Icons", "Segoe MDL2 Assets")
 ICON_GLYPHS = {"back": "\ue76b", "forward": "\ue76c", "close": "\ue711",
@@ -225,8 +223,6 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     style.configure("TileValue.TLabel", background=P.surface, font=TYPE["display"])
     style.configure("Period.TLabel", background=P.surface, font=TYPE["heading"])
     style.configure("Caption.TLabel", background=P.surface, foreground=P.muted, font=TYPE["caption"])
-    style.configure("Banner.TFrame", background=P.banner)
-    style.configure("Banner.TLabel", background=P.banner, foreground=P.banner_text)
     style.configure("Nav.TFrame", background=P.nav)
     style.configure("Card.TCheckbutton", background=P.surface, foreground=P.text, indicatorbackground=P.surface,
                     indicatorforeground=P.text, upperbordercolor=P.border, lowerbordercolor=P.border,

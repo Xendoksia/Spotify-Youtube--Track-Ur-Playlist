@@ -1,17 +1,7 @@
 """
-YouTube playlist history tracker (client + command line).
-
-Uses the same diff logic as tracker.py but keeps its history in a separate database,
-youtube_history.db, so the Spotify history is never touched.
-
-Command line usage:
-    python youtube.py login                          Log in with your Google account (optional)
-    python youtube.py check <playlist url> [...]     Check playlists and record changes
-    python youtube.py history [playlist url]         Show the recorded change history
-    python youtube.py export [file.csv]              Export the full history to CSV
-
-Requires YOUTUBE_API_KEY (public and unlisted playlists) and/or YOUTUBE_CLIENT_ID and
-YOUTUBE_CLIENT_SECRET (private playlists, "load my playlists") in config.json.
+YouTube client: reads playlists through the YouTube Data API, with an API key (public and unlisted playlists)
+and/or a Google login (private playlists, "load my playlists"). Its history is kept apart from Spotify's,
+in youtube_history.db, with the same comparison (see history.py).
 """
 
 from __future__ import annotations
@@ -27,9 +17,10 @@ import urllib.parse
 import urllib.request
 import webbrowser
 
-import tracker
-from i18n import t
-from tracker import BASE_DIR, TrackerError, load_config, market, save_config
+from playlist_tracker.core.config import BASE_DIR, load_config, market, save_config
+from playlist_tracker.core.errors import TrackerError
+from playlist_tracker.core.i18n import t
+from playlist_tracker.playlists.oauth import start_redirect_server, wait_for_redirect
 
 DB_PATH = BASE_DIR / "youtube_history.db"
 
@@ -127,7 +118,7 @@ class YouTubeClient:
         state = secrets.token_urlsafe(16)
         verifier = secrets.token_urlsafe(64)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
-        server, params = tracker.start_redirect_server(0)
+        server, params = start_redirect_server(0)
         redirect_uri = f"http://127.0.0.1:{server.server_address[1]}"
         webbrowser.open(AUTH_URL + "?" + urllib.parse.urlencode({
             "client_id": self.client_id,
@@ -140,7 +131,7 @@ class YouTubeClient:
             "access_type": "offline",
             "prompt": "consent",
         }))
-        tracker.wait_for_redirect(server, params, timeout)
+        wait_for_redirect(server, params, timeout)
 
         if "error" in params:
             if params["error"] == "access_denied":
@@ -281,12 +272,3 @@ def parse_playlist_id(link: str) -> str:
     if re.fullmatch(r"(PL|UU|FL|LL|OL)[A-Za-z0-9_-]{8,}", playlist_id):
         return playlist_id
     raise YouTubeError(t("youtube.invalid_link", link=link))
-
-
-def main() -> None:
-    tracker.run_cli(__doc__, connect, parse_playlist_id, DB_PATH, lambda: t("unavailable.youtube"),
-                    "youtube_history.csv")
-
-
-if __name__ == "__main__":
-    main()

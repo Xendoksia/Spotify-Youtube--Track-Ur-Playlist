@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import locale
 
+from playlist_tracker.core.config import load_config
+
 LANGUAGES = {"en": "English", "tr": "Türkçe"}
 DEFAULT_LANGUAGE = "en"
 
@@ -666,8 +668,7 @@ def system_language() -> str:
 def current() -> str:
     global _language
     if _language is None:
-        import tracker  # imported here because tracker itself uses t()
-        _language = tracker.load_config().get("LANGUAGE") or system_language()
+        _language = load_config().get("LANGUAGE") or system_language()
         if _language not in LANGUAGES:
             _language = DEFAULT_LANGUAGE
     return _language

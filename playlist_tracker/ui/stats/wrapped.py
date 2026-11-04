@@ -12,14 +12,13 @@ import tkinter as tk
 from datetime import datetime
 from tkinter import ttk
 
-import artist_info
-import artwork
-import listening
-import tracker
-from charts import Animation, BarList, ColumnChart, count_up
-from i18n import number, t
-from stats_view import duration_text, month_name, period_title, plays_text
-from theme import TYPE, P, icon, mix, px
+from playlist_tracker.core.config import load_config, save_config
+from playlist_tracker.core.i18n import number, t
+from playlist_tracker.music import artist_info, artwork, listening
+from playlist_tracker.ui.charts import Animation, BarList, ColumnChart, count_up
+from playlist_tracker.ui.stats.text import duration_text, month_name, period_title, plays_text
+from playlist_tracker.ui.stats.widgets import Pictures
+from playlist_tracker.ui.theme import TYPE, P, icon, mix, px
 
 try:
     from PIL import Image, ImageTk
@@ -64,22 +63,24 @@ def month_to_show() -> tuple[datetime, datetime]:
 def auto_open_due() -> tuple[datetime, datetime] | None:
     """The month to open the summary of by itself, once (needs AUTO_OPEN)."""
     month = available_month() if AUTO_OPEN else None
-    if month is None or tracker.load_config().get("WRAPPED_SHOWN") == month[0].strftime("%Y-%m"):
+    if month is None or load_config().get("WRAPPED_SHOWN") == month[0].strftime("%Y-%m"):
         return None
     return month
 
 
 def mark_shown(start: datetime) -> None:
-    config = tracker.load_config()
+    config = load_config()
     config["WRAPPED_SHOWN"] = start.strftime("%Y-%m")
-    tracker.save_config(config)
+    save_config(config)
 
 
 class WrappedView(ttk.Frame):
     def __init__(self, parent, on_close):
         super().__init__(parent, style="Card.TFrame")
         self.on_close = on_close
-        self.fetcher = artwork.Fetcher(self)
+        # A picture finished downloading: the slide is drawn again with it
+        self.pictures = Pictures(self, self._redraw, delay_ms=300)
+        # The frames of the picture fading in
         self._images = []
         self.slides = []
         self.index = 0
@@ -198,6 +199,7 @@ class WrappedView(ttk.Frame):
         if self.slide is not None:
             self.slide.destroy()
         self._images = []
+        self.pictures.clear()
         self._on_reveal = {}
         self.slide = ttk.Frame(self.stage, style="Card.TFrame")
         self.slides[self.index](self.slide)
@@ -283,23 +285,9 @@ class WrappedView(ttk.Frame):
                 image=frames[min(PICTURE_FRAMES - 1, int(progress * PICTURE_FRAMES))]), FADE_IN_MS).start()
         self._when_shown(label, show)
 
-    def _refresh_later(self):
-        # A picture finished downloading: draw the slide again with it
-        if self.winfo_exists() and self.slides and not self._changing:
-            self.after(300, lambda: self._render(animate=False))
-
-    def _cover(self, row: dict, size: int, radius: int):
-        path = self.fetcher.cover(row["artist"], row["album"] or "", row["name"], self._refresh_later)
-        image = artwork.photo(path, px(size), P.surface, radius=px(radius))
-        if image is not None:
-            self._images.append(image)
-        return image
-
-    def _artist_photo(self, name: str, size: int):
-        image = artwork.photo(self.fetcher.artist(name, self._refresh_later), px(size), P.surface, round_=True)
-        if image is not None:
-            self._images.append(image)
-        return image
+    def _redraw(self):
+        if self.slides and not self._changing:
+            self._render(animate=False)
 
     def _list(self, parent, rows: list[dict], round_images: bool = False):
         chart = BarList(parent, "", len(rows), round_images=round_images)
@@ -324,7 +312,7 @@ class WrappedView(ttk.Frame):
     def _top_track(self, slide):
         track = self.data["tracks"][0]
         self._caption(slide, "wrapped.track.caption")
-        path = self.fetcher.cover(track["artist"], track["album"] or "", track["name"], self._refresh_later)
+        path = self.pictures.cover_path(track["artist"], track["album"], track["name"])
         self._picture(slide, path, radius=px(12))
         self._heading(slide, track["name"])
         self._body(slide, track["artist"])
@@ -333,7 +321,7 @@ class WrappedView(ttk.Frame):
     def _top_artist(self, slide):
         artist = self.data["artists"][0]
         self._caption(slide, "wrapped.artist.caption")
-        self._picture(slide, self.fetcher.artist(artist["name"], self._refresh_later), round_=True)
+        self._picture(slide, self.pictures.artist_path(artist["name"]), round_=True)
         self._heading(slide, artist["name"])
         detail = plays_text(artist["plays"])
         if artist["minutes"]:
@@ -347,7 +335,7 @@ class WrappedView(ttk.Frame):
         self._caption(slide, "wrapped.tracks.caption")
         self._list(slide, [{
             "title": r["name"], "subtitle": r["artist"], "value": r["plays"], "value_text": number(r["plays"]),
-            "tooltip": f"{r['name']}\n{plays_text(r['plays'])}", "image": self._cover(r, BarList.IMAGE_SIZE, 4),
+            "tooltip": f"{r['name']}\n{plays_text(r['plays'])}", "image": self.pictures.cover(r, BarList.IMAGE_SIZE, 4),
         } for r in self.data["tracks"]])
 
     def _top_artists(self, slide):
@@ -355,7 +343,7 @@ class WrappedView(ttk.Frame):
         self._list(slide, [{
             "title": r["name"], "subtitle": "", "value": r["plays"], "value_text": number(r["plays"]),
             "tooltip": f"{r['name']}\n{plays_text(r['plays'])}",
-            "image": self._artist_photo(r["name"], BarList.IMAGE_SIZE),
+            "image": self.pictures.artist_photo(r["name"], BarList.IMAGE_SIZE),
         } for r in self.data["artists"]], round_images=True)
 
     def _discoveries(self, slide):

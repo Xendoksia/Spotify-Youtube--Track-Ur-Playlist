@@ -23,9 +23,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
-import listening
-from listening import key
-from tracker import BASE_DIR
+from playlist_tracker.core.config import BASE_DIR
+from playlist_tracker.music import listening
+from playlist_tracker.music.listening import key
 
 try:
     from PIL import Image, ImageDraw, ImageTk

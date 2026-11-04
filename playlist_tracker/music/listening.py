@@ -1,23 +1,15 @@
 """
-Listening history (core + command line).
-
-nowplaying.py records what the Spotify desktop app plays on this computer, without the Spotify API,
-and stores the plays in listening.db. All statistics are counted from these plays.
-
-Command line usage:
-    python listening.py recent                        Show the last recorded plays
-    python listening.py stats [week|month|year|all]   Show the most played tracks and artists
+Listening history: nowplaying.py records what the Spotify desktop app plays on this computer, without
+the Spotify API, and stores the plays in listening.db. All statistics are counted from these plays.
 """
 
 from __future__ import annotations
 
 import sqlite3
-import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import tracker
-from tracker import BASE_DIR, TrackerError
+from playlist_tracker.core.config import BASE_DIR
 
 DB_PATH = BASE_DIR / "listening.db"
 PERIODS = ("week", "month", "year", "all")
@@ -330,33 +322,3 @@ def hours(start: datetime, end: datetime, column: str | None = None, key: str | 
                 f"WHERE played_at >= ? AND played_at < ? AND {where} GROUP BY 1", (*_range(start, end), *params)):
             counts_by_hour[hour] = count
     return counts_by_hour
-
-
-def main() -> None:
-    if len(sys.argv) < 2:
-        print(__doc__)
-        return
-    command, args = sys.argv[1].lower(), sys.argv[2:]
-    try:
-        if command == "recent":
-            for p in reversed(recent_plays(30)):
-                print(f"{tracker.format_date(p['played_at'])}  [{p['source']}]  {tracker.track_label(p)}")
-        elif command == "stats" and (not args or args[0] in PERIODS):
-            start, end = period_range(args[0] if args else "week")
-            s = summary(start, end)
-            print(f"{start:%Y-%m-%d} – {end - timedelta(seconds=1):%Y-%m-%d}: {s['plays']} plays, "
-                  f"{s['minutes']} minutes, {s['tracks']} tracks, {s['artists']} artists\n")
-            print("Top tracks:")
-            for i, r in enumerate(top_tracks(start, end), 1):
-                print(f"  {i:>2}. {r['plays']:>4}×  {tracker.track_label(r)}")
-            print("\nTop artists:")
-            for i, r in enumerate(top_artists(start, end), 1):
-                print(f"  {i:>2}. {r['plays']:>4}×  {r['name']}")
-        else:
-            print(__doc__)
-    except TrackerError as error:
-        sys.exit(str(error))
-
-
-if __name__ == "__main__":
-    main()

@@ -125,18 +125,18 @@ The more often you check, the more precisely you know when a track was removed.
 ### Command line
 
 ```
-python tracker.py login                                          # log in with Spotify
-python tracker.py check https://open.spotify.com/playlist/...    # check a playlist
-python tracker.py history                                        # print the history
-python tracker.py export history.csv                             # export the history to CSV
+python cli.py spotify login                                          # log in with Spotify
+python cli.py spotify check https://open.spotify.com/playlist/...    # check a playlist
+python cli.py spotify history                                        # print the history
+python cli.py spotify export history.csv                             # export the history to CSV
 
-python youtube.py login                                          # log in with Google (optional)
-python youtube.py check https://www.youtube.com/playlist?list=...
-python youtube.py history
-python youtube.py export youtube_history.csv
+python cli.py youtube login                                          # log in with Google (optional)
+python cli.py youtube check https://www.youtube.com/playlist?list=...
+python cli.py youtube history
+python cli.py youtube export youtube_history.csv
 
-python listening.py recent                                       # last recorded plays
-python listening.py stats month                                  # most played this week/month/year/all
+python cli.py listening recent                                       # last recorded plays
+python cli.py listening stats month                                  # most played this week/month/year/all
 ```
 
 To use the command line without the GUI, copy `config.example.json` to `config.json` and fill in
@@ -191,19 +191,15 @@ the artist and track names are sent, no account is involved).
 
 | File | Description |
 |---|---|
-| `app.py` | Graphical interface (tkinter) |
-| `theme.py` | Light and dark color themes |
-| `i18n.py` | English and Turkish interface texts |
-| `tracker.py` | Spotify client, diff logic, database and command line |
-| `youtube.py` | YouTube client and command line |
-| `listening.py` | Listening history: storage, statistics and command line |
-| `nowplaying.py` | Records what the Spotify desktop app plays, without the API |
-| `listening_view.py` | Listening section of the interface |
-| `stats_view.py` | Statistics tab of the Listening section |
-| `background.py` | System tray icon, single running copy and starting with Windows |
-| `detail_view.py` | Page of a single track or artist in the statistics |
-| `charts.py` | Bar and column charts drawn with tkinter |
-| `artwork.py` | Album covers and artist photos for the statistics |
+| `app.py` | Starts the graphical interface |
+| `cli.py` | Command line |
 | `build.py` | Builds the single-file Windows program with PyInstaller |
 | `Spotify Playlist Tracker.bat` | Double-click launcher for Windows |
 | `config.example.json` | Sample configuration file |
+| `playlist_tracker/main.py` | Startup: single running copy, listening recorder and tray icon |
+| `playlist_tracker/background.py` | System tray icon, single running copy and starting with Windows |
+| `playlist_tracker/core/` | Settings (`config.py`), English and Turkish texts (`i18n.py`), shared error and text formats |
+| `playlist_tracker/playlists/` | Spotify and YouTube clients, login redirect, playlist history and comparison (`history.py`) |
+| `playlist_tracker/music/` | Listening history (`listening.py`), recording what Spotify plays (`nowplaying.py`), covers and artist photos (`artwork.py`), artist facts (`artist_info.py`), album collage |
+| `playlist_tracker/ui/` | Interface (tkinter): main window, playlist tabs, history, settings, listening section, mini player, theme and charts |
+| `playlist_tracker/ui/stats/` | Statistics tab: overview, its sections, track / artist / album pages and the monthly summary |
