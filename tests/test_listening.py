@@ -169,6 +169,13 @@ class StatisticsTest(ListeningTestCase):
         one_track = listening.hours(self.start, self.end, "track_key", "evanescence|lithium", self.db)
         self.assertEqual(sum(one_track), 2)
 
+    def test_diversity(self):
+        result = listening.diversity(self.start, self.end, self.db)
+        self.assertEqual((result["plays"], result["tracks"], result["artists"]), (6, 3, 2))
+        self.assertEqual(result["top5"], 6, "only two artists, so the top five hold every play")
+        # Snuff was heard before the period; Psychosocial and both Lithium plays are new
+        self.assertEqual(result["new"], 3)
+
     def test_plays_without_length_are_filled(self):
         self.play("Old", "Song", "2026-11-01 08:00", ms=None)
         self.play("Old", "Song", "2026-11-01 18:00", ms=180_000)

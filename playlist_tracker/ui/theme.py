@@ -59,7 +59,8 @@ ICON_FONTS = ("Segoe Fluent Icons", "Segoe MDL2 Assets")
 ICON_GLYPHS = {"back": "\ue76b", "forward": "\ue76c", "close": "\ue711",
                # Section headings of the statistics
                "tracks": "\ue8d6", "artists": "\ue77b", "calendar": "\ue787", "clock": "\ue823",
-               "star": "\ue734", "tag": "\ue8ec", "history": "\ue81c", "disc": "\ue93c"}
+               "star": "\ue734", "tag": "\ue8ec", "history": "\ue81c", "disc": "\ue93c",
+               "layers": "\ue81e", "area": "\ue9d2", "flag": "\ue7c1"}
 TEXT_GLYPHS = {"back": "‹", "forward": "›", "close": "✕"}
 _icon_font: str | None = None
 

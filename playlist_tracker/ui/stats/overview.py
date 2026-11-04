@@ -13,7 +13,7 @@ from playlist_tracker.core.i18n import number, t
 from playlist_tracker.music import listening
 from playlist_tracker.ui.charts import BarList, ColumnChart, count_up
 from playlist_tracker.ui.stats import wrapped
-from playlist_tracker.ui.stats.sections import Collage, Discoveries, Genres
+from playlist_tracker.ui.stats.sections import Collage, Discoveries, Diversity, Genres
 from playlist_tracker.ui.stats.text import (duration_text, hour_buckets, month_name, period_title, plays_text,
                                             summary_text, tracks_text)
 from playlist_tracker.ui.stats.widgets import Hero, Pictures, ScrollFrame, card, card_row
@@ -107,6 +107,8 @@ class Overview(ttk.Frame):
             chart.pack(fill="x")
 
         self.discoveries = Discoveries(content, self)
+        trends = card_row(content)
+        self.diversity = Diversity(trends, 0)
         last = card_row(content)
         self.genres = Genres(last, 0)
         self.collage = Collage(last, 1, self)
@@ -142,6 +144,7 @@ class Overview(ttk.Frame):
         self._fill_tiles(start, end)
         self._fill_top(start, end)
         self.discoveries.fill(self.period, start, end)
+        self.diversity.fill(self.period, self.offset, start, end)
         self.genres.fill(start, end)
         self.collage.fill(start, end)
         self._fill_timeline(start, end)

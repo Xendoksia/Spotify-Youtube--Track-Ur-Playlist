@@ -173,6 +173,77 @@ class Genres:
         } for name, genre in rows])
 
 
+def share(part: int, whole: int) -> int:
+    return round(100 * part / whole) if whole else 0
+
+
+class Diversity:
+    """How varied the period's listening was: the share of its five most played artists, of different tracks
+    and of new tracks, with a sentence comparing it with the period before."""
+
+    NAMES = ("top5", "variety", "new")
+    # Points of difference in the new tracks' share that count as more or less discovery
+    CHANGE = 5
+    FOCUSED, WIDE = 70, 40
+
+    def __init__(self, row, column: int):
+        self.card = card(row, "layers", t("stats.diversity"), column)
+        values = ttk.Frame(self.card, style="Card.TFrame")
+        values.pack(fill="x")
+        self.cells = {}
+        for index, name in enumerate(self.NAMES):
+            values.columnconfigure(index, weight=1, uniform="diversity")
+            cell = ttk.Frame(values, style="Card.TFrame")
+            cell.grid(row=0, column=index, sticky="w")
+            ttk.Label(cell, text=t(f"stats.diversity.{name}"), style="CardMuted.TLabel").pack(anchor="w")
+            cell.value = ttk.Label(cell, style="TileValue.TLabel")
+            cell.value.pack(anchor="w")
+            self.cells[name] = cell
+        self.verdict = ttk.Label(self.card, style="Card.TLabel", justify="left")
+        self.verdict.pack(anchor="w", fill="x", pady=(px(12), 0))
+        self.card.bind("<Configure>", lambda e: self.verdict.configure(wraplength=max(px(200), e.width - px(40))))
+
+    def fill(self, period: str, offset: int, start, end):
+        now = listening.diversity(start, end)
+        if not now["plays"]:
+            for cell in self.cells.values():
+                cell.value.configure(text="—")
+            self.verdict.configure(text=t("stats.empty"))
+            self.verdict.pack(anchor="w", fill="x", pady=(px(12), 0))
+            return
+        percent = lambda value: t("stats.percent", value=value)  # noqa: E731
+        top5, new = share(now["top5"], now["plays"]), share(now["new"], now["plays"])
+        self.cells["top5"].value.configure(text=percent(top5))
+        self.cells["variety"].value.configure(text=percent(share(now["tracks"], now["plays"])))
+        sentences = []
+        # Over all time every track is new, so there is nothing to compare
+        if period == "all":
+            self.cells["new"].grid_remove()
+        else:
+            self.cells["new"].grid()
+            self.cells["new"].value.configure(text=percent(new))
+            previous_start, previous_end = listening.period_range(period, offset + 1)
+            first = listening.first_play()
+            # Only once the whole period before was recorded, or everything in it would look new
+            if first is not None and first <= previous_start:
+                before = listening.diversity(previous_start, previous_end)
+                if before["plays"]:
+                    before_new = share(before["new"], before["plays"])
+                    key = ("more_new" if new - before_new >= self.CHANGE
+                           else "more_familiar" if before_new - new >= self.CHANGE else "same")
+                    sentences.append(t(f"stats.diversity.{key}", before=percent(before_new), now=percent(new)))
+        if top5 >= self.FOCUSED and now["artists"] > 5:
+            sentences.append(t("stats.diversity.focused"))
+        elif top5 <= self.WIDE:
+            sentences.append(t("stats.diversity.wide"))
+        self.verdict.configure(text=" ".join(sentences))
+        # No sentence (the period before was not wholly recorded): no empty line under the values
+        if sentences:
+            self.verdict.pack(anchor="w", fill="x", pady=(px(12), 0))
+        else:
+            self.verdict.pack_forget()
+
+
 class Collage:
     """The period's most played album covers in a grid; a cover opens its album's page."""
 

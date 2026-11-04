@@ -227,6 +227,26 @@ def forgotten(days: int = 30, min_plays: int = 3, limit: int = 10, now: datetime
             "ORDER BY plays DESC, last_played DESC LIMIT ?", (min_plays, since, limit))]
 
 
+def diversity(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
+    """How varied the period's listening was: its plays, different tracks and artists, the plays of its five
+    most played artists, and the plays of tracks heard for the first time ever in it."""
+    period = _range(start, end)
+    with open_db(db_path) as db:
+        row = dict(db.execute(
+            "SELECT COUNT(*) AS plays, COUNT(DISTINCT track_key) AS tracks, COUNT(DISTINCT artist_key) AS artists "
+            "FROM listens WHERE played_at >= ? AND played_at < ?", period).fetchone())
+        row["top5"] = db.execute(
+            "SELECT COALESCE(SUM(plays), 0) FROM (SELECT COUNT(*) AS plays FROM listens "
+            "WHERE played_at >= ? AND played_at < ? GROUP BY artist_key ORDER BY plays DESC LIMIT 5)",
+            period).fetchone()[0]
+        row["new"] = db.execute(
+            "WITH firsts AS (SELECT track_key, MIN(played_at) AS first_played FROM listens GROUP BY track_key) "
+            "SELECT COUNT(*) FROM listens l JOIN firsts f USING (track_key) "
+            "WHERE l.played_at >= ? AND l.played_at < ? AND f.first_played >= ? AND f.first_played < ?",
+            period * 2).fetchone()[0]
+    return row
+
+
 def plays_without_length(db_path: Path = DB_PATH) -> list[dict]:
     """Tracks with plays stored without a listening time (by an earlier version), with the longest
     time recorded for the same track, if any."""
