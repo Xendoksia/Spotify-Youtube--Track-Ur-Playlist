@@ -108,7 +108,7 @@ class Overview(ttk.Frame):
 
         self.discoveries = Discoveries(content, self)
         trends = card_row(content)
-        self.diversity = Diversity(trends, 0)
+        self.diversity = Diversity(trends, 0, self)
         self.genre_shift = GenreShift(trends, 1)
         self.milestones = Milestones(content, self)
         last = card_row(content)

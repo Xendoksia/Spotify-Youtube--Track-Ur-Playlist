@@ -201,7 +201,8 @@ class GenreShift:
         self.legend = ttk.Frame(self.card, style="Card.TFrame")
         self.legend.pack(fill="x", pady=(0, px(8)))
         self.chart = StackedColumns(self.card, 170, t("stats.genres.none"))
-        self.chart.pack(fill="x")
+        # As tall as the card beside it in the row allows
+        self.chart.pack(fill="both", expand=True)
 
     def fill(self, period: str, start, end):
         days = listening.artist_days(start, end)
@@ -399,14 +400,18 @@ def share(part: int, whole: int) -> int:
 
 class Diversity:
     """How varied the period's listening was: the share of its five most played artists, of different tracks
-    and of new tracks, with a sentence comparing it with the period before."""
+    and of new tracks, with a sentence comparing it with the period before, and those five artists with their
+    share of the plays."""
 
     NAMES = ("top5", "variety", "new")
     # Points of difference in the new tracks' share that count as more or less discovery
     CHANGE = 5
     FOCUSED, WIDE = 70, 40
 
-    def __init__(self, row, column: int):
+    TOP = 5
+
+    def __init__(self, row, column: int, page):
+        self.page = page
         self.card = card(row, "layers", t("stats.diversity"), column)
         values = ttk.Frame(self.card, style="Card.TFrame")
         values.pack(fill="x")
@@ -422,6 +427,10 @@ class Diversity:
         self.verdict = ttk.Label(self.card, style="Card.TLabel", justify="left")
         self.verdict.pack(anchor="w", fill="x", pady=(px(12), 0))
         self.card.bind("<Configure>", lambda e: self.verdict.configure(wraplength=max(px(200), e.width - px(40))))
+        self.top_title = ttk.Label(self.card, text=t("stats.diversity.top_artists"), style="Section.TLabel")
+        self.top_title.pack(anchor="w", pady=(px(16), px(4)))
+        self.top = BarList(self.card, t("stats.empty"), self.TOP, images=False)
+        self.top.pack(fill="x")
 
     def fill(self, period: str, offset: int, start, end):
         now = listening.diversity(start, end)
@@ -429,7 +438,8 @@ class Diversity:
             for cell in self.cells.values():
                 cell.value.configure(text="—")
             self.verdict.configure(text=t("stats.empty"))
-            self.verdict.pack(anchor="w", fill="x", pady=(px(12), 0))
+            self.verdict.pack(anchor="w", fill="x", pady=(px(12), 0), before=self.top_title)
+            self.top.set_rows([])
             return
         percent = lambda value: t("stats.percent", value=value)  # noqa: E731
         top5, new = share(now["top5"], now["plays"]), share(now["new"], now["plays"])
@@ -459,9 +469,17 @@ class Diversity:
         self.verdict.configure(text=" ".join(sentences))
         # No sentence (the period before was not wholly recorded): no empty line under the values
         if sentences:
-            self.verdict.pack(anchor="w", fill="x", pady=(px(12), 0))
+            self.verdict.pack(anchor="w", fill="x", pady=(px(12), 0), before=self.top_title)
         else:
             self.verdict.pack_forget()
+        artists = listening.top_artists(start, end, self.TOP)
+        fit_height(self.top, len(artists))
+        self.top.set_rows([{
+            "title": artist["name"], "subtitle": tracks_text(artist["tracks"]), "value": artist["plays"],
+            "value_text": percent(share(artist["plays"], now["plays"])),
+            "tooltip": f"{artist['name']}\n{plays_text(artist['plays'])}",
+            "on_click": self.page.opener("artist_key", artist["key"]),
+        } for artist in artists])
 
 
 class Collage:
