@@ -114,6 +114,15 @@ def placeholder(canvas: tk.Canvas, x: float, y: float, size: float, text: str, r
     canvas.create_text(x + size / 2, y + size / 2, text=(text.strip()[:1] or "♪").upper(), fill=P.muted, font=font)
 
 
+def fit_text(text: str, font: tkfont.Font, width: float) -> str:
+    """text, cut off with an ellipsis where it would be wider than width."""
+    if font.measure(text) <= width:
+        return text
+    while text and font.measure(text + "…") > width:
+        text = text[:-1]
+    return text + "…"
+
+
 def nice_max(value: float) -> int:
     """Round an axis maximum up to 1, 2 or 5 times a power of ten."""
     if value <= 0:
@@ -258,13 +267,6 @@ class BarList(Chart):
     def _row_key(row: dict):
         return row.get("key") or (row["title"], row.get("subtitle"))
 
-    def _fit(self, text: str, font: tkfont.Font, width: float) -> str:
-        if font.measure(text) <= width:
-            return text
-        while text and font.measure(text + "…") > width:
-            text = text[:-1]
-        return text + "…"
-
     def draw(self, width, height):
         if not self.rows:
             return False
@@ -305,13 +307,13 @@ class BarList(Chart):
             silent = not row["value"]
             title_color = P.muted if silent else P.text
             if row.get("subtitle"):
-                self.create_text(text_left, middle - above, text=self._fit(row["title"], self.font, text_width),
+                self.create_text(text_left, middle - above, text=fit_text(row["title"], self.font, text_width),
                                  anchor="w", fill=title_color, font=self.font)
                 self.create_text(text_left, middle + below,
-                                 text=self._fit(row["subtitle"], self.small_font, text_width),
+                                 text=fit_text(row["subtitle"], self.small_font, text_width),
                                  anchor="w", fill=P.muted, font=self.small_font)
             else:
-                self.create_text(text_left, middle, text=self._fit(row["title"], self.font, text_width),
+                self.create_text(text_left, middle, text=fit_text(row["title"], self.font, text_width),
                                  anchor="w", fill=title_color, font=self.font)
             if silent:
                 self.create_text(bar_left, middle, text=row["value_text"], anchor="w", fill=P.muted,
