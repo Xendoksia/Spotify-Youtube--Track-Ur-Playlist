@@ -14,6 +14,7 @@ import hashlib
 import io
 import json
 import re
+import ssl
 import threading
 import time
 import urllib.parse
@@ -38,6 +39,15 @@ SAVED_SIZE = 300
 RETRY_SECONDS = 7 * 24 * 3600
 # Deezer returns this placeholder path for artists without a photo
 EMPTY_PICTURE = "/images/artist//"
+
+# One context for every download: building it reads the whole certificate store each time.
+# Some Windows certificate stores still hold an expired root that Wikidata's chain runs into,
+# so certifi's up to date list is used when it is installed
+try:
+    import certifi
+    SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    SSL_CONTEXT = ssl.create_default_context()
 
 available = Image is not None
 
@@ -79,7 +89,7 @@ def _recently_missed(path: Path) -> bool:
 
 def _get(url: str, as_json: bool = True):
     request = urllib.request.Request(url, headers={"User-Agent": "PlaylistTracker/1.0"})
-    with urllib.request.urlopen(request, timeout=20) as response:
+    with urllib.request.urlopen(request, timeout=20, context=SSL_CONTEXT) as response:
         return json.load(response) if as_json else response.read()
 
 

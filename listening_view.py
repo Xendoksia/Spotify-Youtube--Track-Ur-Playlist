@@ -16,6 +16,8 @@ from theme import P, px
 from tracker import format_date
 
 STATUS_INTERVAL_MS = 1000
+# In the tray or behind the playlist section nothing is drawn, so the status is only looked at for new plays
+HIDDEN_INTERVAL_MS = 5000
 
 
 def format_length(ms: int | None) -> str:
@@ -48,8 +50,10 @@ class ListeningView(ttk.Frame):
         self.app = app
         self.local_tracker = local_tracker
         self._version = local_tracker.version
+        # The pages are rebuilt only when seen, not for every play stored while the window is in the tray
+        self._stale = True
         self._build()
-        self.refresh()
+        self.bind("<Map>", lambda e: self._refresh_if_stale() if e.widget is self else None)
         self._poll_status()
 
     def _build(self):
@@ -89,7 +93,22 @@ class ListeningView(ttk.Frame):
     def _toggle_tracking(self):
         set_tracking(self.local_tracker, self.tracking.get())
 
+    def mark_stale(self):
+        """The listening data changed: rebuild the pages now if they are seen, or when they are shown."""
+        self._stale = True
+        self._refresh_if_stale()
+
+    def _refresh_if_stale(self):
+        if self._stale and self.winfo_viewable():
+            self.refresh()
+
     def _poll_status(self):
+        if self.local_tracker.version != self._version:
+            self._version = self.local_tracker.version
+            self.mark_stale()
+        if not self.winfo_viewable():
+            self.after(HIDDEN_INTERVAL_MS, self._poll_status)
+            return
         status = self.local_tracker.status()
         play, state = status["play"], status["state"]
         # Recording can also be paused from the tray menu
@@ -108,12 +127,10 @@ class ListeningView(ttk.Frame):
         else:
             text, color = t("listening.now.idle"), P.muted
         self.now_label.configure(text=text, foreground=color)
-        if self.local_tracker.version != self._version:
-            self._version = self.local_tracker.version
-            self.refresh()
         self.after(STATUS_INTERVAL_MS, self._poll_status)
 
     def refresh(self):
+        self._stale = False
         self.stats.refresh()
         self.table.delete(*self.table.get_children())
         for index, p in enumerate(listening.recent_plays(500)):

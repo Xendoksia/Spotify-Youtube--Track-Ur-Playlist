@@ -19,6 +19,10 @@ import artwork
 import listening
 
 POLL_SECONDS = 3
+# Spotify not seen for this long (closed, not between two songs): looked for less often, as nothing is
+# missed until a song plays for 30 seconds
+IDLE_AFTER_SECONDS = 30
+IDLE_POLL_SECONDS = 10
 # Recorded listening time of a running play is written at most this often
 SAVE_EVERY_MS = 30_000
 # A tick longer than this means the computer slept, so the gap is not counted as listening
@@ -59,9 +63,26 @@ except ImportError:
     SessionManager = None
 
 
+_local = threading.local()
+
+
+def _run_async(coroutine):
+    """Run a media session call on this thread's own event loop, kept for the next call (a new loop every
+    few seconds costs more than the call itself)."""
+    if getattr(_local, "loop", None) is None:
+        _local.loop = asyncio.new_event_loop()
+        _local.manager = None
+    try:
+        return _local.loop.run_until_complete(coroutine)
+    except Exception:
+        _local.manager = None  # asked again next time, in case Windows' media service restarted
+        raise
+
+
 async def _spotify_session():
-    manager = await SessionManager.request_async()
-    for session in manager.get_sessions():
+    if _local.manager is None:
+        _local.manager = await SessionManager.request_async()
+    for session in _local.manager.get_sessions():
         if "spotify" in (session.source_app_user_model_id or "").lower():
             return session
     return None
@@ -86,7 +107,7 @@ def save_cover(play: dict) -> None:
     if SessionManager is None or not artwork.available or path.exists():
         return
     try:
-        result = asyncio.run(_read_thumbnail())
+        result = _run_async(_read_thumbnail())
     except Exception:
         return
     # Only keep it if the song did not change in the meantime
@@ -152,7 +173,7 @@ def _read_window_title() -> Snapshot | None:
 def read() -> Snapshot | None:
     """Return what Spotify plays right now, or None when Spotify is not running."""
     if SessionManager is not None:
-        return asyncio.run(_read_media_session())
+        return _run_async(_read_media_session())
     if sys.platform == "win32":
         return _read_window_title()
     return None
@@ -207,6 +228,7 @@ class LocalTracker:
         return {"state": self.state, "play": play, "error": self.error}
 
     def _run(self) -> None:
+        last_seen = time.monotonic()
         while not self._stop.is_set():
             try:
                 snapshot = read()
@@ -215,7 +237,10 @@ class LocalTracker:
                 snapshot, self.error = None, repr(error)
             with self._lock:
                 self._tick(snapshot)
-            self._stop.wait(POLL_SECONDS)
+            if snapshot is not None:
+                last_seen = time.monotonic()
+            idle = time.monotonic() - last_seen > IDLE_AFTER_SECONDS
+            self._stop.wait(IDLE_POLL_SECONDS if idle else POLL_SECONDS)
 
     def _tick(self, snapshot: Snapshot | None) -> None:
         now = time.monotonic()

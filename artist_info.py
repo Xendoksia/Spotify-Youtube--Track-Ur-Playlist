@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import queue
 import re
-import ssl
 import threading
 import time
 import tkinter as tk
@@ -24,7 +23,7 @@ import urllib.request
 from typing import Callable
 
 import listening
-from artwork import ART_DIR, RETRY_SECONDS
+from artwork import ART_DIR, RETRY_SECONDS, SSL_CONTEXT
 from i18n import current as current_language, t
 from listening import key
 
@@ -40,13 +39,6 @@ GENRES = 3
 MEMBERS = 6
 # Only these place types read naturally as "formed in <place>"
 CITY_TYPES = ("City", "Municipality")
-# Some Windows certificate stores still hold an expired root that Wikidata's chain runs into,
-# so certifi's up to date list is used when it is installed
-try:
-    import certifi
-    SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
-except ImportError:
-    SSL_CONTEXT = None
 FIRST = 0  # queue priority of an artist page; the genre share fills in behind it
 LATER = 1
 

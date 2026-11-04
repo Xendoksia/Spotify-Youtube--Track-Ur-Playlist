@@ -16,7 +16,9 @@ from charts import placeholder
 from i18n import t
 from theme import FONT, P, px
 
-UPDATE_MS = 250
+# Often enough for the clock to tick each second; paused, hidden or in the tray only a change has to show
+UPDATE_MS = 500
+IDLE_UPDATE_MS = 1000
 COVER_SIZE = 44
 
 
@@ -35,6 +37,8 @@ class MiniPlayer(ttk.Frame):
         self.open_track = open_track
         self.fetcher = artwork.Fetcher(self)
         self._shown_key = None
+        # What the strip shows now, compared before changing anything
+        self._shown = None
         self._cover_image = None
         self._play = None
         self._visible = False
@@ -93,13 +97,16 @@ class MiniPlayer(ttk.Frame):
     def _update(self):
         if not self.winfo_exists():
             return
+        if not self.winfo_toplevel().winfo_viewable():
+            self.after(IDLE_UPDATE_MS, self._update)
+            return
         status = self.local_tracker.status()
         play, state = status["play"], status["state"]
         self._play = play if state in ("playing", "paused") else None
         self._show(self._play is not None)
         if self._play:
             self._fill(play, state == "playing")
-        self.after(UPDATE_MS, self._update)
+        self.after(UPDATE_MS if state == "playing" else IDLE_UPDATE_MS, self._update)
 
     def _fill(self, play: dict, playing: bool):
         if play["key"] != self._shown_key:
@@ -113,15 +120,22 @@ class MiniPlayer(ttk.Frame):
             # Between two reads of the media session the song keeps going
             position += (time.monotonic() - play["position_at"]) * 1000
         duration = play.get("duration")
+        width = 0
         if position is not None and duration:
             position = min(position, duration)
-            self.time.configure(text=f"{clock(position)} / {clock(duration)}")
+            time_text = f"{clock(position)} / {clock(duration)}"
+            width = round(self.progress.winfo_width() * position / duration)
         else:
-            self.time.configure(text=clock(position) if position is not None else "")
+            time_text = clock(position) if position is not None else ""
+        shown = (play["key"], time_text, width, playing, play["id"] is not None)
+        if shown == self._shown:
+            # Nothing that is on screen changed (paused), so Tk has nothing to redraw
+            return
+        self._shown = shown
 
+        self.time.configure(text=time_text)
         self.progress.delete("all")
-        if position is not None and duration:
-            width = self.progress.winfo_width() * position / duration
+        if width:
             self.progress.create_rectangle(0, 0, width, px(3), fill=P.chart, width=0)
 
         state = t("mini.playing" if playing else "mini.paused")

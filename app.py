@@ -394,7 +394,7 @@ class App(tk.Tk):
         self.refresh_history()
         # Plays stored without a listening time by an earlier version get their track's length
         threading.Thread(target=artwork.fill_missing_lengths, name="lengths", daemon=True,
-                         args=(lambda: self.after(0, self.listening.refresh),)).start()
+                         args=(lambda: self.after(0, self.listening.mark_stale),)).start()
         self._poll_commands()
 
         if hidden:
