@@ -255,6 +255,62 @@ def artist_days(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list
             "WHERE played_at >= ? AND played_at < ? GROUP BY day, artist_key ORDER BY day", _range(start, end))]
 
 
+# Counts worth marking: of all plays, of one artist's plays and of one track's plays
+TOTAL_STEPS = (100, 250, 500, 1000, 2500, 5000, 10_000, 25_000, 50_000, 100_000)
+ARTIST_STEPS = (10, 25, 50, 100, 250, 500, 1000)
+TRACK_STEPS = (10, 25, 50, 100, 250)
+# The day an artist was first heard is a milestone once the artist has this many plays
+MET_PLAYS = ARTIST_STEPS[0]
+_milestones: dict = {}
+
+
+def milestones(db_path: Path = DB_PATH) -> list[dict]:
+    """Every milestone so far, newest first: the 100th play, an artist's 25th play, a track's 10th play, the day
+    an artist who now has MET_PLAYS plays was first heard, and the start of recording. Each has kind ("total",
+    "artist", "track", "met", "start"), at (UTC text), count, and for artists and tracks name, artist, key."""
+    with open_db(db_path) as db:
+        signature = (str(db_path), *db.execute("SELECT COUNT(*), MAX(id) FROM listens").fetchone())
+        cached = _milestones.get(str(db_path))
+        # Worked out again only when plays were added or changed
+        if cached and cached[0] == signature:
+            return cached[1]
+        rows = db.execute("SELECT played_at, artist_key, artist, track_key, name FROM listens ORDER BY played_at").fetchall()
+    found: list[dict] = []
+    if rows:
+        found.append({"kind": "start", "at": rows[0]["played_at"], "count": 0})
+    artist_plays: dict[str, int] = {}
+    track_plays: dict[str, int] = {}
+    first_heard: dict[str, dict] = {}
+    for index, row in enumerate(rows, start=1):
+        if index in TOTAL_STEPS:
+            found.append({"kind": "total", "at": row["played_at"], "count": index})
+        artist = artist_plays[row["artist_key"]] = artist_plays.get(row["artist_key"], 0) + 1
+        if artist == 1:
+            first_heard[row["artist_key"]] = row
+        if artist in ARTIST_STEPS:
+            found.append({"kind": "artist", "at": row["played_at"], "count": artist, "name": row["artist"],
+                          "key": row["artist_key"]})
+        track = track_plays[row["track_key"]] = track_plays.get(row["track_key"], 0) + 1
+        if track in TRACK_STEPS:
+            found.append({"kind": "track", "at": row["played_at"], "count": track, "name": row["name"],
+                          "artist": row["artist"], "key": row["track_key"]})
+    for artist_key, row in first_heard.items():
+        if artist_plays[artist_key] >= MET_PLAYS:
+            found.append({"kind": "met", "at": row["played_at"], "count": artist_plays[artist_key],
+                          "name": row["artist"], "key": artist_key})
+    found.sort(key=lambda milestone: milestone["at"], reverse=True)
+    _milestones[str(db_path)] = (signature, found)
+    return found
+
+
+def next_total_step(db_path: Path = DB_PATH) -> tuple[int, int] | None:
+    """The next count of all plays worth marking and how many plays are left to it."""
+    plays = summary(datetime(2000, 1, 1).astimezone(), datetime.now().astimezone() + timedelta(days=1),
+                    db_path)["plays"]
+    step = next((step for step in TOTAL_STEPS if step > plays), None)
+    return (step, step - plays) if step else None
+
+
 def plays_without_length(db_path: Path = DB_PATH) -> list[dict]:
     """Tracks with plays stored without a listening time (by an earlier version), with the longest
     time recorded for the same track, if any."""

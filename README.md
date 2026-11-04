@@ -33,6 +33,9 @@ and compares it with the previous one, so the title, artist and original add dat
   and artists you discovered in it, the share of each genre, listening time, plays per day or month and by hour of day, compared with the
   same stretch of the previous period, and (under all time) the tracks you used to play a lot but have not played
   for 30 days, and a 3×3 collage of the period's most played album covers (a cover opens the album's page).
+  It also shows how varied the period was (the top five artists' share, different and new tracks, compared with
+  the period before), how the share of your main genres changed over it, and the milestones you reached (your
+  100th play, an artist's 25th play, the day you first heard a favorite) with the top tracks of a year earlier.
   Click a track or artist for its own page: first and last play, totals, plays over time and an
   artist's most played tracks; an album's page lists all its tracks with how often you played each.
   An artist's page also says in a sentence or two what kind of band or artist it is,

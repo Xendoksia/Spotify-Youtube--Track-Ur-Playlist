@@ -176,6 +176,27 @@ class StatisticsTest(ListeningTestCase):
         # Snuff was heard before the period; Psychosocial and both Lithium plays are new
         self.assertEqual(result["new"], 3)
 
+    def test_milestones(self):
+        for day in range(1, 11):
+            self.play("Bad Omens", "Specter", f"2026-11-{day + 10:02d} 09:00")
+        found = listening.milestones(self.db)
+        kinds = [(m["kind"], m.get("key"), m["count"]) for m in found]
+        # Ten more plays of Specter (eleven in all with the one in October): its 10th play and the artist's
+        self.assertIn(("track", "bad omens|specter", 10), kinds)
+        self.assertIn(("artist", "bad omens", 10), kinds)
+        # Bad Omens now has eleven plays, so the day it was first heard counts
+        met = next(m for m in found if m["kind"] == "met")
+        self.assertEqual((met["key"], met["at"]), ("bad omens", listening.to_utc(utc("2026-10-21 10:00"))))
+        self.assertEqual(found[-1]["kind"], "start")
+        self.assertEqual([m["at"] for m in found], sorted((m["at"] for m in found), reverse=True))
+        # Nothing new: the same list from the cache; a new play: worked out again
+        self.assertIs(listening.milestones(self.db), found)
+        self.play("Bad Omens", "Specter", "2026-11-25 09:00")
+        self.assertIsNot(listening.milestones(self.db), found)
+
+    def test_next_total_step(self):
+        self.assertEqual(listening.next_total_step(self.db), (100, 92))
+
     def test_plays_without_length_are_filled(self):
         self.play("Old", "Song", "2026-11-01 08:00", ms=None)
         self.play("Old", "Song", "2026-11-01 18:00", ms=180_000)

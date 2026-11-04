@@ -299,6 +299,100 @@ class GenreShift:
         return {"label": label, "segments": segments, "tooltip": "\n".join([label, *lines])}
 
 
+def year_back(moment: datetime) -> datetime:
+    """The same moment a year earlier (29 February becomes the 28th)."""
+    try:
+        return moment.replace(year=moment.year - 1)
+    except ValueError:
+        return moment.replace(year=moment.year - 1, day=28)
+
+
+class Milestones:
+    """The milestones reached in the period (the 100th play, an artist's 25th play, the day a favorite artist was
+    first heard...) with how far the next count of plays is, and beside them the top tracks of the same time a
+    year earlier, once there are plays from then."""
+
+    SHOWN = 8
+    YEAR_AGO = 3
+
+    def __init__(self, parent, page):
+        self.page = page
+        self.card = card(parent, "flag", t("stats.milestones"), summary=True)
+        self.card.pack_configure(pady=(px(SECTION_GAP), 0))
+        body = ttk.Frame(self.card, style="Card.TFrame")
+        body.pack(fill="x")
+        body.columnconfigure(0, weight=3, uniform="milestones")
+        body.columnconfigure(1, weight=2, uniform="milestones")
+        self.list = ttk.Frame(body, style="Card.TFrame")
+        self.list.grid(row=0, column=0, sticky="nsew")
+        self.year_ago = ttk.Frame(body, style="Card.TFrame")
+        self.year_ago.grid(row=0, column=1, sticky="nsew", padx=(px(24), 0))
+
+    def fill(self, period: str, start, end):
+        step = listening.next_total_step()
+        self.card.summary.configure(text=t("stats.milestones.next", count=number(step[0]), left=number(step[1]))
+                                    if step else "")
+        for child in self.list.winfo_children():
+            child.destroy()
+        period_start, period_end = listening.to_utc(start), listening.to_utc(end)
+        reached = [m for m in listening.milestones() if period_start <= m["at"] < period_end][:self.SHOWN]
+        if not reached:
+            ttk.Label(self.list, text=t("stats.milestones.none"), style="CardMuted.TLabel").pack(anchor="w")
+        for milestone in reached:
+            self._row(self.list, self._date(milestone["at"]), self._text(milestone), self._action(milestone))
+        self._fill_year_ago(period, start, end)
+
+    def _fill_year_ago(self, period: str, start, end):
+        for child in self.year_ago.winfo_children():
+            child.destroy()
+        tracks = [] if period == "all" else listening.top_tracks(year_back(start), year_back(end), self.YEAR_AGO)
+        if not tracks:
+            self.year_ago.grid_remove()
+            return
+        self.year_ago.grid()
+        ttk.Label(self.year_ago, text=t("stats.year_ago"), style="Section.TLabel").pack(anchor="w", pady=(0, px(8)))
+        for rank, track in enumerate(tracks, start=1):
+            self._row(self.year_ago, f"{rank}.", f"{track['name']}  ·  {track['artist']}  ·  {plays_text(track['plays'])}",
+                      self.page.opener("track_key", track["key"]))
+
+    def _row(self, parent, left: str, text: str, action):
+        row = ttk.Frame(parent, style="Card.TFrame", cursor="hand2" if action else "")
+        row.pack(fill="x", pady=(0, px(6)))
+        date = ttk.Label(row, text=left, style="CardMuted.TLabel", font=TYPE["small"], width=8)
+        date.pack(side="left")
+        label = ttk.Label(row, text=text, style="Card.TLabel")
+        label.pack(side="left")
+        if action:
+            for widget in (row, date, label):
+                widget.bind("<Button-1>", lambda e: action())
+
+    @staticmethod
+    def _date(iso: str) -> str:
+        moment = listening.from_utc(iso).astimezone()
+        year = f" {moment.year}" if moment.year != datetime.now().year else ""
+        return f"{moment.day} {month_name(moment.month, True)}{year}"
+
+    @staticmethod
+    def _text(milestone: dict) -> str:
+        count = number(milestone["count"])
+        if milestone["kind"] == "total":
+            return t("stats.milestones.total", count=count)
+        if milestone["kind"] == "artist":
+            return t("stats.milestones.artist", name=milestone["name"], count=count)
+        if milestone["kind"] == "track":
+            return t("stats.milestones.track", name=milestone["name"], artist=milestone["artist"], count=count)
+        if milestone["kind"] == "met":
+            return t("stats.milestones.met", name=milestone["name"], plays=plays_text(milestone["count"]))
+        return t("stats.milestones.start")
+
+    def _action(self, milestone: dict):
+        if milestone["kind"] in ("artist", "met"):
+            return self.page.opener("artist_key", milestone["key"])
+        if milestone["kind"] == "track":
+            return self.page.opener("track_key", milestone["key"])
+        return None
+
+
 def share(part: int, whole: int) -> int:
     return round(100 * part / whole) if whole else 0
 
