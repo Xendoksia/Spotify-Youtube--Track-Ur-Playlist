@@ -49,7 +49,7 @@ class App(tk.Tk):
 
         theme.apply_theme(self, config.get("THEME"), {s.name: (s.accent, s.accent_active) for s in SERVICES})
         # After the theme, which sets the scale for this screen
-        theme.place_window(self, 1100, 780)
+        theme.place_window(self, 1440, 940)
         self.minsize(px(860), px(600))
 
         if background.TRAY_AVAILABLE:

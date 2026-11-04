@@ -100,8 +100,10 @@ def px(value: float) -> int:
 
 
 def place_window(window: tk.Misc, width: int, height: int) -> None:
-    """Size a window in design pixels and center it on the screen."""
-    width, height = px(width), px(height)
+    """Size a window in design pixels and center it on the screen; on a small screen it is made smaller
+    so it fits, leaving room for the title bar and the taskbar."""
+    width = min(px(width), window.winfo_screenwidth() - px(40))
+    height = min(px(height), window.winfo_screenheight() - px(140))
     left = max(0, (window.winfo_screenwidth() - width) // 2)
     # A little above the middle, leaving room for the taskbar
     top = max(0, (window.winfo_screenheight() - height) // 2 - px(20))
