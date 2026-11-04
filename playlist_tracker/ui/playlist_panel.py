@@ -1,30 +1,137 @@
 """
-One service's tab of playlist tracking: its playlists, which of them are tracked, and the result of the
-last check.
+One service's tab of playlist tracking: its playlists as cards (tracked ones in the service's color, with
+their last check and latest changes), and the result of the last check.
 """
 
 from __future__ import annotations
 
+import tkinter as tk
 import webbrowser
+from datetime import datetime
 from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING
 
 from playlist_tracker.core.config import load_config
 from playlist_tracker.core.errors import TrackerError
-from playlist_tracker.core.i18n import t
-from playlist_tracker.core.text import format_date, track_label
+from playlist_tracker.core.i18n import number, t
+from playlist_tracker.core.text import track_label
 from playlist_tracker.playlists import history
 from playlist_tracker.ui.services import EVENTS, Service, event_color, event_label
-from playlist_tracker.ui.theme import FONT_BOLD, P, px, text_box
+from playlist_tracker.ui.stats.text import month_name
+from playlist_tracker.ui.stats.widgets import ScrollFrame
+from playlist_tracker.ui.theme import FONT, FONT_BOLD, TYPE, P, mix, px, text_box
 
 if TYPE_CHECKING:
     from playlist_tracker.ui.main_window import App
 
-CHECKED, UNCHECKED = "☑", "☐"
+CHECK_SIZE = 20
+CARD_COLUMNS = 3
+# Order of the latest changes on a card: what went wrong first
+CHANGE_ORDER = (history.EVENT_REMOVED, history.EVENT_UNPLAYABLE, history.EVENT_PLAYABLE, history.EVENT_ADDED)
+
+
+def short_date(iso: str) -> str:
+    """A check time as "4 Nov 15:27"."""
+    moment = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone()
+    return f"{moment.day} {month_name(moment.month, True)} {moment:%H:%M}"
+
+
+def badge_color(color: str) -> str:
+    """The background of an event badge: its color, faint."""
+    return mix(P.surface, color, 0.22 if P.dark else 0.16)
+
+
+class PlaylistCard(tk.Frame):
+    """A playlist: click to track it or not; "Open" opens it in the browser."""
+
+    def __init__(self, parent, panel: "PlaylistPanel", playlist_id: str, playlist: dict, summary: dict | None):
+        tracked = playlist["tracked"]
+        self.background = panel.service.tint if tracked else P.surface
+        # The service's color, softened so a row of tracked cards does not shout
+        self.border = mix(P.surface, panel.service.accent, 0.7) if tracked else P.border
+        super().__init__(parent, background=self.background, highlightthickness=1,
+                         highlightbackground=self.border, highlightcolor=self.border, cursor="hand2")
+        self.panel, self.playlist_id = panel, playlist_id
+        summary = summary or {}
+        body = tk.Frame(self, background=self.background)
+        body.pack(fill="both", expand=True, padx=px(12), pady=px(12))
+        body.columnconfigure(1, weight=1)
+
+        check = self._check_mark(body, tracked, panel.service.accent)
+        check.grid(row=0, column=0, rowspan=2, sticky="nw", padx=(0, px(10)), pady=(px(3), 0))
+        name = tk.Label(body, text=playlist["name"], font=TYPE["heading"], background=self.background,
+                        foreground=P.text if tracked else P.muted, anchor="w", justify="left", wraplength=px(300))
+        name.grid(row=0, column=1, sticky="w")
+        opener = tk.Label(body, text=f"{t('panel.open')} ↗", background=self.background, foreground=P.focus,
+                          font=FONT, cursor="hand2")
+        opener.grid(row=0, column=2, sticky="ne", padx=(px(8), 0))
+        opener.bind("<Button-1>", lambda e: webbrowser.open(panel.service.playlist_url.format(playlist_id)))
+
+        count = playlist["track_count"] if playlist["track_count"] != "" else summary.get("tracks")
+        details = [part for part in (playlist["owner"],
+                                     f"{number(count)} {t(f'items.{panel.service.items}')}" if count is not None
+                                     else "") if part]
+        clickable = [self, body, check, name]
+        line = self._line(body, "  ·  ".join(details), 1)
+        if line:
+            clickable.append(line)
+        checked = playlist["last_checked"]
+        clickable.append(self._line(body, t("panel.last_checked", date=short_date(checked)) if checked
+                                    else t("panel.never_checked"), 2))
+        if summary.get("changes"):
+            row = tk.Frame(body, background=self.background)
+            row.grid(row=3, column=1, columnspan=2, sticky="w", pady=(px(4), 0))
+            clickable.append(row)
+            clickable.append(self._label(row, t("panel.last_change", date=short_date(summary["changed_at"]))))
+            for event in CHANGE_ORDER:
+                if summary["changes"].get(event):
+                    symbol = event_label(event).split()[0]
+                    chip = tk.Label(row, text=f"{symbol}{number(summary['changes'][event])}", font=FONT_BOLD,
+                                    background=self.background, foreground=event_color(event))
+                    chip.pack(side="left", padx=(px(6), 0))
+                    clickable.append(chip)
+        for widget in clickable:
+            widget.bind("<Button-1>", lambda e: panel.toggle(playlist_id))
+            widget.bind("<Enter>", lambda e: self._hover(True))
+            widget.bind("<Leave>", self._on_leave)
+
+    def _check_mark(self, parent, tracked: bool, accent: str) -> tk.Canvas:
+        """A filled circle with a tick when tracked, an empty ring when not."""
+        size = px(CHECK_SIZE)
+        canvas = tk.Canvas(parent, width=size, height=size, background=self.background, highlightthickness=0)
+        if tracked:
+            canvas.create_oval(1, 1, size - 1, size - 1, fill=accent, outline=accent)
+            canvas.create_line(size * 0.28, size * 0.52, size * 0.44, size * 0.68, size * 0.73, size * 0.34,
+                               fill="#ffffff", width=max(2, px(2)), capstyle="round", joinstyle="round")
+        else:
+            canvas.create_oval(1, 1, size - 1, size - 1, outline=P.muted, width=max(1, px(1.5)))
+        return canvas
+
+    def _label(self, parent, text: str) -> tk.Label:
+        label = tk.Label(parent, text=text, background=self.background, foreground=P.muted, font=FONT)
+        label.pack(side="left")
+        return label
+
+    def _line(self, parent, text: str, row: int) -> tk.Label | None:
+        if not text:
+            return None
+        label = tk.Label(parent, text=text, background=self.background, foreground=P.muted, font=FONT, anchor="w")
+        label.grid(row=row, column=1, columnspan=2, sticky="w", pady=(px(2), 0))
+        return label
+
+    def _hover(self, on: bool):
+        color = P.muted if on and self.border == P.border else self.border
+        self.configure(highlightbackground=color, highlightcolor=color)
+
+    def _on_leave(self, event):
+        # Moving onto a part of the card is not leaving it
+        under = self.winfo_containing(event.x_root, event.y_root)
+        if under is None or not str(under).startswith(str(self)):
+            self._hover(False)
 
 
 class PlaylistPanel(ttk.Frame):
-    """Playlist list, selection and check results for one service."""
+    """Playlist cards, selection and check results for one service."""
 
     def __init__(self, app: "App", service: Service):
         super().__init__(app.tabs, padding=px(16), style="Card.TFrame")
@@ -59,44 +166,32 @@ class PlaylistPanel(ttk.Frame):
 
         ttk.Label(self, style="CardMuted.TLabel", text=t("panel.hint")).pack(anchor="w", pady=(px(16), px(8)))
 
-        table_frame = ttk.Frame(self, style="Card.TFrame")
-        table_frame.pack(fill="both", expand=True)
-        columns = ("tracked", "name", "owner", "tracks", "last_checked")
-        self.table = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode="browse",
-                                  height=8)
-        for column, heading, width, anchor in (
-            ("tracked", t("column.tracked"), 60, "center"),
-            ("name", t("column.playlist"), 380, "w"),
-            ("owner", t("column.owner"), 160, "w"),
-            ("tracks", t(f"column.{self.service.items}"), 70, "center"),
-            ("last_checked", t("column.last_checked"), 140, "center"),
-        ):
-            self.table.heading(column, text=heading, anchor=anchor)
-            self.table.column(column, width=px(width), anchor=anchor, stretch=(column == "name"))
-        self.table.tag_configure("odd", background=P.stripe)
-        self.table.tag_configure("tracked", background=self.service.tint)
-        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.table.yview)
-        self.table.configure(yscrollcommand=scrollbar.set)
-        self.table.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        self.table.bind("<Button-1>", self._on_row_click)
-        self.table.bind("<space>", lambda e: self._toggle_selected())
-        self.table.bind("<Double-1>", self._open_playlist)
-
+        # Packed from the bottom first, so the cards take whatever height is left
+        self.result_box = text_box(self, height=8)
+        self.result_box.configure(tabs=(px(170),), spacing1=px(2), spacing3=px(2), padx=px(12), pady=px(8))
+        self.result_box.pack(side="bottom", fill="x")
+        for event in EVENTS:
+            self.result_box.tag_configure(event, foreground=event_color(event))
+            self.result_box.tag_configure(f"badge-{event}", foreground=event_color(event),
+                                          background=badge_color(event_color(event)), font=FONT_BOLD)
+        self.result_box.tag_configure("heading", font=FONT_BOLD, spacing1=px(8))
+        self.result_box.tag_configure("muted", foreground=P.muted)
+        ttk.Label(self, text=t("panel.last_result"), style="Section.TLabel").pack(side="bottom", anchor="w",
+                                                                                  pady=(px(16), px(8)))
         footer = ttk.Frame(self, style="Card.TFrame")
-        footer.pack(fill="x", pady=(px(12), 0))
+        footer.pack(side="bottom", fill="x", pady=(px(12), 0))
         ttk.Button(footer, text=t("panel.select_all"), command=lambda: self._set_all(True)).pack(side="left")
         ttk.Button(footer, text=t("panel.clear_selection"),
                    command=lambda: self._set_all(False)).pack(side="left", padx=px(8))
         self.check_button = ttk.Button(footer, command=self.check, style=f"{self.service.name}.Accent.TButton")
         self.check_button.pack(side="right")
 
-        ttk.Label(self, text=t("panel.last_result"), style="Section.TLabel").pack(anchor="w", pady=(px(16), px(8)))
-        self.result_box = text_box(self, height=8)
-        self.result_box.pack(fill="x")
-        for event in EVENTS:
-            self.result_box.tag_configure(event, foreground=event_color(event))
-        self.result_box.tag_configure("heading", font=FONT_BOLD)
+        page = ScrollFrame(self)
+        page.content.configure(padding=(0, 0, px(12), 0))
+        page.pack(fill="both", expand=True)
+        self.cards = page.content
+        for column in range(CARD_COLUMNS):
+            self.cards.columnconfigure(column, weight=1, uniform="card")
 
     @property
     def buttons(self):
@@ -111,14 +206,18 @@ class PlaylistPanel(ttk.Frame):
         self.render()
 
     def render(self):
-        self.table.delete(*self.table.get_children())
+        for card in self.cards.winfo_children():
+            card.destroy()
+        summaries = history.playlist_summaries(self.service.db_path)
         ordered = sorted(self.playlists.items(), key=lambda x: (not x[1]["tracked"], x[1]["name"].lower()))
         for index, (playlist_id, p) in enumerate(ordered):
-            self.table.insert(
-                "", "end", iid=playlist_id, tags=("tracked",) if p["tracked"] else ("odd",) if index % 2 else (),
-                values=(CHECKED if p["tracked"] else UNCHECKED, p["name"], p["owner"],
-                        p["track_count"], format_date(p["last_checked"]) or "—"),
-            )
+            card = PlaylistCard(self.cards, self, playlist_id, p, summaries.get(playlist_id))
+            row, column = divmod(index, CARD_COLUMNS)
+            card.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else px(12), 0),
+                      pady=(0 if row == 0 else px(12), 0))
+        if not ordered:
+            ttk.Label(self.cards, text=t("panel.empty", service=self.service.name), style="CardMuted.TLabel"
+                      ).grid(row=0, column=0, columnspan=CARD_COLUMNS, pady=px(24))
         self.check_button.configure(text=t("panel.check", count=len(self.tracked_names())))
         self.app.history.update_filter()
 
@@ -130,36 +229,15 @@ class PlaylistPanel(ttk.Frame):
         p["tracked"] = tracked
         history.set_tracked(playlist_id, p["name"], tracked, self.service.db_path)
 
-    def _toggle(self, playlist_id):
+    def toggle(self, playlist_id):
         self._set_tracked(playlist_id, not self.playlists[playlist_id]["tracked"])
         self.render()
-        if self.table.exists(playlist_id):
-            self.table.selection_set(playlist_id)
-            self.table.see(playlist_id)
-
-    def _on_row_click(self, event):
-        if self.table.identify_region(event.x, event.y) != "cell":
-            return
-        playlist_id = self.table.identify_row(event.y)
-        if playlist_id and self.table.identify_column(event.x) == "#1":
-            self._toggle(playlist_id)
-            return "break"
-
-    def _toggle_selected(self):
-        selection = self.table.selection()
-        if selection:
-            self._toggle(selection[0])
 
     def _set_all(self, tracked):
         for playlist_id, p in self.playlists.items():
             if p["tracked"] != tracked:
                 self._set_tracked(playlist_id, tracked)
         self.render()
-
-    def _open_playlist(self, event):
-        playlist_id = self.table.identify_row(event.y)
-        if playlist_id and self.table.identify_column(event.x) != "#1":
-            webbrowser.open(self.service.playlist_url.format(playlist_id))
 
     def update_login_status(self):
         user = self.service.session_user(load_config())
@@ -247,6 +325,15 @@ class PlaylistPanel(ttk.Frame):
 
         self.run(task, self.show_results)
 
+    def _badge(self, event: str, text: str, date: str = ""):
+        """One track of a result: the event as a colored badge, the track, and when it was added."""
+        box = self.result_box
+        box.insert("end", f"  {event_label(event)}  ", f"badge-{event}")
+        box.insert("end", f"\t{text}")
+        if date:
+            box.insert("end", f"   {date}", "muted")
+        box.insert("end", "\n")
+
     def show_results(self, results, automatic: bool = False):
         """Show the result of a check, from the Check button or the automatic check."""
         box = self.result_box
@@ -256,18 +343,18 @@ class PlaylistPanel(ttk.Frame):
         items = t(f"items.{self.service.items}")
         for r in results:
             if "error" in r:
-                box.insert("end", f"{r['name']}: ", "heading")
+                box.insert("end", f"{r['name']}  ", "heading")
                 box.insert("end", t("result.error", error=r["error"]) + "\n", history.EVENT_REMOVED)
                 continue
             p = self.playlists.get(r["playlist_id"])
             if p:
                 p.update(name=r["name"], track_count=r["total"], last_checked=r["checked_at"])
-            box.insert("end", t("result.heading", name=r["name"], total=r["total"], items=items), "heading")
+            box.insert("end", f"{r['name']}  ", "heading")
+            box.insert("end", f"{number(r['total'])} {items}  ·  ", "muted")
             if r["first_check"]:
-                box.insert("end", t("result.initial") + "\n", history.EVENT_INITIAL)
+                box.insert("end", t("result.initial") + "\n", "muted")
                 for track in r["unavailable"]:
-                    box.insert("end", f"    ! {self.service.unavailable_label()}: {track_label(track)}\n",
-                               history.EVENT_UNPLAYABLE)
+                    self._badge(history.EVENT_UNPLAYABLE, track_label(track))
                 continue
             changes = (
                 [(history.EVENT_ADDED, track) for track in r["added"]]
@@ -277,12 +364,12 @@ class PlaylistPanel(ttk.Frame):
             )
             total_changes += len(changes)
             if not changes:
-                box.insert("end", t("result.no_changes") + "\n")
+                box.insert("end", t("result.no_changes") + "\n", "muted")
                 continue
-            box.insert("end", t("result.changes", count=len(changes)) + "\n")
+            box.insert("end", t("result.changes", count=len(changes)) + "\n", "muted")
             for event, track in changes:
-                added = t("result.added", date=format_date(track["added_at"])) if track.get("added_at") else ""
-                box.insert("end", f"    {event_label(event):<18} {track_label(track)}{added}\n", event)
+                added = t("result.added", date=short_date(track["added_at"])).strip() if track.get("added_at") else ""
+                self._badge(event, track_label(track), added)
         box.configure(state="disabled")
         self.render()
         self.app.history.refresh()

@@ -74,6 +74,25 @@ def set_tracked(playlist_id: str, name: str, tracked: bool, db_path: Path) -> No
         )
 
 
+def playlist_summaries(db_path: Path) -> dict[str, dict]:
+    """Per playlist: how many tracks it had at its last check, and its latest changes (when they were
+    found and how many of each event)."""
+    summaries: dict[str, dict] = {}
+    with open_db(db_path) as db:
+        for row in db.execute("SELECT playlist_id, COUNT(*) AS tracks FROM tracks WHERE in_playlist = 1 "
+                              "GROUP BY playlist_id"):
+            summaries[row["playlist_id"]] = {"tracks": row["tracks"], "changed_at": None, "changes": {}}
+        for row in db.execute(
+            "SELECT playlist_id, checked_at, event, COUNT(*) AS count FROM events e WHERE event != ? AND checked_at = "
+            "(SELECT MAX(checked_at) FROM events WHERE playlist_id = e.playlist_id AND event != ?) "
+            "GROUP BY playlist_id, event", (EVENT_INITIAL, EVENT_INITIAL),
+        ):
+            summary = summaries.setdefault(row["playlist_id"], {"tracks": None, "changed_at": None, "changes": {}})
+            summary["changed_at"] = row["checked_at"]
+            summary["changes"][row["event"]] = row["count"]
+    return summaries
+
+
 def _write_event(db: sqlite3.Connection, playlist_id: str, checked_at: str, event: str, track: dict) -> None:
     db.execute(
         "INSERT INTO events (playlist_id, checked_at, event, uri, name, artist, album, added_at) "
