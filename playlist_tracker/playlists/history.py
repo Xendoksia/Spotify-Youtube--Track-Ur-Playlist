@@ -9,6 +9,8 @@ from __future__ import annotations
 import csv
 import sqlite3
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -53,11 +55,18 @@ CREATE TABLE IF NOT EXISTS events (
 """
 
 
-def open_db(db_path: Path) -> sqlite3.Connection:
+@contextmanager
+def open_db(db_path: Path) -> Iterator[sqlite3.Connection]:
+    """A connection for a with block: committed at its end (rolled back on an error) and always closed.
+    sqlite3's own with block does not close it, so the file stayed open until garbage collection."""
     db = sqlite3.connect(db_path)
-    db.row_factory = sqlite3.Row
-    db.executescript(SCHEMA)
-    return db
+    try:
+        db.row_factory = sqlite3.Row
+        db.executescript(SCHEMA)
+        with db:
+            yield db
+    finally:
+        db.close()
 
 
 def tracked_playlists(db_path: Path) -> list[dict]:

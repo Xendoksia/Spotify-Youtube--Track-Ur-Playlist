@@ -145,6 +145,14 @@ python cli.py listening stats month                                  # most play
 To use the command line without the GUI, copy `config.example.json` to `config.json` and fill in
 your Client ID and Client Secret.
 
+### Tests
+
+```
+python -m unittest
+```
+
+The tests use only the standard library and never touch your databases, `config.json` or any service.
+
 ### Configuration
 
 | Key | Description |
@@ -197,6 +205,7 @@ the artist and track names are sent, no account is involved).
 |---|---|
 | `app.py` | Starts the graphical interface |
 | `cli.py` | Command line |
+| `tests/` | Tests (`python -m unittest`) |
 | `build.py` | Builds the single-file Windows program with PyInstaller |
 | `Spotify Playlist Tracker.bat` | Double-click launcher for Windows |
 | `config.example.json` | Sample configuration file |

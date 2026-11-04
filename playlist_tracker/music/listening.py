@@ -6,6 +6,8 @@ the Spotify API, and stores the plays in listening.db. All statistics are counte
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -39,12 +41,19 @@ CREATE INDEX IF NOT EXISTS listens_artist ON listens (artist_key);
 """
 
 
-def open_db(db_path: Path = DB_PATH) -> sqlite3.Connection:
+@contextmanager
+def open_db(db_path: Path = DB_PATH) -> Iterator[sqlite3.Connection]:
+    """A connection for a with block: committed at its end (rolled back on an error) and always closed.
+    sqlite3's own with block does not close it, so the file stayed open until garbage collection."""
     db = sqlite3.connect(db_path)
-    db.row_factory = sqlite3.Row
-    db.executescript(SCHEMA)
-    _migrate(db)
-    return db
+    try:
+        db.row_factory = sqlite3.Row
+        db.executescript(SCHEMA)
+        _migrate(db)
+        with db:
+            yield db
+    finally:
+        db.close()
 
 
 def _migrate(db: sqlite3.Connection) -> None:
