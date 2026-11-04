@@ -15,6 +15,7 @@ from playlist_tracker.core.i18n import t
 from playlist_tracker.playlists import auto_check, spotify
 from playlist_tracker.ui import theme
 from playlist_tracker.ui.services import SPOTIFY, YOUTUBE, Service
+from playlist_tracker.ui.tabs import Tabs
 from playlist_tracker.ui.theme import P, px
 
 
@@ -26,7 +27,7 @@ def open_settings(app, service: Service = SPOTIFY):
     window.resizable(False, False)
     window.configure(background=P.bg)
     theme.dark_title_bar(window)
-    notebook = ttk.Notebook(window)
+    notebook = Tabs(window)
     notebook.pack(fill="both", padx=px(16), pady=(px(16), 0))
     config = load_config()
 
@@ -50,7 +51,7 @@ def open_settings(app, service: Service = SPOTIFY):
         return lambda: list(options)[box.current()]
 
     spotify_tab = ttk.Frame(notebook, padding=px(16), style="Card.TFrame")
-    notebook.add(spotify_tab, text="  Spotify  ")
+    notebook.add(spotify_tab, text="Spotify")
     ttk.Label(spotify_tab, justify="left", style="CardMuted.TLabel",
               text=t("settings.spotify_steps", redirect_uri=spotify.REDIRECT_URI)
               ).grid(row=0, column=0, columnspan=2, sticky="w")
@@ -61,7 +62,7 @@ def open_settings(app, service: Service = SPOTIFY):
     }
 
     youtube_tab = ttk.Frame(notebook, padding=px(16), style="Card.TFrame")
-    notebook.add(youtube_tab, text="  YouTube  ")
+    notebook.add(youtube_tab, text="YouTube")
     ttk.Label(youtube_tab, justify="left", style="CardMuted.TLabel", text=t("settings.youtube_steps")
               ).grid(row=0, column=0, columnspan=2, sticky="w")
     link(youtube_tab, t("settings.open_console"),
@@ -74,7 +75,7 @@ def open_settings(app, service: Service = SPOTIFY):
     }
 
     general_tab = ttk.Frame(notebook, padding=px(16), style="Card.TFrame")
-    notebook.add(general_tab, text=f"  {t('settings.general')}  ")
+    notebook.add(general_tab, text=t("settings.general"))
     current_theme = config.get("THEME") if config.get("THEME") in theme.THEMES else "system"
     get_language = choice(general_tab, t("settings.language"), i18n.LANGUAGES, i18n.current(), 0)
     get_theme = choice(general_tab, t("settings.theme"), {k: t(f"theme.{k}") for k in theme.THEMES},

@@ -24,6 +24,7 @@ from playlist_tracker.ui.mini_player import MiniPlayer
 from playlist_tracker.ui.playlist_panel import PlaylistPanel
 from playlist_tracker.ui.services import SERVICES, SPOTIFY, Service
 from playlist_tracker.ui.settings_dialog import open_settings
+from playlist_tracker.ui.tabs import Tabs
 from playlist_tracker.ui.theme import px
 
 # Start with the monthly summary open, to look at it before it opens by itself
@@ -123,17 +124,22 @@ class App(tk.Tk):
     def _build_ui(self):
         header = ttk.Frame(self, padding=(px(16), px(12), px(16), px(4)))
         header.pack(fill="x")
+        if background.TRAY_AVAILABLE:
+            from PIL import ImageTk
+            self._header_icon = ImageTk.PhotoImage(background.icon_image(px(28)))
+            ttk.Label(header, image=self._header_icon).pack(side="left", padx=(0, px(8)))
         ttk.Label(header, text=t("app.title"), style="Title.TLabel").pack(side="left")
         ttk.Button(header, text=t("button.settings"), command=self.open_settings).pack(side="right")
         nav = ttk.Frame(header, padding=px(4), style="Nav.TFrame")
         nav.pack(side="left", padx=(px(24), 0))
-        self.status_label = ttk.Label(header, text=t("status.ready"), style="Muted.TLabel")
-        self.status_label.pack(side="left", padx=(px(16), 0), pady=(px(4), 0))
+        # Messages about what the app is doing, on the right; empty while there is nothing to say
+        self.status_label = ttk.Label(header, style="Muted.TLabel")
+        self.status_label.pack(side="right", padx=(0, px(16)))
         self.mini_player = MiniPlayer(self, self.local_tracker, self.open_track_page, header)
 
         # Playlist tracking and listening statistics are separate sections with their own tabs
         playlist_section = ttk.Frame(self)
-        self.tabs = ttk.Notebook(playlist_section)
+        self.tabs = Tabs(playlist_section)
         self.tabs.pack(fill="both", expand=True)
         self.listening = ListeningView(self, self, self.local_tracker)
         for name, frame in (("playlists", playlist_section), ("listening", self.listening)):
@@ -143,11 +149,11 @@ class App(tk.Tk):
             self.sections[name] = (frame, button)
         # The history tab is built first because panels update its playlist filter while loading
         self.history = HistoryTab(self.tabs, self)
-        self.tabs.add(self.history, text=f"  {t('tab.history')}  ")
+        self.tabs.add(self.history, text=t("tab.history"))
         for index, service in enumerate(SERVICES):
             panel = PlaylistPanel(self, service)
             self.panels[service.name] = panel
-            self.tabs.insert(index, panel, text=f"  {service.name}  ")
+            self.tabs.insert(index, panel, text=service.name)
         self.tabs.select(0)
         self.history.update_filter()
         self.show_section("playlists")

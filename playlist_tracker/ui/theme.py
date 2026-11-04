@@ -266,18 +266,6 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
                   foreground=[("readonly", P.text)],
                   selectbackground=[("readonly", P.surface)], selectforeground=[("readonly", P.text)])
 
-    style.configure("TNotebook", background=P.bg, bordercolor=P.border, lightcolor=P.surface,
-                    darkcolor=P.surface, tabmargins=(0, 0, 0, 0))
-    style.configure("TNotebook.Tab", background=P.bg, foreground=P.muted, bordercolor=P.bg, lightcolor=P.bg,
-                    darkcolor=P.bg, padding=(px(18), px(7)), font=FONT_BOLD)
-    style.map("TNotebook.Tab",
-              background=[("selected", P.surface), ("active", P.hover)],
-              foreground=[("selected", P.text)],
-              bordercolor=[("selected", P.border)],
-              lightcolor=[("selected", P.surface), ("active", P.hover)],
-              darkcolor=[("selected", P.surface), ("active", P.hover)],
-              expand=[("selected", (0, 0, 0, 0))])
-
     style.configure("Treeview", background=P.surface, fieldbackground=P.surface, foreground=P.text,
                     bordercolor=P.border, lightcolor=P.surface, darkcolor=P.surface, rowheight=px(30))
     style.map("Treeview", background=[("selected", P.selected)], foreground=[("selected", P.text)])

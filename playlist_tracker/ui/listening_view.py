@@ -12,6 +12,7 @@ from playlist_tracker.core.i18n import t
 from playlist_tracker.core.text import format_date, format_length, track_label
 from playlist_tracker.music import listening, nowplaying
 from playlist_tracker.ui.stats.tab import StatsTab
+from playlist_tracker.ui.tabs import Tabs
 from playlist_tracker.ui.theme import P, px
 
 STATUS_INTERVAL_MS = 1000
@@ -49,13 +50,13 @@ class ListeningView(ttk.Frame):
         self._poll_status()
 
     def _build(self):
-        self.tabs = ttk.Notebook(self)
+        self.tabs = Tabs(self)
         self.tabs.pack(fill="both", expand=True)
         self.stats = StatsTab(self.tabs)
-        self.tabs.add(self.stats, text=f"  {t('stats.tab')}  ")
+        self.tabs.add(self.stats, text=t("stats.tab"))
 
         tab = ttk.Frame(self.tabs, padding=px(16), style="Card.TFrame")
-        self.tabs.add(tab, text=f"  {t('listening.recent_tab')}  ")
+        self.tabs.add(tab, text=t("listening.recent_tab"))
 
         toolbar = ttk.Frame(tab, style="Card.TFrame")
         toolbar.pack(fill="x")
