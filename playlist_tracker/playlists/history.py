@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import sqlite3
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -19,6 +20,9 @@ EVENT_REMOVED = "REMOVED"
 EVENT_UNPLAYABLE = "UNPLAYABLE"
 EVENT_PLAYABLE = "PLAYABLE_AGAIN"
 EVENT_INITIAL = "INITIAL_SNAPSHOT"
+# A check from the window and the automatic check must not compare the same playlist at the same time,
+# or both would record its changes
+_check_lock = threading.Lock()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS playlists (
@@ -94,6 +98,11 @@ def check_playlist(client, playlist_id: str, db_path: Path) -> dict:
 
     Works with any client that provides playlist_name() and playlist_tracks().
     """
+    with _check_lock:
+        return _check_playlist(client, playlist_id, db_path)
+
+
+def _check_playlist(client, playlist_id: str, db_path: Path) -> dict:
     name = client.playlist_name(playlist_id)
     current = client.playlist_tracks(playlist_id)
     now = datetime.now().astimezone().isoformat(timespec="seconds")

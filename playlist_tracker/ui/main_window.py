@@ -102,7 +102,8 @@ class App(tk.Tk):
         self.destroy()
 
     def _poll_commands(self):
-        # Requests from the tray icon and from copies of the app started later, which run on other threads
+        # Requests from the tray icon, the automatic check and copies of the app started later, which run on
+        # other threads
         while True:
             try:
                 command = self.commands.get_nowait()
@@ -113,6 +114,10 @@ class App(tk.Tk):
             elif command == "quit":
                 self.quit_app()
                 return
+            elif isinstance(command, tuple) and command[0] == "checked":
+                # Results of the automatic check: ("checked", service name, results)
+                _, service_name, results = command
+                self.panels[service_name].show_results(results, automatic=True)
         self.after(200, self._poll_commands)
 
     def _build_ui(self):

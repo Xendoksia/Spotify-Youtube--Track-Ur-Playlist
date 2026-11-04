@@ -12,7 +12,7 @@ from playlist_tracker import background
 from playlist_tracker.core import i18n
 from playlist_tracker.core.config import load_config, save_config
 from playlist_tracker.core.i18n import t
-from playlist_tracker.playlists import spotify
+from playlist_tracker.playlists import auto_check, spotify
 from playlist_tracker.ui import theme
 from playlist_tracker.ui.services import SPOTIFY, YOUTUBE, Service
 from playlist_tracker.ui.theme import P, px
@@ -79,17 +79,24 @@ def open_settings(app, service: Service = SPOTIFY):
     get_language = choice(general_tab, t("settings.language"), i18n.LANGUAGES, i18n.current(), 0)
     get_theme = choice(general_tab, t("settings.theme"), {k: t(f"theme.{k}") for k in theme.THEMES},
                        current_theme, 1)
+    current_interval = config.get("AUTO_CHECK")
+    if current_interval not in auto_check.INTERVALS:
+        current_interval = auto_check.DEFAULT_INTERVAL
+    get_auto_check = choice(general_tab, t("settings.auto_check"),
+                            {k: t(f"auto_check.{k}") for k in auto_check.INTERVALS}, current_interval, 2)
+    ttk.Label(general_tab, text=t("settings.auto_check_note"), style="CardMuted.TLabel"
+              ).grid(row=3, column=1, sticky="w", padx=(px(8), 0))
     tray_var = tk.BooleanVar(value=background.close_to_tray(config))
     ttk.Checkbutton(general_tab, text=t("settings.close_to_tray"), variable=tray_var,
                     style="Card.TCheckbutton", state="normal" if background.TRAY_AVAILABLE else "disabled"
-                    ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(px(12), px(4)))
+                    ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(px(12), px(4)))
     autostart_var = tk.BooleanVar(value=background.autostart_enabled())
     ttk.Checkbutton(general_tab, text=t("settings.autostart"), variable=autostart_var,
                     style="Card.TCheckbutton",
                     state="normal" if background.autostart_supported() else "disabled"
-                    ).grid(row=3, column=0, columnspan=2, sticky="w", pady=px(4))
+                    ).grid(row=5, column=0, columnspan=2, sticky="w", pady=px(4))
     ttk.Label(general_tab, text=t("settings.restart_note"), style="CardMuted.TLabel"
-              ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(px(12), 0))
+              ).grid(row=6, column=0, columnspan=2, sticky="w", pady=(px(12), 0))
 
     def save():
         updated = load_config()
@@ -112,6 +119,7 @@ def open_settings(app, service: Service = SPOTIFY):
                 updated.pop(key, None)
         appearance_changed = get_language() != i18n.current() or get_theme() != current_theme
         updated["LANGUAGE"], updated["THEME"] = get_language(), get_theme()
+        updated["AUTO_CHECK"] = get_auto_check()
         if background.TRAY_AVAILABLE:
             updated["CLOSE_TO_TRAY"] = tray_var.get()
         save_config(updated)

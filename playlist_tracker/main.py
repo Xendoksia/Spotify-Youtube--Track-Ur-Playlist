@@ -9,6 +9,7 @@ from playlist_tracker import background
 from playlist_tracker.core import i18n
 from playlist_tracker.core.config import load_config
 from playlist_tracker.music import nowplaying
+from playlist_tracker.playlists.auto_check import AutoChecker
 from playlist_tracker.ui import theme
 from playlist_tracker.ui.listening_view import set_tracking, tracking_enabled
 from playlist_tracker.ui.main_window import App
@@ -33,6 +34,9 @@ def main():
     tray = background.Tray(commands, is_paused=lambda: not local_tracker.enabled,
                            set_paused=lambda paused: set_tracking(local_tracker, not paused))
     tray.start()
+    # Results go to the window through the same queue as the tray's requests
+    checker = AutoChecker(tray.notify, lambda service, results: commands.put(("checked", service, results)))
+    checker.start()
     hidden = background.start_minimized()
     try:
         while True:
@@ -42,6 +46,7 @@ def main():
             if not app.restart:
                 break
     finally:
+        checker.stop()
         tray.stop()
         local_tracker.stop()
         instance.release()

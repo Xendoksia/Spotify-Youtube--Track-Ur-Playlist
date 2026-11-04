@@ -245,9 +245,10 @@ class PlaylistPanel(ttk.Frame):
                     results.append({"name": name, "error": str(e)})
             return results
 
-        self.run(task, self._on_check_done)
+        self.run(task, self.show_results)
 
-    def _on_check_done(self, results):
+    def show_results(self, results, automatic: bool = False):
+        """Show the result of a check, from the Check button or the automatic check."""
         box = self.result_box
         box.configure(state="normal")
         box.delete("1.0", "end")
@@ -285,4 +286,5 @@ class PlaylistPanel(ttk.Frame):
         box.configure(state="disabled")
         self.render()
         self.app.history.refresh()
-        self.app.set_status(t("status.check_done", count=len(results), changes=total_changes))
+        self.app.set_status(t("status.auto_check_done" if automatic else "status.check_done", count=len(results),
+                              changes=total_changes))

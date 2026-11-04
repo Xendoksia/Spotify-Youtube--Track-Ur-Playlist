@@ -20,6 +20,9 @@ and compares it with the previous one, so the title, artist and original add dat
   - **✓ Playable again**: tracks that became playable again
 - **YouTube playlists** too: deleted, private or region-blocked videos are reported as unplayable, and their
   original title is kept even after YouTube replaces it with "Deleted video"
+- **Automatic checks:** while the app runs (also in the tray) the tracked playlists are checked by themselves
+  every 6, 12 or 24 hours, and removed or unplayable tracks are reported in a Windows notification
+  (**Settings → General**)
 - History view filterable by source (Spotify / YouTube), playlist and event type
 - Export the history to a CSV file that opens in Excel
 - **Listening history** in its own section, without the Spotify API: what the Spotify desktop app plays on
@@ -154,6 +157,7 @@ your Client ID and Client Secret.
 | `YOUTUBE_CLIENT_SECRET` | Google OAuth client secret, optional |
 | `LANGUAGE` | Interface language: `en` or `tr` (optional, default: system language) |
 | `THEME` | `system`, `light` or `dark` (optional, default `system`) |
+| `AUTO_CHECK` | Check tracked playlists automatically: `off`, `6h`, `12h` or `24h` (optional, default `24h`) |
 | `CLOSE_TO_TRAY` | Keep running in the system tray when the window is closed (optional, default `true`) |
 
 ## Limitations
