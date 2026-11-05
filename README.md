@@ -1,6 +1,6 @@
 # Spotify Playlist Tracker
 
-![Playlist Tracker](docs/screenshot.png)
+![Listening statistics](docs/statistics.png)
 
 Are tracks silently disappearing from your Spotify playlists, or videos from your YouTube playlists? This app keeps
 a history of your playlists: which track was **added when**, which one was **removed when**, and which one became
@@ -8,6 +8,19 @@ a history of your playlists: which track was **added when**, which one was **rem
 
 Spotify does not record when a track leaves a playlist. On every check the app saves a snapshot of the playlist
 and compares it with the previous one, so the title, artist and original add date of every vanished track stay on record.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Artist page](docs/artist.png) | ![Recently played](docs/recent.png) |
+| **Artist page:** plays over time, most played tracks and a few words about the artist | **Recently played**, by day, with the song playing now and the mini player along the bottom |
+| ![Playlist tracking](docs/playlists.png) | ![Light theme](docs/statistics-light.png) |
+| **Playlist tracking:** tracked playlists with their last check and latest changes | **Light theme**, or follow the Windows setting |
+| ![Login](docs/login.png) | ![How it works](docs/help.png) |
+| **Login** with Google to sync between devices, or go on without an account | **How it works:** what Spotify and YouTube allow, and why |
+
+The screenshots are taken with `python docs/screenshots.py` (Windows, with the app closed).
 
 ## Features
 
@@ -48,6 +61,10 @@ and compares it with the previous one, so the title, artist and original add dat
   progress; clicking it opens the song's page.
 - **Runs in the background:** closing the window keeps the app in the system tray, where recording can be
   paused; it can also start with Windows. Only one copy runs at a time, opening it again shows the window.
+- **Account and sync:** log in with Google to sync your plays and the playlists you track between your devices
+  (through [Supabase](https://supabase.com)). "Remember me" opens the app straight away next time; everything
+  also works without an account, and your data stays on your computer as the main copy.
+- **How it works** page: what Spotify and YouTube let an app read, and what you can do about it
 - English and Turkish interface, light and dark theme (or follow the Windows setting), under **Settings → General**
 - The window opens centered and scales with the screen: text, pictures and spacing grow or shrink together, so
   it looks the same on a laptop, a 1440p or a 4K screen, and stays sharp on high DPI displays
@@ -169,6 +186,7 @@ The tests use only the standard library and never touch your databases, `config.
 | `LANGUAGE` | Interface language: `en` or `tr` (optional, default: system language) |
 | `THEME` | `system`, `light` or `dark` (optional, default `system`) |
 | `AUTO_CHECK` | Check tracked playlists automatically: `off`, `6h`, `12h` or `24h` (optional, default `24h`) |
+| `SUPABASE_URL`, `SUPABASE_KEY` | Supabase project and its publishable key, for the account and sync (optional) |
 | `CLOSE_TO_TRAY` | Keep running in the system tray when the window is closed (optional, default `true`) |
 
 ## Limitations
@@ -209,6 +227,8 @@ the artist and track names are sent, no account is involved).
 | `app.py` | Starts the graphical interface |
 | `cli.py` | Command line |
 | `tests/` | Tests (`python -m unittest`) |
+| `docs/screenshots.py` | Takes the screenshots of this README |
+| `supabase/migrations/` | Tables of the sync, applied with `npx supabase db push` |
 | `build.py` | Builds the single-file Windows program with PyInstaller |
 | `Spotify Playlist Tracker.bat` | Double-click launcher for Windows |
 | `config.example.json` | Sample configuration file |
