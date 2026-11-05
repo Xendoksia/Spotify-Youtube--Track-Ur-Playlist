@@ -15,16 +15,16 @@ from types import SimpleNamespace
 THEMES = ("system", "light", "dark")
 
 LIGHT = {
-    # Soft grays rather than white, which looked too bright; every text color keeps 4.5:1 on the surface
-    "bg": "#e3e5e9", "surface": "#f1f2f4", "border": "#d2d6dc", "text": "#1f2328", "muted": "#5f6672",
-    "hover": "#e6e8ec", "selected": "#d9e4f8", "stripe": "#eaecef", "focus": "#3b82f6", "focus_active": "#2f6fdb",
-    "disabled": "#c4c8cf", "disabled_text": "#eef0f2", "button_disabled_text": "#8f96a1",
-    "scrollbar": "#c9ced5", "scrollbar_active": "#b3b9c2",
-    "added": "#177a33", "removed": "#c62828", "unplayable": "#9a5a00", "playable": "#1565c0", "initial": "#5f5f5f",
-    "spotify_tint": "#e1eee5", "youtube_tint": "#f1e3e2",
-    "nav": "#d8dbe0",
+    # Slate grays a step darker than white, which looked too bright; every text color keeps 4.5:1 on the surface
+    "bg": "#d3d8e0", "surface": "#e2e6ec", "border": "#c3c9d2", "text": "#1f2328", "muted": "#555d6a",
+    "hover": "#d8dde4", "selected": "#c9d7f0", "stripe": "#dbdfe6", "focus": "#1f5fd6", "focus_active": "#1a51b8",
+    "disabled": "#b9bfc8", "disabled_text": "#e6e9ee", "button_disabled_text": "#7d8592",
+    "scrollbar": "#bcc2cb", "scrollbar_active": "#a7aeb9",
+    "added": "#14702f", "removed": "#b42222", "unplayable": "#8a4f00", "playable": "#1258ad", "initial": "#585f6a",
+    "spotify_tint": "#d2e3d8", "youtube_tint": "#e5d5d4",
+    "nav": "#cbd0d8",
     # Chart marks: at least 3:1 against this theme's surface
-    "chart": "#16924a", "chart_hover": "#10753a", "grid": "#dfe2e6",
+    "chart": "#14853f", "chart_hover": "#0f6b32", "grid": "#d0d5dc",
 }
 DARK = {
     "bg": "#16181d", "surface": "#1f2228", "border": "#30343c", "text": "#e6e8eb", "muted": "#9aa1ab",
