@@ -11,7 +11,7 @@ import sqlite3
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from playlist_tracker.core.i18n import t
@@ -31,7 +31,9 @@ CREATE TABLE IF NOT EXISTS playlists (
     playlist_id TEXT PRIMARY KEY,
     name TEXT,
     last_checked TEXT,
-    tracked INTEGER DEFAULT 0
+    tracked INTEGER DEFAULT 0,
+    changed_at TEXT,
+    synced INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS tracks (
     playlist_id TEXT,
@@ -63,10 +65,24 @@ def open_db(db_path: Path) -> Iterator[sqlite3.Connection]:
     try:
         db.row_factory = sqlite3.Row
         db.executescript(SCHEMA)
+        _add_sync_columns(db)
         with db:
             yield db
     finally:
         db.close()
+
+
+def _add_sync_columns(db: sqlite3.Connection) -> None:
+    """Playlists stored before syncing: when tracking last changed (changed_at, unknown for them) and whether
+    that still has to be sent (synced)."""
+    if "changed_at" not in {row[1] for row in db.execute("PRAGMA table_info(playlists)")}:
+        db.execute("ALTER TABLE playlists ADD COLUMN changed_at TEXT")
+        db.execute("ALTER TABLE playlists ADD COLUMN synced INTEGER NOT NULL DEFAULT 0")
+        db.commit()
+
+
+def now_utc() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 def tracked_playlists(db_path: Path) -> list[dict]:
@@ -77,10 +93,56 @@ def tracked_playlists(db_path: Path) -> list[dict]:
 def set_tracked(playlist_id: str, name: str, tracked: bool, db_path: Path) -> None:
     with open_db(db_path) as db:
         db.execute(
-            "INSERT INTO playlists (playlist_id, name, tracked) VALUES (?, ?, ?) "
-            "ON CONFLICT(playlist_id) DO UPDATE SET name = excluded.name, tracked = excluded.tracked",
-            (playlist_id, name, int(tracked)),
+            "INSERT INTO playlists (playlist_id, name, tracked, changed_at, synced) VALUES (?, ?, ?, ?, 0) "
+            "ON CONFLICT(playlist_id) DO UPDATE SET name = excluded.name, tracked = excluded.tracked, "
+            "changed_at = excluded.changed_at, synced = 0",
+            (playlist_id, name, int(tracked), now_utc()),
         )
+
+
+# Syncing between devices (see core/sync.py): the latest change to tracking wins
+
+# A playlist whose tracking changed before syncing existed loses to any change made on another device
+NEVER = "1970-01-01T00:00:00.000000Z"
+
+
+def unsynced_playlists(db_path: Path) -> list[dict]:
+    with open_db(db_path) as db:
+        return [{**dict(r), "changed_at": r["changed_at"] or NEVER} for r in db.execute(
+            "SELECT playlist_id, name, tracked, changed_at FROM playlists WHERE synced = 0")]
+
+
+def mark_playlists_synced(playlists: list[dict], db_path: Path) -> None:
+    """Note playlists as sent, unless their tracking changed again in the meantime."""
+    with open_db(db_path) as db:
+        db.executemany("UPDATE playlists SET synced = 1 WHERE playlist_id = ? AND COALESCE(changed_at, ?) = ?",
+                       [(p["playlist_id"], NEVER, p["changed_at"]) for p in playlists])
+
+
+def mark_all_playlists_unsynced(db_path: Path) -> None:
+    """After logging out: every playlist goes to the next account logged in."""
+    with open_db(db_path) as db:
+        db.execute("UPDATE playlists SET synced = 0")
+
+
+def merge_remote_playlists(playlists: list[dict], db_path: Path) -> int:
+    """Take tracking changes made on other devices when they are newer than this one's; return how many
+    playlists changed here."""
+    changed = 0
+    with open_db(db_path) as db:
+        for p in playlists:
+            local = db.execute("SELECT tracked, changed_at FROM playlists WHERE playlist_id = ?",
+                               (p["playlist_id"],)).fetchone()
+            if local and (local["changed_at"] or NEVER) >= p["changed_at"]:
+                continue
+            db.execute(
+                "INSERT INTO playlists (playlist_id, name, tracked, changed_at, synced) VALUES (?, ?, ?, ?, 1) "
+                "ON CONFLICT(playlist_id) DO UPDATE SET name = COALESCE(excluded.name, name), "
+                "tracked = excluded.tracked, changed_at = excluded.changed_at, synced = 1",
+                (p["playlist_id"], p["name"], int(p["tracked"]), p["changed_at"]))
+            if not local or bool(local["tracked"]) != bool(p["tracked"]):
+                changed += 1
+    return changed
 
 
 def playlist_summaries(db_path: Path) -> dict[str, dict]:

@@ -1,9 +1,12 @@
+import re
 import sqlite3
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from playlist_tracker.core import sync
 from playlist_tracker.music import listening
+from playlist_tracker.playlists import history
 from tests.test_listening import ListeningTestCase, utc
 
 
@@ -77,7 +80,7 @@ class FakeClient:
         if method == "POST":
             self.sent.extend(payload)
             return None
-        offset = int(path.rsplit("offset=", 1)[1])
+        offset = int(re.search(r"offset=(\d+)", path).group(1))
         return self.rows[offset:offset + sync.BATCH]
 
 
@@ -97,6 +100,10 @@ class SyncTest(ListeningTestCase):
                                         lambda *args, original=original: original(*args, db_path=db_path))
             patcher.start()
             self.addCleanup(patcher.stop)
+        self.spotify_db = Path(self._folder.name) / "history.db"
+        patcher = mock.patch.object(sync, "PLAYLIST_DATABASES", {"spotify": self.spotify_db})
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_push_sends_own_plays_with_this_device(self):
         self.play("A", "Song", "2026-11-02 10:00")
@@ -113,6 +120,41 @@ class SyncTest(ListeningTestCase):
         client = FakeClient(rows)
         self.assertEqual(sync.pull(client), sync.BATCH + 3)
         self.assertEqual(self.config["SYNC_PULLED"], rows[-1]["updated_at"])
+
+
+    def test_tracking_changes_are_sent_once(self):
+        history.set_tracked("p1", "Mix", True, self.spotify_db)
+        client = FakeClient()
+        self.assertEqual(sync.push_playlists(client, "user"), 1)
+        [row] = client.sent
+        self.assertEqual((row["service"], row["playlist_id"], row["tracked"]), ("spotify", "p1", True))
+        self.assertEqual(sync.push_playlists(client, "user"), 0)
+
+    def test_a_newer_change_from_another_device_wins(self):
+        history.set_tracked("p1", "Mix", True, self.spotify_db)
+        rows = [{"service": "spotify", "playlist_id": "p1", "name": "Mix", "tracked": False,
+                 "changed_at": "2999-01-01T00:00:00.000000Z", "updated_at": "2026-11-05T10:00:00+00:00"},
+                {"service": "spotify", "playlist_id": "p2", "name": "New", "tracked": True,
+                 "changed_at": "2999-01-01T00:00:00.000000Z", "updated_at": "2026-11-05T10:00:01+00:00"}]
+        self.assertEqual(sync.pull_playlists(FakeClient(rows)), 2)
+        self.assertEqual([p["playlist_id"] for p in history.tracked_playlists(self.spotify_db)], ["p2"])
+        # Taken over, so not sent back
+        self.assertEqual(history.unsynced_playlists(self.spotify_db), [])
+
+    def test_an_older_change_from_another_device_is_ignored(self):
+        history.set_tracked("p1", "Mix", True, self.spotify_db)
+        rows = [{"service": "spotify", "playlist_id": "p1", "name": "Mix", "tracked": False,
+                 "changed_at": "2000-01-01T00:00:00.000000Z", "updated_at": "2026-11-05T10:00:00+00:00"}]
+        self.assertEqual(sync.pull_playlists(FakeClient(rows)), 0)
+        self.assertEqual(len(history.tracked_playlists(self.spotify_db)), 1)
+
+    def test_playlists_tracked_before_syncing_lose_to_any_change(self):
+        with history.open_db(self.spotify_db) as db:
+            db.execute("INSERT INTO playlists (playlist_id, name, tracked) VALUES ('p1', 'Old', 1)")
+        [playlist] = history.unsynced_playlists(self.spotify_db)
+        self.assertEqual(playlist["changed_at"], history.NEVER)
+        history.mark_playlists_synced([playlist], self.spotify_db)
+        self.assertEqual(history.unsynced_playlists(self.spotify_db), [])
 
 
 if __name__ == "__main__":

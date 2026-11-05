@@ -127,6 +127,10 @@ class App(tk.Tk):
                 # A sync finished: plays from other devices change the statistics
                 if command[1].get("received"):
                     self.listening.mark_stale()
+                # Playlists tracked or untracked on another device
+                if command[1].get("playlists"):
+                    for panel in self.panels.values():
+                        panel.reload_tracked()
                 self.account.show_sync()
             elif isinstance(command, tuple) and command[0] == "checked":
                 # Results of the automatic check: ("checked", service name, results)

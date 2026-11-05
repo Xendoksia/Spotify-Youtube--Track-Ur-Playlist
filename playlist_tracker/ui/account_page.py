@@ -187,6 +187,9 @@ class AccountPage(ttk.Frame):
             self._say("")
             if result.get("received"):
                 self.app.listening.mark_stale()
+            if result.get("playlists"):
+                for panel in self.app.panels.values():
+                    panel.reload_tracked()
         self._run(sync.syncer.run_once, done, t("account.syncing"))
 
     def refresh(self):

@@ -205,6 +205,17 @@ class PlaylistPanel(ttk.Frame):
             }
         self.render()
 
+    def reload_tracked(self):
+        """Tracking changed in the database (synced from another device): take it over and show it."""
+        tracked = {p["playlist_id"]: p for p in history.tracked_playlists(self.service.db_path)}
+        for playlist_id, p in self.playlists.items():
+            p["tracked"] = playlist_id in tracked
+        for playlist_id, p in tracked.items():
+            if playlist_id not in self.playlists:
+                self.playlists[playlist_id] = {"name": p["name"], "owner": "", "track_count": "", "tracked": True,
+                                               "last_checked": p["last_checked"]}
+        self.render()
+
     def render(self):
         for card in self.cards.winfo_children():
             card.destroy()

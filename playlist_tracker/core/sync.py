@@ -18,6 +18,7 @@ from playlist_tracker.core import account
 from playlist_tracker.core.config import load_config, save_config
 from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.music import listening
+from playlist_tracker.playlists import history, spotify, youtube
 
 # Not right at startup, while the app and Windows are still busy starting
 FIRST_SYNC_SECONDS = 10
@@ -26,6 +27,9 @@ INTERVAL_SECONDS = 5 * 60
 BATCH = 500
 # A row written while the previous fetch ran can carry a slightly earlier time, so fetches overlap by this much
 OVERLAP = timedelta(minutes=2)
+
+# Service names in Supabase and their databases
+PLAYLIST_DATABASES = {"spotify": spotify.DB_PATH, "youtube": youtube.DB_PATH}
 
 # The outcome of the last sync, for the account page: at (local time), sent, received, error
 last: dict = {}
@@ -66,13 +70,10 @@ def push(client: account.AccountClient, user_id: str) -> int:
 def pull(client: account.AccountClient) -> int:
     """Fetch plays of other devices changed since the last fetch; return how many were new here."""
     device_id, _ = device()
-    since = load_config().get("SYNC_PULLED")
+    since, changed_since = _since_query("SYNC_PULLED")
     added, offset, newest = 0, 0, since
     query = "select=uid,device_id,played_at,source,artist,name,album,ms_played,updated_at" \
-            f"&device_id=neq.{device_id}&order=updated_at,uid&limit={BATCH}"
-    if since:
-        start = datetime.fromisoformat(since) - OVERLAP
-        query += "&updated_at=gte." + start.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            f"&device_id=neq.{device_id}&order=updated_at,uid&limit={BATCH}{changed_since}"
     while True:
         rows = client.rest("GET", f"plays?{query}&offset={offset}") or []
         added += listening.merge_remote([{**row, "device": row["device_id"]} for row in rows])
@@ -81,11 +82,61 @@ def pull(client: account.AccountClient) -> int:
         if len(rows) < BATCH:
             break
         offset += BATCH
+    _save_since("SYNC_PULLED", since, newest)
+    return added
+
+
+def _since_query(key: str) -> tuple[str | None, str]:
+    """The last fetch time saved under key and the filter for rows changed since then."""
+    since = load_config().get(key)
+    if not since:
+        return None, ""
+    start = datetime.fromisoformat(since) - OVERLAP
+    return since, "&updated_at=gte." + start.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def _save_since(key: str, since: str | None, newest: str | None) -> None:
     if newest and newest != since:
         config = load_config()
-        config["SYNC_PULLED"] = newest
+        config[key] = newest
         save_config(config)
-    return added
+
+
+def push_playlists(client: account.AccountClient, user_id: str) -> int:
+    """Send tracking changes not sent yet; return how many."""
+    sent = 0
+    for service, db_path in PLAYLIST_DATABASES.items():
+        playlists = history.unsynced_playlists(db_path)
+        if not playlists:
+            continue
+        rows = [{"user_id": user_id, "service": service, "playlist_id": p["playlist_id"], "name": p["name"],
+                 "tracked": bool(p["tracked"]), "changed_at": p["changed_at"]} for p in playlists]
+        client.rest("POST", "tracked_playlists?on_conflict=user_id,service,playlist_id", rows,
+                    "resolution=merge-duplicates,return=minimal")
+        history.mark_playlists_synced(playlists, db_path)
+        sent += len(playlists)
+    return sent
+
+
+def pull_playlists(client: account.AccountClient) -> int:
+    """Fetch tracking changes since the last fetch; return how many playlists changed here. This device's own
+    changes come back too and change nothing."""
+    since, query = _since_query("SYNC_PLAYLISTS_PULLED")
+    changed, offset, newest = 0, 0, since
+    while True:
+        rows = client.rest("GET", "tracked_playlists?select=service,playlist_id,name,tracked,changed_at,updated_at"
+                           f"&order=updated_at,service,playlist_id&limit={BATCH}&offset={offset}{query}") or []
+        for service, db_path in PLAYLIST_DATABASES.items():
+            mine = [row for row in rows if row["service"] == service]
+            if mine:
+                changed += history.merge_remote_playlists(mine, db_path)
+        if rows:
+            newest = rows[-1]["updated_at"]
+        if len(rows) < BATCH:
+            break
+        offset += BATCH
+    _save_since("SYNC_PLAYLISTS_PULLED", since, newest)
+    return changed
 
 
 def sync_now() -> dict:
@@ -96,14 +147,19 @@ def sync_now() -> dict:
     client = account.AccountClient()
     sent = push(client, user["id"])
     received = pull(client)
-    return {"sent": sent, "received": received}
+    push_playlists(client, user["id"])
+    playlists = pull_playlists(client)
+    return {"sent": sent, "received": received, "playlists": playlists}
 
 
 def forget() -> None:
     """After logging out: the next account gets every play and fetches from the start."""
     listening.mark_all_unsynced()
+    for db_path in PLAYLIST_DATABASES.values():
+        history.mark_all_playlists_unsynced(db_path)
     config = load_config()
     config.pop("SYNC_PULLED", None)
+    config.pop("SYNC_PLAYLISTS_PULLED", None)
     save_config(config)
     last.clear()
 
