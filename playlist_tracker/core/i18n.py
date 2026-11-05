@@ -21,6 +21,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "nav.playlists": "Playlist tracking",
         "nav.listening": "Listening",
         "nav.help": "How it works",
+        "nav.account": "Account",
 
         "listening.recent_tab": "Recently played",
         "listening.track_toggle": "Record what Spotify plays on this computer",
@@ -270,6 +271,35 @@ STRINGS: dict[str, dict[str, str]] = {
         "csv.added": "Added to playlist",
         "csv.uri": "URI",
 
+        "account.title": "Account",
+        "account.not_configured": "The account service is not set up yet (SUPABASE_URL and SUPABASE_KEY in "
+                                  "config.json).",
+        "account.login_title": "Log in to your account",
+        "account.login_lead": "With an account, your plays and the playlists you follow will be synced with "
+                              "your other devices, such as your phone. Everything keeps working without one.",
+        "account.login_google": "Log in with Google",
+        "account.skip": "Continue without an account",
+        "account.waiting": "The Google sign-in page opened in your browser, choose your account…",
+        "account.refreshing": "Reading your account…",
+        "account.logging_out": "Logging out…",
+        "account.welcome": "Logged in as {name}.",
+        "account.provider": "Signed in with",
+        "account.created": "Account created",
+        "account.user_id": "User ID",
+        "account.sync": "Syncing",
+        "account.sync_soon": "Not yet: coming in the next step",
+        "account.refresh": "Refresh",
+        "account.logout": "Log out",
+        "account.failed": "Account error {code}: {message}",
+        "account.connect_failed": "Could not connect to the account service: {reason}",
+        "account.port_in_use": "Port {port} is in use, so the login cannot finish. Close the program using it "
+                               "and try again.",
+        "account.login_failed": "Login failed: {error}",
+        "account.login_timeout": "No answer came from the browser. Check that {redirect_uri} is allowed in "
+                                 "Supabase (Authentication, URL Configuration, Redirect URLs).",
+        "account.logged_out": "You are not logged in.",
+        "account.session_expired": "Your session has ended. Please log in again.",
+
         "help.title": "How it works",
         "help.lead": "Spotify and YouTube limit what an app may read. Here is what that means and what you can do.",
         "help.setup.title": "Why so much has to be set up",
@@ -414,6 +444,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "nav.playlists": "Playlist takibi",
         "nav.listening": "Dinleme",
         "nav.help": "Nasıl çalışır?",
+        "nav.account": "Hesap",
 
         "listening.recent_tab": "Son dinlenenler",
         "listening.track_toggle": "Bu bilgisayarda Spotify'da çalanları kaydet",
@@ -662,6 +693,34 @@ STRINGS: dict[str, dict[str, str]] = {
         "csv.album": "Albüm",
         "csv.added": "Listeye eklenme",
         "csv.uri": "URI",
+
+        "account.title": "Hesap",
+        "account.not_configured": "Hesap hizmeti henüz ayarlanmadı (config.json'da SUPABASE_URL ve SUPABASE_KEY).",
+        "account.login_title": "Hesabına giriş yap",
+        "account.login_lead": "Hesapla dinlemelerin ve takip ettiğin listeler telefonun gibi diğer cihazlarınla "
+                              "eşitlenecek. Hesapsız da her şey çalışmaya devam eder.",
+        "account.login_google": "Google ile giriş yap",
+        "account.skip": "Hesapsız devam et",
+        "account.waiting": "Google giriş sayfası tarayıcında açıldı, hesabını seç…",
+        "account.refreshing": "Hesabın okunuyor…",
+        "account.logging_out": "Çıkış yapılıyor…",
+        "account.welcome": "{name} olarak giriş yapıldı.",
+        "account.provider": "Giriş yöntemi",
+        "account.created": "Hesap oluşturma",
+        "account.user_id": "Kullanıcı kimliği",
+        "account.sync": "Eşitleme",
+        "account.sync_soon": "Henüz yok: sonraki adımda geliyor",
+        "account.refresh": "Yenile",
+        "account.logout": "Çıkış yap",
+        "account.failed": "Hesap hatası {code}: {message}",
+        "account.connect_failed": "Hesap hizmetine bağlanılamadı: {reason}",
+        "account.port_in_use": "{port} portu kullanımda, giriş tamamlanamıyor. Onu kullanan programı kapatıp "
+                               "tekrar dene.",
+        "account.login_failed": "Giriş başarısız: {error}",
+        "account.login_timeout": "Tarayıcıdan cevap gelmedi. {redirect_uri} adresinin Supabase'de izinli olduğunu "
+                                 "kontrol et (Authentication, URL Configuration, Redirect URLs).",
+        "account.logged_out": "Giriş yapılmamış.",
+        "account.session_expired": "Oturumun sona erdi. Lütfen tekrar giriş yap.",
 
         "help.title": "Nasıl çalışır?",
         "help.lead": "Spotify ve YouTube, uygulamaların neyi okuyabileceğini sınırlıyor. Bu ne demek, sen ne "

@@ -38,7 +38,8 @@ def main():
     checker = AutoChecker(tray.notify, lambda service, results: commands.put(("checked", service, results)))
     checker.start()
     hidden = background.start_minimized()
-    section = "listening"
+    # None: the window picks (the login screen until the user logs in or skips it, else listening)
+    section = None
     try:
         while True:
             app = App(local_tracker, commands, tray, hidden, section)

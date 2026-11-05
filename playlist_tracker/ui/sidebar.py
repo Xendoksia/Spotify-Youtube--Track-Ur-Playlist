@@ -63,6 +63,9 @@ class Sidebar(tk.Frame):
             widget.bind("<Enter>", lambda e, name=name: self._paint(name, hover=True))
             widget.bind("<Leave>", lambda e, name=name: self._on_leave(name, e))
 
+    def set_text(self, name: str, text: str):
+        self.items[name]["label"].configure(text=text)
+
     def select(self, name: str):
         previous, self.selected = self.selected, name
         if previous in self.items:

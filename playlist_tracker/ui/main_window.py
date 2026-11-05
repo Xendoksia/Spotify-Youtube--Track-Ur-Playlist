@@ -12,12 +12,13 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from playlist_tracker import background
-from playlist_tracker.core import i18n
+from playlist_tracker.core import account, i18n
 from playlist_tracker.core.config import load_config
 from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.core.i18n import t
 from playlist_tracker.music import artwork, nowplaying
 from playlist_tracker.ui import theme
+from playlist_tracker.ui.account_page import AccountPage
 from playlist_tracker.ui.history_tab import HistoryTab
 from playlist_tracker.ui.listening_view import ListeningView
 from playlist_tracker.ui.mini_player import MiniPlayer
@@ -35,8 +36,9 @@ SUMMARY_FLAG = "--summary"
 
 class App(tk.Tk):
     def __init__(self, local_tracker: nowplaying.LocalTracker, commands: queue.Queue[str],
-                 tray: background.Tray, hidden: bool = False, section: str = "listening"):
-        """section: the page shown first (after a language or theme change, the settings again)."""
+                 tray: background.Tray, hidden: bool = False, section: str | None = None):
+        """section: the page shown first (after a language or theme change, the settings again); None picks
+        the login screen until the user logs in or skips it, else listening."""
         super().__init__()
         self.local_tracker = local_tracker
         self.commands = commands
@@ -143,8 +145,10 @@ class App(tk.Tk):
         self.tabs = Tabs(playlist_section)
         self.tabs.pack(fill="both", expand=True)
         self.settings = SettingsPage(self.content, self)
+        self.account = AccountPage(self.content, self)
         for name, frame, glyph, bottom in (("listening", self.listening, "tracks", False),
                                            ("playlists", playlist_section, "list", False),
+                                           ("account", self.account, "account", True),
                                            ("help", HelpPage(self.content), "help", True),
                                            ("settings", self.settings, "settings", True)):
             self.sections[name] = frame
@@ -159,7 +163,11 @@ class App(tk.Tk):
             self.tabs.insert(index, panel, text=service.name)
         self.tabs.select(0)
         self.history.update_filter()
-        self.show_section(section if section in self.sections else "listening")
+        self.update_account()
+        if section not in self.sections:
+            # Until the user logs in or chooses to go on without an account, the app opens on the login screen
+            section = "account" if account.ask_at_start() else "listening"
+        self.show_section(section)
 
     def _open_monthly_summary(self, force: bool = False):
         """On the first days of a month, show the summary of the month before once (see wrapped.SHOW_DAYS);
@@ -183,6 +191,8 @@ class App(tk.Tk):
         if name == "settings" and (name != self.section or service):
             # Built anew from the saved settings each time it is opened
             self.settings.show(service)
+        if name == "account" and name != self.section:
+            self.account.show()
         if name == self.section:
             return
         for key, frame in self.sections.items():
@@ -192,6 +202,12 @@ class App(tk.Tk):
                 frame.pack_forget()
         self.section = name
         self.sidebar.select(name)
+
+    def update_account(self):
+        """The account item of the sidebar shows the logged-in user's first name."""
+        user = account.profile()
+        name = (user.get("name") or user.get("email") or "").split()[0] if user else ""
+        self.sidebar.set_text("account", name or t("nav.account"))
 
     def set_status(self, text):
         self.sidebar.status.configure(text=text)
