@@ -1,4 +1,5 @@
--- Tables the app syncs to in Supabase. Run once in the project's SQL editor; running it again is harmless.
+-- Tables the app syncs to (plays, tracked playlists). Applied with `npx supabase db push --remote=<project ref>`;
+-- every statement can run again harmlessly.
 -- Every row belongs to the logged-in user (user_id), and row level security lets a user reach only their own.
 
 -- Plays, as listening.db's listens table. uid identifies a play on every device; device_id is the device that
