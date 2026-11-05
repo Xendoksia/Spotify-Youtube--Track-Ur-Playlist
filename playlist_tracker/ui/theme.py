@@ -165,19 +165,41 @@ def is_dark(setting: str | None) -> bool:
     return system_prefers_dark()
 
 
-def dark_title_bar(window: tk.Misc) -> None:
-    """Ask Windows 10/11 to draw the title bar of a window in dark mode."""
-    if sys.platform != "win32" or not P.dark:
+# Window attributes of Windows' desktop window manager (DwmSetWindowAttribute)
+DWMWA_USE_IMMERSIVE_DARK_MODE = (20, 19)  # older Windows 10 builds use 19
+DWMWA_BORDER_COLOR = 34
+DWMWA_CAPTION_COLOR = 35
+DWMWA_TEXT_COLOR = 36
+
+
+def _colorref(color: str) -> int:
+    """A "#rrggbb" color as Windows' COLORREF (0x00bbggrr)."""
+    red, green, blue = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+    return red | green << 8 | blue << 16
+
+
+def style_title_bar(window: tk.Misc) -> None:
+    """Draw the window's title bar in the app's colors, so it reads as one with the sidebar under it, instead of
+    the system's accent color. Windows still draws it, so its buttons, snapping and dragging keep working.
+    Windows 10 only takes the dark mode; the colors need Windows 11."""
+    if sys.platform != "win32":
         return
     try:
         import ctypes
         window.update_idletasks()
         hwnd = ctypes.windll.user32.GetParent(window.winfo_id())
-        value = ctypes.c_int(1)
-        for attribute in (20, 19):  # DWMWA_USE_IMMERSIVE_DARK_MODE, older Windows 10 builds use 19
-            if ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, attribute, ctypes.byref(value),
-                                                          ctypes.sizeof(value)) == 0:
+
+        def set_attribute(attribute: int, value: int) -> bool:
+            value = ctypes.c_int(value)
+            return ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, attribute, ctypes.byref(value),
+                                                              ctypes.sizeof(value)) == 0
+
+        for attribute in DWMWA_USE_IMMERSIVE_DARK_MODE:
+            if set_attribute(attribute, int(P.dark)):
                 break
+        set_attribute(DWMWA_CAPTION_COLOR, _colorref(P.sidebar))
+        set_attribute(DWMWA_TEXT_COLOR, _colorref(P.text))
+        set_attribute(DWMWA_BORDER_COLOR, _colorref(P.border))
     except (AttributeError, OSError):
         pass
 
@@ -202,6 +224,8 @@ def _button_style(style, name, background, foreground, border, active, disabled,
 def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, str]]) -> None:
     """Activate the palette and style all ttk widgets; accents maps a style prefix to (color, pressed color)."""
     P.__dict__.update(DARK if is_dark(setting) else LIGHT, dark=is_dark(setting))
+    # The sidebar and the title bar above it, between the window's background and the surface of the pages
+    P.sidebar = mix(P.bg, P.surface, 0.5)
 
     set_scale(root)
     for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
@@ -283,7 +307,7 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     style.map("Vertical.TScrollbar", background=[("active", P.scrollbar_active)],
               lightcolor=[("active", P.scrollbar_active)], darkcolor=[("active", P.scrollbar_active)])
 
-    dark_title_bar(root)
+    style_title_bar(root)
 
 
 def text_box(parent, height: int) -> tk.Text:

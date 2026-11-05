@@ -9,7 +9,7 @@ import tkinter as tk
 from typing import Callable
 
 from playlist_tracker import background
-from playlist_tracker.ui.theme import FONT, FONT_BOLD, TYPE, P, icon, icon_font, mix, px
+from playlist_tracker.ui.theme import FONT, FONT_BOLD, TYPE, P, icon, icon_font, px
 
 WIDTH = 220
 ITEM_HEIGHT = 40
@@ -18,7 +18,7 @@ ACCENT_WIDTH = 3
 
 class Sidebar(tk.Frame):
     def __init__(self, parent, title: str):
-        self.background = mix(P.bg, P.surface, 0.5)
+        self.background = P.sidebar
         super().__init__(parent, background=self.background, width=px(WIDTH))
         self.pack_propagate(False)
         self.items: dict[str, dict] = {}
