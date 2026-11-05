@@ -63,7 +63,7 @@ ICON_GLYPHS = {"back": "\ue76b", "forward": "\ue76c", "close": "\ue711",
                "layers": "\ue81e", "area": "\ue9d2", "flag": "\ue7c1",
                # Sections in the sidebar
                "list": "\ue8fd", "settings": "\ue713"}
-TEXT_GLYPHS = {"back": "‹", "forward": "›", "close": "✕"}
+TEXT_GLYPHS = {"back": "‹", "forward": "›", "close": "✕", "help": "?"}
 _icon_font: str | None = None
 
 P = SimpleNamespace(**LIGHT, dark=False)

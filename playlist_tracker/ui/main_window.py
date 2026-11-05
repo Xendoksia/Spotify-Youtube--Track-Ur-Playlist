@@ -23,6 +23,7 @@ from playlist_tracker.ui.listening_view import ListeningView
 from playlist_tracker.ui.mini_player import MiniPlayer
 from playlist_tracker.ui.playlist_panel import PlaylistPanel
 from playlist_tracker.ui.services import SERVICES, SPOTIFY, Service
+from playlist_tracker.ui.help_page import HelpPage
 from playlist_tracker.ui.settings_page import SettingsPage
 from playlist_tracker.ui.sidebar import Sidebar
 from playlist_tracker.ui.tabs import Tabs
@@ -144,6 +145,7 @@ class App(tk.Tk):
         self.settings = SettingsPage(self.content, self)
         for name, frame, glyph, bottom in (("listening", self.listening, "tracks", False),
                                            ("playlists", playlist_section, "list", False),
+                                           ("help", HelpPage(self.content), "help", True),
                                            ("settings", self.settings, "settings", True)):
             self.sections[name] = frame
             text = t("settings.title") if name == "settings" else t(f"nav.{name}")
