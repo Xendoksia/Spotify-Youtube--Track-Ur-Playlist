@@ -144,6 +144,11 @@ def sync_now() -> dict:
     user = account.profile()
     if not user:
         raise account.AccountError("")
+    if load_config().get("SYNC_USER") != user["id"]:
+        forget()
+        config = load_config()
+        config["SYNC_USER"] = user["id"]
+        save_config(config)
     client = account.AccountClient()
     sent = push(client, user["id"])
     received = pull(client)
@@ -153,7 +158,7 @@ def sync_now() -> dict:
 
 
 def forget() -> None:
-    """After logging out: the next account gets every play and fetches from the start."""
+    """Another account logged in: it gets every play and fetches from the start."""
     listening.mark_all_unsynced()
     for db_path in PLAYLIST_DATABASES.values():
         history.mark_all_playlists_unsynced(db_path)

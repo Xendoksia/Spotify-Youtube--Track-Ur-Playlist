@@ -26,8 +26,9 @@ from playlist_tracker.playlists.oauth import start_redirect_server, wait_for_red
 
 REDIRECT_PORT = 8889
 REDIRECT_URI = f"http://127.0.0.1:{REDIRECT_PORT}/callback"
-# Asked once after the first start; afterwards the app opens on listening
-SKIPPED_KEY = "ACCOUNT_SKIPPED"
+# "Remember me" on the login screen: kept, the app opens straight away next time; not kept, the session ends
+# when the app starts again
+REMEMBER_KEY = "ACCOUNT_REMEMBER"
 
 # One session for the whole app: Supabase hands out a new refresh token with each renewal and the old one stops
 # working, so the window and the sync thread must not renew it each on their own
@@ -99,7 +100,6 @@ class AccountClient:
         config = load_config()
         config["ACCOUNT_REFRESH_TOKEN"] = session["refresh_token"]
         config["ACCOUNT"] = _profile_of(session.get("user") or {})
-        config.pop(SKIPPED_KEY, None)
         save_config(config)
         return config["ACCOUNT"]
 
@@ -182,13 +182,42 @@ class AccountClient:
         save_config(config)
 
 
-def skip() -> None:
-    """Continue without an account; the login screen is not opened at start any more."""
+def remembered() -> bool:
+    return load_config().get(REMEMBER_KEY, True)
+
+
+def set_remembered(remember: bool) -> None:
     config = load_config()
-    config[SKIPPED_KEY] = True
+    config[REMEMBER_KEY] = remember
     save_config(config)
 
 
-def ask_at_start(config: dict | None = None) -> bool:
-    config = load_config() if config is None else config
-    return configured(config) and not profile(config) and not config.get(SKIPPED_KEY)
+# Whether this run of the app already got past the login screen (logged in or went on without an account), so a
+# window rebuilt after a language or theme change does not ask again
+decided = False
+
+
+def needs_login() -> bool:
+    return configured() and not profile() and not decided
+
+
+def end_unremembered_session() -> None:
+    """At start: a session kept without "remember me" ends. It is forgotten here at once, so the login screen
+    shows, and ended at Supabase in the background."""
+    config = load_config()
+    refresh_token = config.get("ACCOUNT_REFRESH_TOKEN")
+    if not refresh_token or config.get(REMEMBER_KEY, True) or not configured(config):
+        return
+    client = AccountClient(config)
+    with _session_lock:
+        client._forget()
+
+    def revoke():
+        try:
+            token = client._call("/auth/v1/token?grant_type=refresh_token",
+                                 {"refresh_token": refresh_token})["access_token"]
+            client._call("/auth/v1/logout", {}, token)
+        except AccountError:
+            pass  # offline: the session runs out by itself
+
+    threading.Thread(target=revoke, name="logout", daemon=True).start()

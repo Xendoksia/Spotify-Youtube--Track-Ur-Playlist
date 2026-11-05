@@ -10,7 +10,6 @@ from tkinter import ttk
 from typing import TYPE_CHECKING
 
 from playlist_tracker.core import account, sync
-from playlist_tracker.core.config import load_config
 from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import format_date
@@ -74,11 +73,6 @@ class AccountPage(ttk.Frame):
         self.login_button = ttk.Button(buttons, text=t("account.login_google"), style="Accent.TButton",
                                        command=self.login)
         self.login_button.pack(side="left")
-        if not load_config().get(account.SKIPPED_KEY):
-            skip = ttk.Label(buttons, text=t("account.skip"), style="Card.TLabel", foreground=P.focus,
-                             cursor="hand2")
-            skip.pack(side="left", padx=(px(16), 0))
-            skip.bind("<Button-1>", lambda e: self.skip())
         self._message_line()
 
     def _build_profile(self, user: dict):
@@ -171,7 +165,7 @@ class AccountPage(ttk.Frame):
         self._run(lambda: account.AccountClient().login(), self._logged_in, t("account.waiting"))
 
     def _logged_in(self, user: dict):
-        self._download_avatar(user)
+        self.download_avatar(user)
         self.show()
         self._say(t("account.welcome", name=user.get("name") or user.get("email")))
         self.app.update_account()
@@ -197,17 +191,13 @@ class AccountPage(ttk.Frame):
 
     def logout(self):
         def done(_):
-            sync.forget()
             AVATAR_PATH.unlink(missing_ok=True)
             self.show()
             self.app.update_account()
+            self.app.show_login()
         self._run(lambda: account.AccountClient().logout(), done, t("account.logging_out"))
 
-    def skip(self):
-        account.skip()
-        self.app.show_section("listening")
-
-    def _download_avatar(self, user: dict):
+    def download_avatar(self, user: dict):
         url = user.get("avatar")
         if not url:
             return
@@ -218,6 +208,8 @@ class AccountPage(ttk.Frame):
             except OSError:
                 return
             if saved:
-                self.app.after(0, lambda: self.avatar.winfo_exists() and self._show_avatar(user))
+                # The page may not have been opened yet; it shows the picture when it is
+                avatar = getattr(self, "avatar", None)
+                self.app.after(0, lambda: avatar is not None and avatar.winfo_exists() and self._show_avatar(user))
 
         threading.Thread(target=worker, daemon=True).start()

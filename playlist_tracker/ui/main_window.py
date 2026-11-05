@@ -12,7 +12,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from playlist_tracker import background
-from playlist_tracker.core import account, i18n
+from playlist_tracker.core import account, i18n, sync
 from playlist_tracker.core.config import load_config
 from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.core.i18n import t
@@ -21,6 +21,7 @@ from playlist_tracker.ui import theme
 from playlist_tracker.ui.account_page import AccountPage
 from playlist_tracker.ui.history_tab import HistoryTab
 from playlist_tracker.ui.listening_view import ListeningView
+from playlist_tracker.ui.login_screen import LoginScreen
 from playlist_tracker.ui.mini_player import MiniPlayer
 from playlist_tracker.ui.playlist_panel import PlaylistPanel
 from playlist_tracker.ui.services import SERVICES, SPOTIFY, Service
@@ -37,8 +38,8 @@ SUMMARY_FLAG = "--summary"
 class App(tk.Tk):
     def __init__(self, local_tracker: nowplaying.LocalTracker, commands: queue.Queue[str],
                  tray: background.Tray, hidden: bool = False, section: str | None = None):
-        """section: the page shown first (after a language or theme change, the settings again); None picks
-        the login screen until the user logs in or skips it, else listening."""
+        """section: the page shown first (after a language or theme change, the settings again); listening when
+        None. Without a remembered session the login screen covers it first."""
         super().__init__()
         self.local_tracker = local_tracker
         self.commands = commands
@@ -55,6 +56,7 @@ class App(tk.Tk):
         self.panels: dict[str, PlaylistPanel] = {}
         self.sections: dict[str, ttk.Frame] = {}
         self.section: str | None = None
+        self.login_screen: LoginScreen | None = None
 
         theme.apply_theme(self, config.get("THEME"), {s.name: (s.accent, s.accent_active) for s in SERVICES})
         # After the theme, which sets the scale for this screen
@@ -80,12 +82,38 @@ class App(tk.Tk):
                 self.withdraw()
             else:
                 self.iconify()
-        elif not any(s.has_credentials(config) for s in SERVICES):
+        # What opens at start waits until the login screen is passed
+        start = None if hidden else self._on_start
+        if account.needs_login():
+            self.show_login(start)
+        elif start:
+            start()
+
+    def _on_start(self):
+        if not any(s.has_credentials(load_config()) for s in SERVICES):
             self.after(200, lambda: self.open_settings(SPOTIFY))
         elif SUMMARY_FLAG in sys.argv[1:]:
             self.after(500, lambda: self._open_monthly_summary(force=True))
         else:
             self.after(500, self._open_monthly_summary)
+
+    def show_login(self, then=None):
+        """Cover the window with the login screen; then() runs once it is passed."""
+        def done(profile):
+            account.decided = True
+            screen.destroy()
+            self.login_screen = None
+            if profile:
+                self.account.download_avatar(profile)
+                if sync.syncer:
+                    sync.syncer.wake()
+            self.update_account()
+            self.show_section("listening")
+            if then:
+                then()
+
+        screen = self.login_screen = LoginScreen(self, done)
+        screen.show()
 
     def on_close(self):
         if not background.close_to_tray(load_config()):
@@ -173,10 +201,7 @@ class App(tk.Tk):
         self.tabs.select(0)
         self.history.update_filter()
         self.update_account()
-        if section not in self.sections:
-            # Until the user logs in or chooses to go on without an account, the app opens on the login screen
-            section = "account" if account.ask_at_start() else "listening"
-        self.show_section(section)
+        self.show_section(section if section in self.sections else "listening")
 
     def _open_monthly_summary(self, force: bool = False):
         """On the first days of a month, show the summary of the month before once (see wrapped.SHOW_DAYS);

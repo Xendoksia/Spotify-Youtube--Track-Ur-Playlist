@@ -6,7 +6,7 @@ it is rebuilt after a language or theme change.
 from __future__ import annotations
 
 from playlist_tracker import background
-from playlist_tracker.core import i18n, sync
+from playlist_tracker.core import account, i18n, sync
 from playlist_tracker.core.config import load_config
 from playlist_tracker.music import nowplaying
 from playlist_tracker.playlists.auto_check import AutoChecker
@@ -27,6 +27,7 @@ def main():
 
     # The tracker and tray icon outlive windows rebuilt after a language or theme change,
     # so a song keeps being one play
+    account.end_unremembered_session()
     local_tracker = nowplaying.LocalTracker()
     if tracking_enabled(load_config()):
         local_tracker.start()
@@ -40,7 +41,6 @@ def main():
     sync.syncer = sync.Syncer(lambda result: commands.put(("synced", result)))
     sync.syncer.start()
     hidden = background.start_minimized()
-    # None: the window picks (the login screen until the user logs in or skips it, else listening)
     section = None
     try:
         while True:
