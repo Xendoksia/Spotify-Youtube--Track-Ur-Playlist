@@ -148,6 +148,11 @@ def unsynced(limit: int, db_path: Path = DB_PATH) -> list[dict]:
             "WHERE synced = 0 ORDER BY id LIMIT ?", (limit,))]
 
 
+def unsynced_count(db_path: Path = DB_PATH) -> int:
+    with open_db(db_path) as db:
+        return db.execute("SELECT COUNT(*) FROM listens WHERE synced = 0").fetchone()[0]
+
+
 def mark_synced(plays: list[dict], db_path: Path = DB_PATH) -> None:
     """Note plays as sent, unless their listening time changed in the meantime (then they go again)."""
     with open_db(db_path) as db:

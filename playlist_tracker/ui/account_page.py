@@ -5,21 +5,22 @@ The account, as a page of the window: a login screen while logged out, the accou
 from __future__ import annotations
 
 import threading
-import tkinter as tk
+from datetime import datetime
 from tkinter import ttk
 from typing import TYPE_CHECKING
 
 from playlist_tracker.core import account, sync
 from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.core.i18n import number, t
-from playlist_tracker.core.text import format_date
-from playlist_tracker.music import artwork
+from playlist_tracker.music import artwork, listening
+from playlist_tracker.ui.stats.text import month_name
+from playlist_tracker.ui.stats.widgets import Hero, card, card_row
 from playlist_tracker.ui.theme import FONT, TYPE, P, px
 
 if TYPE_CHECKING:
     from playlist_tracker.ui.main_window import App
 
-AVATAR_SIZE = 72
+AVATAR_SIZE = 96
 AVATAR_PATH = artwork.ART_DIR / "account" / "avatar.jpg"
 # Longer lines are hard to read on a wide window
 TEXT_WIDTH = 640
@@ -78,63 +79,98 @@ class AccountPage(ttk.Frame):
         self._message_line()
 
     def _build_profile(self, user: dict):
-        top = ttk.Frame(self.card, style="Card.TFrame")
-        top.pack(anchor="w", fill="x")
-        self.avatar = tk.Label(top, background=P.surface)
-        self.avatar.pack(side="left", padx=(0, px(16)))
+        # The profile on the colors of the user's picture, like the number one cards of the statistics
+        self.hero = Hero(self.card, t("account.caption"), round_image=True, image_size=AVATAR_SIZE)
+        self.hero.pack(fill="x")
         self._show_avatar(user)
-        names = ttk.Frame(top, style="Card.TFrame")
-        names.pack(side="left", fill="x")
-        ttk.Label(names, text=user.get("name") or user.get("email"), style="Card.TLabel",
-                  font=TYPE["display"]).pack(anchor="w")
-        if user.get("name"):
-            ttk.Label(names, text=user.get("email"), style="CardMuted.TLabel").pack(anchor="w", pady=(px(2), 0))
 
-        details = ttk.Frame(self.card, style="Card.TFrame")
-        details.pack(anchor="w", fill="x", pady=(px(16), 0))
-        rows = [(t("account.provider"), (user.get("provider") or "").capitalize()),
-                (t("account.created"), format_date(user.get("created_at"))),
-                (t("account.user_id"), user.get("id")),
-                (t("account.sync"), "")]
-        for row, (label, value) in enumerate(rows):
-            ttk.Label(details, text=label, style="CardMuted.TLabel").grid(row=row, column=0, sticky="w",
+        row = card_row(self.card)
+        sync_card = card(row, "sync", t("account.sync"), column=0)
+        self.sync_status = ttk.Label(sync_card, style="Card.TLabel", font=TYPE["display"])
+        self.sync_status.pack(anchor="w")
+        self.sync_time = ttk.Label(sync_card, style="CardMuted.TLabel")
+        self.sync_time.pack(anchor="w", pady=(px(4), 0))
+        self.sync_counts = ttk.Label(sync_card, style="Card.TLabel", wraplength=px(260), justify="left")
+        self.sync_counts.pack(anchor="w", pady=(px(12), 0))
+        self._buttons(sync_card, ((t("account.sync_now"), self.sync_now, "Accent.TButton"),))
+
+        device_card = card(row, "device", t("account.device"), column=1)
+        ttk.Label(device_card, text=sync.device()[1], style="Card.TLabel", font=TYPE["display"]).pack(anchor="w")
+        self.device_plays = ttk.Label(device_card, style="CardMuted.TLabel")
+        self.device_plays.pack(anchor="w", pady=(px(4), 0))
+        self.device_waiting = ttk.Label(device_card, style="Card.TLabel")
+        self.device_waiting.pack(anchor="w", pady=(px(12), 0))
+
+        account_card = card(row, "account", t("account.details"), column=2)
+        details = ttk.Frame(account_card, style="Card.TFrame")
+        details.pack(fill="x")
+        for index, (label, value) in enumerate(((t("account.provider"), (user.get("provider") or "").capitalize()),
+                                                (t("account.created"), self._date(user.get("created_at"))),
+                                                (t("account.user_id"), (user.get("id") or "")[:8]))):
+            ttk.Label(details, text=label, style="CardMuted.TLabel").grid(row=index, column=0, sticky="w",
                                                                          pady=px(2))
-            value_label = ttk.Label(details, text=value or "—", style="Card.TLabel")
-            value_label.grid(row=row, column=1, sticky="w", padx=(px(16), 0), pady=px(2))
-        self.sync_label = value_label
+            ttk.Label(details, text=value or "—", style="Card.TLabel").grid(row=index, column=1, sticky="w",
+                                                                           padx=(px(16), 0), pady=px(2))
+        self._buttons(account_card, ((t("account.refresh"), self.refresh, "TButton"),
+                                     (t("account.logout"), self.logout, "TButton")))
+        self._message_line()
         self.show_sync()
 
-        buttons = ttk.Frame(self.card, style="Card.TFrame")
-        buttons.pack(anchor="w", pady=(px(20), 0))
-        ttk.Button(buttons, text=t("account.sync_now"), style="Accent.TButton",
-                   command=self.sync_now).pack(side="left")
-        ttk.Button(buttons, text=t("account.refresh"), command=self.refresh).pack(side="left", padx=(px(8), 0))
-        ttk.Button(buttons, text=t("account.logout"), command=self.logout).pack(side="left", padx=(px(8), 0))
-        self._message_line()
+    @staticmethod
+    def _buttons(parent, buttons):
+        """Buttons along the bottom of a card."""
+        frame = ttk.Frame(parent, style="Card.TFrame")
+        frame.pack(side="bottom", anchor="w", pady=(px(16), 0))
+        for index, (text, command, style) in enumerate(buttons):
+            ttk.Button(frame, text=text, command=command, style=style).pack(side="left",
+                                                                            padx=(0 if index == 0 else px(8), 0))
+
+    @staticmethod
+    def _date(iso: str | None) -> str:
+        """The day an account was made, as "5 November 2026"."""
+        if not iso:
+            return ""
+        try:
+            moment = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone()
+        except ValueError:
+            return iso
+        return f"{moment.day} {month_name(moment.month)} {moment.year}"
 
     def show_sync(self):
-        """The outcome of the last sync, on the sync row."""
-        if self.sync_label is None or not self.sync_label.winfo_exists():
+        """The outcome of the last sync and what waits on this computer."""
+        status = getattr(self, "sync_status", None)
+        if status is None or not status.winfo_exists():
             return
         last = sync.last
         if last.get("error"):
-            text, color = t("account.sync_failed", error=last["error"]), P.removed
+            text, color = t("account.sync_state.failed"), P.removed
+            when, counts = "", last["error"]
         elif last.get("at"):
-            text, color = t("account.sync_done", time=f"{last['at']:%H:%M}", sent=number(last["sent"]),
-                            received=number(last["received"])), P.text
+            text, color = t("account.sync_state.done"), P.added
+            when = t("account.sync_at", time=f"{last['at']:%H:%M}")
+            counts = t("account.sync_counts", sent=number(last["sent"]), received=number(last["received"]))
         else:
-            text, color = t("account.sync_waiting"), P.muted
-        self.sync_label.configure(text=text, foreground=color)
+            text, color = t("account.sync_state.waiting"), P.muted
+            when, counts = t("account.sync_every"), ""
+        status.configure(text=f"● {text}", foreground=color)
+        self.sync_time.configure(text=when)
+        self.sync_counts.configure(text=counts, foreground=P.removed if last.get("error") else P.text)
+        total, waiting = sum(listening.counts().values()), listening.unsynced_count()
+        self.device_plays.configure(text=t("account.device_plays", count=number(total)))
+        self.device_waiting.configure(text=t("account.device_waiting", count=number(waiting)) if waiting
+                                      else t("account.device_all_sent"),
+                                      foreground=P.text if waiting else P.added)
 
     def _show_avatar(self, user: dict):
-        image = artwork.photo(AVATAR_PATH, px(AVATAR_SIZE), P.surface, round_=True)
-        if image:
-            self.avatar.configure(image=image, text="", width=0, height=0)
-            self.avatar.image = image
-        else:
-            # The first letter on a circle until the picture is downloaded
-            letter = (user.get("name") or user.get("email") or "?")[:1].upper()
-            self.avatar.configure(text=letter, font=TYPE["name"], foreground=P.chart, width=2)
+        hero = getattr(self, "hero", None)
+        if hero is None or not hero.winfo_exists():
+            return
+        name = user.get("name") or user.get("email") or "?"
+        detail = t("account.since", provider=(user.get("provider") or "").capitalize(),
+                   date=self._date(user.get("created_at")))
+        # Without a picture yet, the first letter of the name on a circle
+        hero.show(name, user.get("email") if user.get("name") else "", detail,
+                  AVATAR_PATH if AVATAR_PATH.exists() else None)
 
     # Actions, run off the window's thread
 
@@ -211,7 +247,6 @@ class AccountPage(ttk.Frame):
                 return
             if saved:
                 # The page may not have been opened yet; it shows the picture when it is
-                avatar = getattr(self, "avatar", None)
-                self.app.after(0, lambda: avatar is not None and avatar.winfo_exists() and self._show_avatar(user))
+                self.app.after(0, lambda: self._show_avatar(user))
 
         threading.Thread(target=worker, daemon=True).start()

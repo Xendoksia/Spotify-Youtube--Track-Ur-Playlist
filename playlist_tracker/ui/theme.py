@@ -62,7 +62,7 @@ ICON_GLYPHS = {"back": "\ue76b", "forward": "\ue76c", "close": "\ue711",
                "star": "\ue734", "tag": "\ue8ec", "history": "\ue81c", "disc": "\ue93c",
                "layers": "\ue81e", "area": "\ue9d2", "flag": "\ue7c1",
                # Sections in the sidebar
-               "list": "\ue8fd", "account": "\ue77b", "help": "\ue897", "settings": "\ue713"}
+               "list": "\ue8fd", "account": "\ue77b", "sync": "\ue895", "device": "\ue7f8", "help": "\ue897", "settings": "\ue713"}
 TEXT_GLYPHS = {"back": "‹", "forward": "›", "close": "✕", "help": "?"}
 _icon_font: str | None = None
 
