@@ -6,7 +6,7 @@ it is rebuilt after a language or theme change.
 from __future__ import annotations
 
 from playlist_tracker import background
-from playlist_tracker.core import i18n
+from playlist_tracker.core import i18n, sync
 from playlist_tracker.core.config import load_config
 from playlist_tracker.music import nowplaying
 from playlist_tracker.playlists.auto_check import AutoChecker
@@ -37,6 +37,8 @@ def main():
     # Results go to the window through the same queue as the tray's requests
     checker = AutoChecker(tray.notify, lambda service, results: commands.put(("checked", service, results)))
     checker.start()
+    sync.syncer = sync.Syncer(lambda result: commands.put(("synced", result)))
+    sync.syncer.start()
     hidden = background.start_minimized()
     # None: the window picks (the login screen until the user logs in or skips it, else listening)
     section = None
@@ -49,6 +51,7 @@ def main():
                 break
     finally:
         checker.stop()
+        sync.syncer.stop()
         tray.stop()
         local_tracker.stop()
         instance.release()

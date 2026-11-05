@@ -123,6 +123,11 @@ class App(tk.Tk):
             elif command == "quit":
                 self.quit_app()
                 return
+            elif isinstance(command, tuple) and command[0] == "synced":
+                # A sync finished: plays from other devices change the statistics
+                if command[1].get("received"):
+                    self.listening.mark_stale()
+                self.account.show_sync()
             elif isinstance(command, tuple) and command[0] == "checked":
                 # Results of the automatic check: ("checked", service name, results)
                 _, service_name, results = command

@@ -6,6 +6,7 @@ the Spotify API, and stores the plays in listening.db. All statistics are counte
 from __future__ import annotations
 
 import sqlite3
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -33,6 +34,9 @@ CREATE TABLE IF NOT EXISTS listens (
     artist_key TEXT NOT NULL,
     track_key TEXT NOT NULL,
     ms_played INTEGER,
+    uid TEXT,
+    device TEXT,
+    synced INTEGER NOT NULL DEFAULT 0,
     UNIQUE (source, played_at, track_key)
 );
 CREATE INDEX IF NOT EXISTS listens_time ON listens (played_at);
@@ -57,6 +61,26 @@ def open_db(db_path: Path = DB_PATH) -> Iterator[sqlite3.Connection]:
 
 
 def _migrate(db: sqlite3.Connection) -> None:
+    _add_sync_columns(db)
+    _move_spotify_plays(db)
+
+
+def _add_sync_columns(db: sqlite3.Connection) -> None:
+    """Give plays stored before syncing an id that is the same on every device (uid), the device that recorded
+    them (device, NULL for this computer) and whether they still have to be sent (synced)."""
+    columns = {row[1] for row in db.execute("PRAGMA table_info(listens)")}
+    if "uid" not in columns:
+        db.execute("ALTER TABLE listens ADD COLUMN uid TEXT")
+        db.execute("ALTER TABLE listens ADD COLUMN device TEXT")
+        db.execute("ALTER TABLE listens ADD COLUMN synced INTEGER NOT NULL DEFAULT 0")
+        db.executemany("UPDATE listens SET uid = ? WHERE id = ?",
+                       [(str(uuid.uuid4()), row[0]) for row in db.execute("SELECT id FROM listens")])
+        db.commit()
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS listens_uid ON listens (uid)")
+    db.execute("CREATE INDEX IF NOT EXISTS listens_unsynced ON listens (synced) WHERE synced = 0")
+
+
+def _move_spotify_plays(db: sqlite3.Connection) -> None:
     """Move plays stored by the earlier Spotify-only version into the listens table."""
     if not db.execute("SELECT 1 FROM sqlite_master WHERE name = 'plays'").fetchone():
         return
@@ -93,10 +117,11 @@ def _insert(db: sqlite3.Connection, play: dict, source: str) -> bool:
     if duplicate:
         return False
     cursor = db.execute(
-        "INSERT OR IGNORE INTO listens (played_at, source, artist, name, album, artist_key, track_key, ms_played) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT OR IGNORE INTO listens (played_at, source, artist, name, album, artist_key, track_key, ms_played, "
+        "uid, device, synced) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (play["played_at"], source, play["artist"], play["name"], play["album"], artist_key, track_key,
-         play.get("ms_played")))
+         play.get("ms_played"), play.get("uid") or str(uuid.uuid4()), play.get("device"),
+         1 if play.get("device") else 0))
     return cursor.rowcount > 0
 
 
@@ -110,7 +135,44 @@ def record_local(play: dict, db_path: Path = DB_PATH) -> int | None:
 
 def update_local(play_id: int, ms_played: int, db_path: Path = DB_PATH) -> None:
     with open_db(db_path) as db:
-        db.execute("UPDATE listens SET ms_played = ? WHERE id = ?", (ms_played, play_id))
+        db.execute("UPDATE listens SET ms_played = ?, synced = 0 WHERE id = ?", (ms_played, play_id))
+
+
+# Syncing between devices (see core/sync.py)
+
+def unsynced(limit: int, db_path: Path = DB_PATH) -> list[dict]:
+    """Plays recorded or changed since they were last sent."""
+    with open_db(db_path) as db:
+        return [dict(r) for r in db.execute(
+            "SELECT uid, device, played_at, source, artist, name, album, ms_played FROM listens "
+            "WHERE synced = 0 ORDER BY id LIMIT ?", (limit,))]
+
+
+def mark_synced(plays: list[dict], db_path: Path = DB_PATH) -> None:
+    """Note plays as sent, unless their listening time changed in the meantime (then they go again)."""
+    with open_db(db_path) as db:
+        db.executemany("UPDATE listens SET synced = 1 WHERE uid = ? AND ms_played IS ?",
+                       [(p["uid"], p["ms_played"]) for p in plays])
+
+
+def mark_all_unsynced(db_path: Path = DB_PATH) -> None:
+    """After logging out: every play goes to the next account logged in."""
+    with open_db(db_path) as db:
+        db.execute("UPDATE listens SET synced = 0")
+
+
+def merge_remote(plays: list[dict], db_path: Path = DB_PATH) -> int:
+    """Store plays recorded on other devices; return how many were new. A play already here keeps the longest
+    listening time."""
+    added = 0
+    with open_db(db_path) as db:
+        for play in plays:
+            if db.execute("SELECT 1 FROM listens WHERE uid = ?", (play["uid"],)).fetchone():
+                db.execute("UPDATE listens SET ms_played = MAX(COALESCE(ms_played, 0), ?) WHERE uid = ?",
+                           (play["ms_played"] or 0, play["uid"]))
+            elif _insert(db, play, play["source"]):
+                added += 1
+    return added
 
 
 def first_play(db_path: Path = DB_PATH) -> datetime | None:
@@ -324,7 +386,8 @@ def plays_without_length(db_path: Path = DB_PATH) -> list[dict]:
 def set_missing_length(track_key: str, ms: int, db_path: Path = DB_PATH) -> None:
     """Give the plays of a track stored without a listening time the track's length (0: unknown)."""
     with open_db(db_path) as db:
-        db.execute("UPDATE listens SET ms_played = ? WHERE track_key = ? AND ms_played IS NULL", (ms, track_key))
+        db.execute("UPDATE listens SET ms_played = ?, synced = 0 WHERE track_key = ? AND ms_played IS NULL",
+                   (ms, track_key))
 
 
 def heard_before(moment: datetime, column: str, db_path: Path = DB_PATH) -> set[str]:

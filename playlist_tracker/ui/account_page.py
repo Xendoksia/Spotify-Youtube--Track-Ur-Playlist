@@ -9,10 +9,10 @@ import tkinter as tk
 from tkinter import ttk
 from typing import TYPE_CHECKING
 
-from playlist_tracker.core import account
+from playlist_tracker.core import account, sync
 from playlist_tracker.core.config import load_config
 from playlist_tracker.core.errors import TrackerError
-from playlist_tracker.core.i18n import t
+from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import format_date
 from playlist_tracker.music import artwork
 from playlist_tracker.ui.theme import FONT, TYPE, P, px
@@ -30,6 +30,7 @@ class AccountPage(ttk.Frame):
         super().__init__(parent)
         self.app = app
         self.busy = False
+        self.sync_label = None
 
     def show(self):
         """Build the page for the saved account state."""
@@ -39,6 +40,7 @@ class AccountPage(ttk.Frame):
         self.card = ttk.Frame(self, padding=px(24), style="Tile.TFrame", width=px(CARD_WIDTH))
         self.card.pack(anchor="nw")
         self.message = None
+        self.sync_label = None
         if not account.configured():
             self._text(t("account.not_configured"), muted=True)
         elif account.profile():
@@ -97,18 +99,36 @@ class AccountPage(ttk.Frame):
         rows = [(t("account.provider"), (user.get("provider") or "").capitalize()),
                 (t("account.created"), format_date(user.get("created_at"))),
                 (t("account.user_id"), user.get("id")),
-                (t("account.sync"), t("account.sync_soon"))]
+                (t("account.sync"), "")]
         for row, (label, value) in enumerate(rows):
             ttk.Label(details, text=label, style="CardMuted.TLabel").grid(row=row, column=0, sticky="w",
                                                                          pady=px(2))
-            ttk.Label(details, text=value or "—", style="Card.TLabel").grid(row=row, column=1, sticky="w",
-                                                                           padx=(px(16), 0), pady=px(2))
+            value_label = ttk.Label(details, text=value or "—", style="Card.TLabel")
+            value_label.grid(row=row, column=1, sticky="w", padx=(px(16), 0), pady=px(2))
+        self.sync_label = value_label
+        self.show_sync()
 
         buttons = ttk.Frame(self.card, style="Card.TFrame")
         buttons.pack(anchor="w", pady=(px(20), 0))
-        ttk.Button(buttons, text=t("account.refresh"), command=self.refresh).pack(side="left")
+        ttk.Button(buttons, text=t("account.sync_now"), style="Accent.TButton",
+                   command=self.sync_now).pack(side="left")
+        ttk.Button(buttons, text=t("account.refresh"), command=self.refresh).pack(side="left", padx=(px(8), 0))
         ttk.Button(buttons, text=t("account.logout"), command=self.logout).pack(side="left", padx=(px(8), 0))
         self._message_line()
+
+    def show_sync(self):
+        """The outcome of the last sync, on the sync row."""
+        if self.sync_label is None or not self.sync_label.winfo_exists():
+            return
+        last = sync.last
+        if last.get("error"):
+            text, color = t("account.sync_failed", error=last["error"]), P.removed
+        elif last.get("at"):
+            text, color = t("account.sync_done", time=f"{last['at']:%H:%M}", sent=number(last["sent"]),
+                            received=number(last["received"])), P.text
+        else:
+            text, color = t("account.sync_waiting"), P.muted
+        self.sync_label.configure(text=text, foreground=color)
 
     def _show_avatar(self, user: dict):
         image = artwork.photo(AVATAR_PATH, px(AVATAR_SIZE), P.surface, round_=True)
@@ -155,12 +175,26 @@ class AccountPage(ttk.Frame):
         self.show()
         self._say(t("account.welcome", name=user.get("name") or user.get("email")))
         self.app.update_account()
+        if sync.syncer:
+            sync.syncer.wake()
+
+    def sync_now(self):
+        if not sync.syncer:
+            return
+
+        def done(result):
+            self.show_sync()
+            self._say("")
+            if result.get("received"):
+                self.app.listening.mark_stale()
+        self._run(sync.syncer.run_once, done, t("account.syncing"))
 
     def refresh(self):
         self._run(lambda: account.AccountClient().refresh(), self._logged_in, t("account.refreshing"))
 
     def logout(self):
         def done(_):
+            sync.forget()
             AVATAR_PATH.unlink(missing_ok=True)
             self.show()
             self.app.update_account()
