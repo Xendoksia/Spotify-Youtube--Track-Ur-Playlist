@@ -21,7 +21,8 @@ if TYPE_CHECKING:
 
 AVATAR_SIZE = 72
 AVATAR_PATH = artwork.ART_DIR / "account" / "avatar.jpg"
-CARD_WIDTH = 560
+# Longer lines are hard to read on a wide window
+TEXT_WIDTH = 640
 
 
 class AccountPage(ttk.Frame):
@@ -36,8 +37,9 @@ class AccountPage(ttk.Frame):
         for child in self.winfo_children():
             child.destroy()
         ttk.Label(self, text=t("account.title"), style="Title.TLabel").pack(anchor="w", pady=(0, px(12)))
-        self.card = ttk.Frame(self, padding=px(24), style="Tile.TFrame", width=px(CARD_WIDTH))
-        self.card.pack(anchor="nw")
+        # The whole page, like the other pages
+        self.card = ttk.Frame(self, padding=px(24), style="Card.TFrame")
+        self.card.pack(fill="both", expand=True)
         self.message = None
         self.sync_label = None
         if not account.configured():
@@ -51,13 +53,13 @@ class AccountPage(ttk.Frame):
 
     def _text(self, text: str, muted: bool = False, font=None, pady=(0, 0)) -> ttk.Label:
         label = ttk.Label(self.card, text=text, style="CardMuted.TLabel" if muted else "Card.TLabel",
-                          justify="left", wraplength=px(CARD_WIDTH - 48), font=font or FONT)
+                          justify="left", wraplength=px(TEXT_WIDTH), font=font or FONT)
         label.pack(anchor="w", pady=pady)
         return label
 
     def _message_line(self):
         """A line for what is going on or what went wrong, under the buttons."""
-        self.message = ttk.Label(self.card, style="CardMuted.TLabel", wraplength=px(CARD_WIDTH - 48),
+        self.message = ttk.Label(self.card, style="CardMuted.TLabel", wraplength=px(TEXT_WIDTH),
                                  justify="left")
         self.message.pack(anchor="w", pady=(px(12), 0))
 
