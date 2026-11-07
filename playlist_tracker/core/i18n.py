@@ -275,8 +275,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "account.not_configured": "The account service is not set up yet (SUPABASE_URL and SUPABASE_KEY in "
                                   "config.json).",
         "account.login_title": "Log in to your account",
-        "account.login_lead": "With an account, your plays and the playlists you follow will be synced with "
-                              "your other devices, such as your phone. Everything keeps working without one.",
+        "account.login_lead": "With an account, your plays, the playlists you follow with their history and "
+                              "your language and theme will be synced with your other devices, such as your "
+                              "phone. Everything keeps working without one.",
         "account.login_google": "Log in with Google",
         "account.skip": "Continue without an account",
         "login_screen.lead": "Log in to sync your plays and playlists with your other devices.",
@@ -713,8 +714,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "account.title": "Hesap",
         "account.not_configured": "Hesap hizmeti henüz ayarlanmadı (config.json'da SUPABASE_URL ve SUPABASE_KEY).",
         "account.login_title": "Hesabına giriş yap",
-        "account.login_lead": "Hesapla dinlemelerin ve takip ettiğin listeler telefonun gibi diğer cihazlarınla "
-                              "eşitlenecek. Hesapsız da her şey çalışmaya devam eder.",
+        "account.login_lead": "Hesapla dinlemelerin, takip ettiğin listeler ve geçmişleri, dil ve tema "
+                              "seçimin telefonun gibi diğer cihazlarınla eşitlenecek. Hesapsız da her şey "
+                              "çalışmaya devam eder.",
         "account.login_google": "Google ile giriş yap",
         "account.skip": "Hesapsız devam et",
         "login_screen.lead": "Dinlemelerini ve listelerini diğer cihazlarınla eşitlemek için giriş yap.",

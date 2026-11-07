@@ -1,9 +1,11 @@
 """
-Syncs the plays with the account in Supabase while the app runs (also in the tray): plays recorded or changed
-here are sent, plays recorded on the user's other devices are fetched into listening.db.
+Syncs with the account in Supabase while the app runs (also in the tray): plays recorded or changed here are
+sent, plays recorded on the user's other devices are fetched into listening.db. Tracked playlists, the changes
+found by checking them and the language and theme go both ways too.
 
-Each play has an id that is the same everywhere (uid), so sending or fetching one twice changes nothing. Fetching
-asks only for what changed since the last fetch (SYNC_PULLED in config.json, the server's time).
+Each play and event has an id that is the same everywhere (uid), so sending or fetching one twice changes
+nothing. Fetching asks only for what changed since the last fetch (SYNC_PULLED and the like in config.json, the
+server's time).
 """
 
 from __future__ import annotations
@@ -30,6 +32,9 @@ OVERLAP = timedelta(minutes=2)
 
 # Service names in Supabase and their databases
 PLAYLIST_DATABASES = {"spotify": spotify.DB_PATH, "youtube": youtube.DB_PATH}
+
+# Settings that follow the user to every device; the others (tray, autostart, credentials) belong to a computer
+SYNCED_SETTINGS = ("LANGUAGE", "THEME")
 
 # The outcome of the last sync, for the account page: at (local time), sent, received, error
 last: dict = {}
@@ -139,6 +144,82 @@ def pull_playlists(client: account.AccountClient) -> int:
     return changed
 
 
+def push_events(client: account.AccountClient, user_id: str) -> int:
+    """Send the playlist changes found here and not sent yet; return how many."""
+    device_id, _ = device()
+    sent = 0
+    for service, db_path in PLAYLIST_DATABASES.items():
+        while events := history.unsynced_events(BATCH, db_path):
+            rows = [{**{f: e[f] for f in history.EVENT_FIELDS if f != "device"}, "user_id": user_id,
+                     "service": service, "device_id": e["device"] or device_id} for e in events]
+            client.rest("POST", "playlist_events?on_conflict=user_id,uid", rows,
+                        "resolution=ignore-duplicates,return=minimal")
+            history.mark_events_synced(events, db_path)
+            sent += len(events)
+    return sent
+
+
+def pull_events(client: account.AccountClient) -> int:
+    """Fetch playlist changes found on other devices since the last fetch; return how many were new here."""
+    device_id, _ = device()
+    since, changed_since = _since_query("SYNC_EVENTS_PULLED")
+    added, offset, newest = 0, 0, since
+    query = "select=uid,device_id,service,playlist_id,checked_at,event,uri,name,artist,album,added_at,updated_at"             f"&device_id=neq.{device_id}&order=updated_at,uid&limit={BATCH}{changed_since}"
+    while True:
+        rows = client.rest("GET", f"playlist_events?{query}&offset={offset}") or []
+        for service, db_path in PLAYLIST_DATABASES.items():
+            mine = [{**row, "device": row["device_id"]} for row in rows if row["service"] == service]
+            if mine:
+                added += history.merge_remote_events(mine, db_path)
+        if rows:
+            newest = rows[-1]["updated_at"]
+        if len(rows) < BATCH:
+            break
+        offset += BATCH
+    _save_since("SYNC_EVENTS_PULLED", since, newest)
+    return added
+
+
+def settings_changed(config: dict) -> None:
+    """The language or theme was changed here (config is saved by the caller): send it with the next sync."""
+    config["SETTINGS_CHANGED_AT"] = history.now_utc()
+    config["SETTINGS_SYNCED"] = False
+
+
+def push_settings(client: account.AccountClient, user_id: str) -> bool:
+    config = load_config()
+    changed_at = config.get("SETTINGS_CHANGED_AT")
+    if not changed_at or config.get("SETTINGS_SYNCED"):
+        return False
+    data = {key: config[key] for key in SYNCED_SETTINGS if config.get(key)}
+    client.rest("POST", "settings?on_conflict=user_id", [{"user_id": user_id, "data": data,
+                                                         "changed_at": changed_at}],
+                "resolution=merge-duplicates,return=minimal")
+    config = load_config()
+    # Unless they changed again in the meantime
+    if config.get("SETTINGS_CHANGED_AT") == changed_at:
+        config["SETTINGS_SYNCED"] = True
+        save_config(config)
+    return True
+
+
+def pull_settings(client: account.AccountClient) -> bool:
+    """Take the settings when they were changed later on another device; return whether any changed here."""
+    [row] = client.rest("GET", "settings?select=data,changed_at") or [None]
+    config = load_config()
+    if not row or row["changed_at"] <= (config.get("SETTINGS_CHANGED_AT") or history.NEVER):
+        return False
+    changed = False
+    for key in SYNCED_SETTINGS:
+        if key in row["data"] and row["data"][key] != config.get(key):
+            config[key] = row["data"][key]
+            changed = True
+    config["SETTINGS_CHANGED_AT"] = row["changed_at"]
+    config["SETTINGS_SYNCED"] = True
+    save_config(config)
+    return changed
+
+
 def sync_now() -> dict:
     """Send and fetch once; returns {"sent", "received"}. Raises TrackerError when offline or logged out."""
     user = account.profile()
@@ -154,17 +235,24 @@ def sync_now() -> dict:
     received = pull(client)
     push_playlists(client, user["id"])
     playlists = pull_playlists(client)
-    return {"sent": sent, "received": received, "playlists": playlists}
+    push_events(client, user["id"])
+    events = pull_events(client)
+    push_settings(client, user["id"])
+    settings = pull_settings(client)
+    return {"sent": sent, "received": received, "playlists": playlists, "events": events, "settings": settings}
 
 
 def forget() -> None:
-    """Another account logged in: it gets every play and fetches from the start."""
+    """Another account logged in: it gets every play, playlist, event and the settings, and fetches from the
+    start."""
     listening.mark_all_unsynced()
     for db_path in PLAYLIST_DATABASES.values():
         history.mark_all_playlists_unsynced(db_path)
+        history.mark_all_events_unsynced(db_path)
     config = load_config()
-    config.pop("SYNC_PULLED", None)
-    config.pop("SYNC_PLAYLISTS_PULLED", None)
+    for key in ("SYNC_PULLED", "SYNC_PLAYLISTS_PULLED", "SYNC_EVENTS_PULLED"):
+        config.pop(key, None)
+    config["SETTINGS_SYNCED"] = False
     save_config(config)
     last.clear()
 

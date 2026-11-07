@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import sqlite3
 import threading
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -74,11 +75,20 @@ def open_db(db_path: Path) -> Iterator[sqlite3.Connection]:
 
 def _add_sync_columns(db: sqlite3.Connection) -> None:
     """Playlists stored before syncing: when tracking last changed (changed_at, unknown for them) and whether
-    that still has to be sent (synced)."""
+    that still has to be sent (synced). Events stored before syncing get an id that is the same on every device
+    (uid), the device that found them (device, NULL for this computer) and synced."""
     if "changed_at" not in {row[1] for row in db.execute("PRAGMA table_info(playlists)")}:
         db.execute("ALTER TABLE playlists ADD COLUMN changed_at TEXT")
         db.execute("ALTER TABLE playlists ADD COLUMN synced INTEGER NOT NULL DEFAULT 0")
         db.commit()
+    if "uid" not in {row[1] for row in db.execute("PRAGMA table_info(events)")}:
+        db.execute("ALTER TABLE events ADD COLUMN uid TEXT")
+        db.execute("ALTER TABLE events ADD COLUMN device TEXT")
+        db.execute("ALTER TABLE events ADD COLUMN synced INTEGER NOT NULL DEFAULT 0")
+        db.executemany("UPDATE events SET uid = ? WHERE id = ?",
+                       [(str(uuid.uuid4()), row[0]) for row in db.execute("SELECT id FROM events")])
+        db.commit()
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS events_uid ON events (uid)")
 
 
 def now_utc() -> str:
@@ -145,6 +155,65 @@ def merge_remote_playlists(playlists: list[dict], db_path: Path) -> int:
     return changed
 
 
+# Events: every device checks with its own last snapshot, so two devices can find the same change. An event is
+# left out when the same track's nearest event before it or after it is the same one: the change is already there
+
+TRACK_FIELDS = ("uri", "name", "artist", "album", "added_at")
+EVENT_FIELDS = ("uid", "device", "playlist_id", "checked_at", "event", "uri", "name", "artist", "album", "added_at")
+
+
+def _duplicate(db: sqlite3.Connection, event: dict) -> bool:
+    for f in TRACK_FIELDS:
+        event[f] = event.get(f) or ""
+    if event["event"] == EVENT_INITIAL:
+        return db.execute("SELECT 1 FROM events WHERE playlist_id = ? AND event = ?",
+                          (event["playlist_id"], EVENT_INITIAL)).fetchone() is not None
+    track = "playlist_id = ? AND uri = ? AND added_at = ? AND event != ?"
+    params = (event["playlist_id"], event["uri"], event["added_at"], EVENT_INITIAL,
+              event["checked_at"])
+    for query in (f"SELECT event FROM events WHERE {track} AND datetime(checked_at) <= datetime(?) "
+                  "ORDER BY datetime(checked_at) DESC, id DESC LIMIT 1",
+                  f"SELECT event FROM events WHERE {track} AND datetime(checked_at) > datetime(?) "
+                  "ORDER BY datetime(checked_at), id LIMIT 1"):
+        nearest = db.execute(query, params).fetchone()
+        if nearest and nearest["event"] == event["event"]:
+            return True
+    return False
+
+
+def _insert_event(db: sqlite3.Connection, event: dict, synced: int) -> bool:
+    """Store an event unless it is already there; return whether it was stored."""
+    if _duplicate(db, event) or db.execute("SELECT 1 FROM events WHERE uid = ?", (event["uid"],)).fetchone():
+        return False
+    values = [event.get(f) for f in EVENT_FIELDS]
+    db.execute(f"INSERT INTO events ({', '.join(EVENT_FIELDS)}, synced) VALUES ({', '.join('?' * 11)})",
+               (*values, synced))
+    return True
+
+
+def unsynced_events(limit: int, db_path: Path) -> list[dict]:
+    with open_db(db_path) as db:
+        return [dict(r) for r in db.execute(
+            f"SELECT {', '.join(EVENT_FIELDS)} FROM events WHERE synced = 0 ORDER BY id LIMIT ?", (limit,))]
+
+
+def mark_events_synced(events: list[dict], db_path: Path) -> None:
+    with open_db(db_path) as db:
+        db.executemany("UPDATE events SET synced = 1 WHERE uid = ?", [(e["uid"],) for e in events])
+
+
+def mark_all_events_unsynced(db_path: Path) -> None:
+    """After another account logs in: every event goes to it."""
+    with open_db(db_path) as db:
+        db.execute("UPDATE events SET synced = 0")
+
+
+def merge_remote_events(events: list[dict], db_path: Path) -> int:
+    """Take events found on other devices; return how many were new here."""
+    with open_db(db_path) as db:
+        return sum(_insert_event(db, event, synced=1) for event in events)
+
+
 def playlist_summaries(db_path: Path) -> dict[str, dict]:
     """Per playlist: how many tracks it had at its last check, and its latest changes (when they were
     found and how many of each event)."""
@@ -164,13 +233,11 @@ def playlist_summaries(db_path: Path) -> dict[str, dict]:
     return summaries
 
 
-def _write_event(db: sqlite3.Connection, playlist_id: str, checked_at: str, event: str, track: dict) -> None:
-    db.execute(
-        "INSERT INTO events (playlist_id, checked_at, event, uri, name, artist, album, added_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (playlist_id, checked_at, event, track.get("uri", ""), track.get("name", ""),
-         track.get("artist", ""), track.get("album", ""), track.get("added_at", "")),
-    )
+def _write_event(db: sqlite3.Connection, playlist_id: str, checked_at: str, event: str, track: dict) -> bool:
+    """Record a change found here; False when another device already found it."""
+    return _insert_event(db, {"uid": str(uuid.uuid4()), "device": None, "playlist_id": playlist_id,
+                              "checked_at": checked_at, "event": event, **{f: track.get(f) for f in TRACK_FIELDS}},
+                         synced=0)
 
 
 def get_events(playlist_id: str | None, db_path: Path) -> list[dict]:
@@ -250,8 +317,9 @@ def _check_playlist(client, playlist_id: str, db_path: Path) -> dict:
         else:
             for event, field in ((EVENT_ADDED, "added"), (EVENT_REMOVED, "removed"),
                                  (EVENT_UNPLAYABLE, "unplayable"), (EVENT_PLAYABLE, "playable_again")):
-                for track in result[field]:
-                    _write_event(db, playlist_id, now, event, track)
+                # A change another device already found is not news here
+                result[field] = [track for track in result[field]
+                                 if _write_event(db, playlist_id, now, event, track)]
     return result
 
 

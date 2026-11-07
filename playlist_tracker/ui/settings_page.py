@@ -11,7 +11,7 @@ from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING
 
 from playlist_tracker import background
-from playlist_tracker.core import i18n
+from playlist_tracker.core import i18n, sync
 from playlist_tracker.core.config import load_config, save_config
 from playlist_tracker.core.i18n import t
 from playlist_tracker.playlists import auto_check, spotify
@@ -150,6 +150,8 @@ class SettingsPage(ttk.Frame):
                 updated.pop(key, None)
         appearance_changed = self.get_language() != i18n.current() or self.get_theme() != self.current_theme
         updated["LANGUAGE"], updated["THEME"] = self.get_language(), self.get_theme()
+        if appearance_changed:
+            sync.settings_changed(updated)
         updated["AUTO_CHECK"] = self.get_auto_check()
         if background.TRAY_AVAILABLE:
             updated["CLOSE_TO_TRAY"] = self.tray_var.get()
@@ -160,10 +162,9 @@ class SettingsPage(ttk.Frame):
             except OSError as error:
                 messagebox.showerror(t("settings.title"), t("settings.autostart_failed", error=error), parent=app)
         if appearance_changed:
-            # Rebuild the whole window so every widget picks up the new texts and colors, back on this page
-            app.restart = True
-            app.restart_section = "settings"
-            app.destroy()
+            if sync.syncer:
+                sync.syncer.wake()
+            app.rebuild("settings")
             return
         self.config = load_config()
         for panel in app.panels.values():

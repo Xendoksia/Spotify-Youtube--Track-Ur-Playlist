@@ -46,7 +46,7 @@ def main():
         while True:
             app = App(local_tracker, commands, tray, hidden, section)
             app.mainloop()
-            hidden, section = False, app.restart_section
+            hidden, section = app.restart_hidden, app.restart_section
             if not app.restart:
                 break
     finally:

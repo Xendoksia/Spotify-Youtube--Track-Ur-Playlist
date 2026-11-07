@@ -51,8 +51,9 @@ class App(tk.Tk):
 
         self.busy = False
         self.restart = False
-        # The page to show when the window is rebuilt
+        # The page to show when the window is rebuilt, and whether it stays in the tray
         self.restart_section = "listening"
+        self.restart_hidden = False
         self.panels: dict[str, PlaylistPanel] = {}
         self.sections: dict[str, ttk.Frame] = {}
         self.section: str | None = None
@@ -134,6 +135,13 @@ class App(tk.Tk):
         # Brought back from the tray on the first days of a month: the summary of the month before
         self.after(500, self._open_monthly_summary)
 
+    def rebuild(self, section: str):
+        """Build the whole window again so every widget picks up new texts and colors, back on section."""
+        self.restart = True
+        self.restart_section = section
+        self.restart_hidden = self.state() in ("withdrawn", "iconic")
+        self.destroy()
+
     def quit_app(self):
         self.restart = False
         self.destroy()
@@ -159,7 +167,18 @@ class App(tk.Tk):
                 if command[1].get("playlists"):
                     for panel in self.panels.values():
                         panel.reload_tracked()
+                # Changes found by checks on another device: the history and the cards' latest changes
+                elif command[1].get("events"):
+                    for panel in self.panels.values():
+                        panel.render()
+                if command[1].get("events"):
+                    self.history.refresh()
                 self.account.show_sync()
+                # Language or theme changed on another device. Not in the middle of a check: it is taken over
+                # when the window is next built
+                if command[1].get("settings") and not self.busy:
+                    self.rebuild(self.section or "listening")
+                    return
             elif isinstance(command, tuple) and command[0] == "checked":
                 # Results of the automatic check: ("checked", service name, results)
                 _, service_name, results = command
