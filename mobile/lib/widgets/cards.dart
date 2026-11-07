@@ -1,0 +1,149 @@
+import 'package:flutter/material.dart';
+
+import '../data/stats.dart';
+import '../l10n/strings.dart';
+import '../theme/palette.dart';
+import 'format.dart';
+
+/// A card with a title, the building block of every page
+class SectionCard extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+
+  const SectionCard({super.key, required this.title, required this.child, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(children: [
+              Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
+              ?trailing,
+            ]),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A number with its label, e.g. 128 plays
+class StatTile extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const StatTile({super.key, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(color: Palette.of(context).muted, fontSize: 13)),
+            const SizedBox(height: 4),
+            Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A numbered top list with a bar showing each row's plays against the first's
+class RankedList extends StatelessWidget {
+  final List<Ranked> rows;
+
+  const RankedList({super.key, required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Palette.of(context);
+    final most = rows.isEmpty ? 1 : rows.first.plays;
+    return Column(
+      children: [
+        for (final (index, row) in rows.indexed)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 28,
+                  child: Text('${index + 1}', style: TextStyle(color: palette.muted, fontWeight: FontWeight.w600)),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(row.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      if (row.subtitle.isNotEmpty)
+                        Text(row.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: palette.muted, fontSize: 13)),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: LinearProgressIndicator(
+                          value: row.plays / most,
+                          minHeight: 4,
+                          color: palette.chart,
+                          backgroundColor: palette.border,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(context.t('stats.plays_count', {'count': context.number(row.plays)})),
+                    Text(context.minutes(row.minutes), style: TextStyle(color: palette.muted, fontSize: 13)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// A message in the middle of a page: nothing to show yet, or an error with a way to try again
+class MessageView extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final String? action;
+  final VoidCallback? onAction;
+
+  const MessageView({super.key, required this.icon, required this.text, this.action, this.onAction});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 40, color: Palette.of(context).muted),
+          const SizedBox(height: 12),
+          Text(text, textAlign: TextAlign.center),
+          if (action != null) ...[
+            const SizedBox(height: 16),
+            FilledButton(onPressed: onAction, child: Text(action!)),
+          ],
+        ],
+      ),
+    );
+  }
+}

@@ -1,0 +1,138 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:playlist_tracker/data/models.dart';
+import 'package:playlist_tracker/data/stats.dart';
+
+Play play(String artist, String name, DateTime at, {int minutes = 3, String album = 'Album', String? device}) =>
+    Play(
+      uid: '$artist|$name|$at',
+      deviceId: device ?? 'pc',
+      deviceName: device,
+      playedAt: at,
+      artist: artist,
+      name: name,
+      album: album,
+      msPlayed: minutes * 60000,
+    );
+
+PlaylistEvent event(EventKind kind, DateTime at, {String name = 'Song'}) => PlaylistEvent(
+      uid: '$kind|$at|$name',
+      service: 'spotify',
+      playlistId: 'p1',
+      checkedAt: at,
+      kind: kind,
+      name: name,
+      artist: 'A',
+      album: '',
+    );
+
+void main() {
+  group('keys', () {
+    test('case and spacing do not make a different track', () {
+      expect(play('The  Band', 'Song', DateTime(2026)).trackKey, play('the band', 'SONG ', DateTime(2026)).trackKey);
+    });
+
+    test('times are written like the desktop app writes them', () {
+      expect(utcStamp(DateTime.utc(2026, 11, 7, 9, 5, 3, 397, 814)), '2026-11-07T09:05:03.397814Z');
+      expect(utcStamp(DateTime.utc(2026, 1, 2)), '2026-01-02T00:00:00.000000Z');
+    });
+  });
+
+  group('periods', () {
+    final now = DateTime(2026, 11, 7, 15, 30); // a Saturday
+
+    test('a week starts on Monday', () {
+      final range = periodRange(Period.week, 0, now);
+      expect(range.start, DateTime(2026, 11, 2));
+      expect(range.end, DateTime(2026, 11, 9));
+      expect(periodRange(Period.week, 1, now).start, DateTime(2026, 10, 26));
+    });
+
+    test('months go back across years', () {
+      final range = periodRange(Period.month, 11, now);
+      expect(range.start, DateTime(2025, 12));
+      expect(range.end, DateTime(2026, 1));
+    });
+
+    test('a year and all time', () {
+      expect(periodRange(Period.year, 1, now).start, DateTime(2025));
+      expect(periodRange(Period.all, 0, now).end, DateTime(2026, 11, 8));
+    });
+  });
+
+  group('statistics', () {
+    final plays = [
+      play('A', 'One', DateTime(2026, 11, 2, 10)),
+      play('a', 'one', DateTime(2026, 11, 3, 10)),
+      play('B', 'Two', DateTime(2026, 11, 4, 10), minutes: 4, album: ''),
+      play('C', 'Three', DateTime(2026, 11, 5, 10)),
+    ];
+
+    test('the summary counts plays, minutes and different tracks and artists', () {
+      final summary = Summary.of(plays);
+      expect([summary.plays, summary.minutes, summary.tracks, summary.artists], [4, 13, 3, 3]);
+    });
+
+    test('top lists order by plays, then by the latest play', () {
+      expect(topTracks(plays).map((r) => (r.title, r.plays)), [('One', 2), ('Three', 1), ('Two', 1)]);
+      expect(topArtists(plays, limit: 2).map((r) => r.title), ['A', 'C']);
+    });
+
+    test('plays without an album are left out of the top albums', () {
+      expect(topAlbums(plays).map((r) => r.subtitle), ['A', 'C']);
+    });
+
+    test('a week has a bar for each day', () {
+      final range = periodRange(Period.week, 0, DateTime(2026, 11, 7));
+      final bars = buckets(Period.week, range, plays);
+      expect(bars.length, 7);
+      expect(bars.map((b) => b.minutes), [3, 3, 4, 3, 0, 0, 0]);
+    });
+
+    test('a year has a bar for each month and all time one for each year', () {
+      final now = DateTime(2026, 11, 7);
+      expect(buckets(Period.year, periodRange(Period.year, 0, now), plays).length, 12);
+      final years = buckets(Period.all, periodRange(Period.all, 0, now), [...plays, play('D', 'Old', DateTime(2024, 5))]);
+      expect(years.map((b) => b.start.year), [2024, 2025, 2026]);
+    });
+
+    test('recent plays are grouped by day, newest first', () {
+      final days = byDay([...plays, play('D', 'Late', DateTime(2026, 11, 5, 22))]);
+      expect(days.first.key, DateTime(2026, 11, 5));
+      expect(days.first.value.map((p) => p.name), ['Late', 'Three']);
+    });
+
+    test('plays are counted per device', () {
+      final counts = playsPerDevice([...plays, play('D', 'Phone', DateTime(2026), device: 'Pixel')]);
+      expect(counts.first, isA<MapEntry<String, int>>().having((e) => e.value, 'plays', 4));
+      expect(counts.last.key, 'Pixel');
+    });
+  });
+
+  group('playlist changes', () {
+    test('the latest check that found changes, counted by kind', () {
+      final latest = latestChanges([
+        event(EventKind.initial, DateTime(2026, 11, 1), name: '20 tracks recorded'),
+        event(EventKind.added, DateTime(2026, 11, 2)),
+        event(EventKind.removed, DateTime(2026, 11, 4)),
+        event(EventKind.removed, DateTime(2026, 11, 4), name: 'Other'),
+        event(EventKind.unplayable, DateTime(2026, 11, 4), name: 'Third'),
+      ])!;
+      expect(latest.at, DateTime(2026, 11, 4));
+      expect(latest.counts, {EventKind.removed: 2, EventKind.unplayable: 1});
+    });
+
+    test('only the first check is no change', () {
+      expect(latestChanges([event(EventKind.initial, DateTime(2026))]), isNull);
+      expect(event(EventKind.initial, DateTime(2026), name: '20 tracks recorded').initialCount, 20);
+    });
+
+    test('rows of unknown kinds are skipped', () {
+      final row = {
+        'uid': 'e1', 'service': 'spotify', 'playlist_id': 'p1', 'checked_at': '2026-11-07T10:00:00+03:00',
+        'event': 'SOMETHING_NEW', 'name': 'Song', 'artist': 'A', 'album': '',
+      };
+      expect(PlaylistEvent.fromRow(row), isNull);
+      expect(PlaylistEvent.fromRow({...row, 'event': 'REMOVED'})!.checkedAt, DateTime.utc(2026, 11, 7, 7).toLocal());
+    });
+  });
+}

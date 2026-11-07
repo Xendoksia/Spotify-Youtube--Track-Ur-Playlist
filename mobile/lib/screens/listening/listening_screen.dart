@@ -1,0 +1,151 @@
+import 'package:flutter/material.dart';
+
+import '../../data/models.dart';
+import '../../data/stats.dart';
+import '../../l10n/strings.dart';
+import '../../state/data_store.dart';
+import '../../theme/palette.dart';
+import '../../widgets/cards.dart';
+import '../../widgets/format.dart';
+import 'listening_chart.dart';
+import 'period_bar.dart';
+
+/// The statistics of the plays synced from the desktop app, by week, month, year or all time
+class ListeningScreen extends StatefulWidget {
+  final DataStore store;
+  final Future<void> Function() onRefresh;
+
+  const ListeningScreen({super.key, required this.store, required this.onRefresh});
+
+  @override
+  State<ListeningScreen> createState() => _ListeningScreenState();
+}
+
+class _ListeningScreenState extends State<ListeningScreen> {
+  var _period = Period.month;
+  var _offset = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: widget.store,
+      builder: (context, _) {
+        final store = widget.store;
+        if (!store.loaded) {
+          return Center(
+            child: store.error != null
+                ? MessageView(
+                    icon: Icons.cloud_off,
+                    text: context.t('load.failed', {'error': store.error!}),
+                    action: context.t('load.retry'),
+                    onAction: widget.onRefresh,
+                  )
+                : const CircularProgressIndicator(),
+          );
+        }
+        return RefreshIndicator(
+          onRefresh: widget.onRefresh,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: store.plays.isEmpty
+                ? [MessageView(icon: Icons.headphones, text: context.t('stats.none_yet'))]
+                : _content(context, store.plays),
+          ),
+        );
+      },
+    );
+  }
+
+  List<Widget> _content(BuildContext context, List<Play> all) {
+    final range = periodRange(_period, _offset, DateTime.now());
+    final plays = playsIn(all, range);
+    final summary = Summary.of(plays);
+    const gap = SizedBox(height: 12);
+    return [
+      PeriodBar(
+        period: _period,
+        offset: _offset,
+        range: range,
+        onPeriod: (period) => setState(() {
+          _period = period;
+          _offset = 0;
+        }),
+        onOffset: (offset) => setState(() => _offset = offset),
+      ),
+      gap,
+      GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        childAspectRatio: 2.2,
+        children: [
+          StatTile(label: context.t('stats.plays'), value: context.number(summary.plays)),
+          StatTile(label: context.t('stats.time'), value: context.minutes(summary.minutes)),
+          StatTile(label: context.t('stats.tracks'), value: context.number(summary.tracks)),
+          StatTile(label: context.t('stats.artists'), value: context.number(summary.artists)),
+        ],
+      ),
+      gap,
+      if (plays.isEmpty)
+        MessageView(icon: Icons.music_off, text: context.t('stats.empty'))
+      else ...[
+        SectionCard(
+          title: context.t('stats.chart'),
+          child: ListeningChart(period: _period, buckets: buckets(_period, range, plays)),
+        ),
+        gap,
+        SectionCard(title: context.t('stats.top_tracks'), child: RankedList(rows: topTracks(plays))),
+        gap,
+        SectionCard(title: context.t('stats.top_artists'), child: RankedList(rows: topArtists(plays))),
+        gap,
+        SectionCard(title: context.t('stats.top_albums'), child: RankedList(rows: topAlbums(plays))),
+      ],
+      gap,
+      SectionCard(title: context.t('stats.recent'), child: _RecentPlays(plays: all)),
+    ];
+  }
+}
+
+/// The latest plays of any period, under their day
+class _RecentPlays extends StatelessWidget {
+  final List<Play> plays;
+
+  const _RecentPlays({required this.plays});
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Palette.of(context).muted;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final MapEntry(key: day, value: dayPlays) in byDay(plays)) ...[
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: Text(context.day(day), style: TextStyle(color: muted, fontWeight: FontWeight.w600)),
+          ),
+          for (final play in dayPlays)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  SizedBox(width: 48, child: Text(context.time(play.playedAt), style: TextStyle(color: muted))),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(play.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(play.artist,
+                            maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: muted, fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+}
