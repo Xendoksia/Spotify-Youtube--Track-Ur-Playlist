@@ -35,10 +35,11 @@ android/                    the Android project (manifest: internet, login redir
 ## Setup (once)
 
 1. Flutter is in `C:\Users\Deniz\dev\flutter` (on the user PATH), Android Studio's Java is used for builds.
-2. Accept the Android SDK licenses and install the platform tools, in a terminal:
-   ```
+2. Accept the Android SDK licenses (answer `y` to each) and install the platform tools, one command at a time
+   in PowerShell:
+   ```powershell
    flutter doctor --android-licenses
-   "%LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest\bin\sdkmanager.bat" "platform-tools"
+   & "$env:LOCALAPPDATA\Android\Sdk\cmdline-tools\latest\bin\sdkmanager.bat" "platform-tools"
    flutter doctor
    ```
 3. `config.json` next to this file holds `SUPABASE_URL` and `SUPABASE_KEY` (the publishable key, as in the desktop
