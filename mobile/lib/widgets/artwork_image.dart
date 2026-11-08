@@ -8,6 +8,9 @@ import '../theme/palette.dart';
 class ArtworkImage extends StatefulWidget {
   final Future<String?> Function(Artwork artwork) find;
 
+  /// Which picture this is: the same for every image of it, so one already found shows at once
+  final String which;
+
   /// Shown as its first letter in the placeholder
   final String name;
   final double size;
@@ -15,35 +18,78 @@ class ArtworkImage extends StatefulWidget {
   /// Artists are round, covers square
   final bool round;
 
-  const ArtworkImage({super.key, required this.find, required this.name, this.size = 44, this.round = false});
+  /// Flies to the image with the same tag on the next page (a row's picture to its page's big one)
+  final String? hero;
+
+  const ArtworkImage({
+    super.key,
+    required this.find,
+    required this.which,
+    required this.name,
+    this.size = 44,
+    this.round = false,
+    this.hero,
+  });
 
   ArtworkImage.cover(
-      {Key? key, required String artist, required String album, required String name, double size = 44})
-      : this(key: key, find: (a) => a.cover(artist, album, name), name: album.isNotEmpty ? album : name, size: size);
+      {Key? key, required String artist, required String album, required String name, double size = 44, String? hero})
+      : this(
+            key: key,
+            find: (a) => a.cover(artist, album, name),
+            which: 'cover|$artist|$album|$name',
+            name: album.isNotEmpty ? album : name,
+            size: size,
+            hero: hero);
 
-  ArtworkImage.album({Key? key, required String artist, required String album, double size = 44})
-      : this(key: key, find: (a) => a.albumCover(artist, album), name: album, size: size);
+  ArtworkImage.album({Key? key, required String artist, required String album, double size = 44, String? hero})
+      : this(
+            key: key,
+            find: (a) => a.albumCover(artist, album),
+            which: 'album|$artist|$album',
+            name: album,
+            size: size,
+            hero: hero);
 
-  ArtworkImage.artist({Key? key, required String artist, double size = 44})
-      : this(key: key, find: (a) => a.artistPhoto(artist), name: artist, size: size, round: true);
+  ArtworkImage.artist({Key? key, required String artist, double size = 44, String? hero})
+      : this(
+            key: key,
+            find: (a) => a.artistPhoto(artist),
+            which: 'artist|$artist',
+            name: artist,
+            size: size,
+            round: true,
+            hero: hero);
 
   @override
   State<ArtworkImage> createState() => _ArtworkImageState();
 }
 
 class _ArtworkImageState extends State<ArtworkImage> {
-  late Future<String?> _url;
+  /// The addresses found while the app runs: a page's big picture shows from its first frame, while it flies in
+  static final _found = <String, String?>{};
+
+  String? _url;
 
   @override
   void initState() {
     super.initState();
-    _url = widget.find(Artwork.instance);
+    _find();
   }
 
   @override
   void didUpdateWidget(ArtworkImage old) {
     super.didUpdateWidget(old);
-    if (old.name != widget.name) _url = widget.find(Artwork.instance);
+    if (old.which != widget.which) _find();
+  }
+
+  void _find() {
+    final which = widget.which;
+    _url = _found[which];
+    if (_found.containsKey(which)) return;
+    widget.find(Artwork.instance).then((url) {
+      _found[which] = url;
+      if (mounted && widget.which == which && url != null) setState(() => _url = url);
+    });
   }
 
   @override
@@ -57,27 +103,22 @@ class _ArtworkImageState extends State<ArtworkImage> {
         style: TextStyle(color: palette.muted, fontWeight: FontWeight.w600, fontSize: widget.size * 0.4),
       ),
     );
-    final pixels = (widget.size * MediaQuery.devicePixelRatioOf(context)).round();
-    final image = FutureBuilder<String?>(
-      future: _url,
-      builder: (context, snapshot) {
-        final url = snapshot.data;
-        if (url == null) return placeholder;
-        return CachedNetworkImage(
-          imageUrl: url,
-          memCacheWidth: pixels,
-          fit: BoxFit.cover,
-          fadeInDuration: const Duration(milliseconds: 200),
-          placeholder: (_, _) => placeholder,
-          errorWidget: (_, _, _) => placeholder,
-        );
-      },
-    );
-    return SizedBox.square(
+    // Decoded at full size (Deezer's are 500 px) for small and big alike, so the big one is already in memory
+    final image = _url == null
+        ? placeholder
+        : CachedNetworkImage(
+            imageUrl: _url!,
+            fit: BoxFit.cover,
+            fadeInDuration: const Duration(milliseconds: 200),
+            placeholder: (_, _) => placeholder,
+            errorWidget: (_, _, _) => placeholder,
+          );
+    final clipped = SizedBox.square(
       dimension: widget.size,
       child: widget.round
           ? ClipOval(child: image)
           : ClipRRect(borderRadius: BorderRadius.circular(widget.size * 0.12), child: image),
     );
+    return widget.hero == null ? clipped : Hero(tag: widget.hero!, child: clipped);
   }
 }

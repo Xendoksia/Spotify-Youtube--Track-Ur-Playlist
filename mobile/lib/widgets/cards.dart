@@ -39,10 +39,17 @@ class StatTile extends StatelessWidget {
   final String label;
   final String value;
 
-  const StatTile({super.key, required this.label, required this.value});
+  /// A number counting from the one shown before to [count] (formatted by [format])
+  final int? count;
+  final String Function(int value)? format;
+
+  const StatTile({super.key, required this.label, required this.value}) : count = null, format = null;
+
+  const StatTile.count({super.key, required this.label, required int this.count, required this.format}) : value = '';
 
   @override
   Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600);
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -51,7 +58,15 @@ class StatTile extends StatelessWidget {
           children: [
             Text(label, style: TextStyle(color: Palette.of(context).muted, fontSize: 13)),
             const SizedBox(height: 4),
-            Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+            if (count == null)
+              Text(value, style: style)
+            else
+              TweenAnimationBuilder<double>(
+                tween: Tween(end: count!.toDouble()),
+                duration: changeDuration,
+                curve: changeCurve,
+                builder: (context, shown, _) => Text(format!(shown.round()), style: style),
+              ),
           ],
         ),
       ),
@@ -94,6 +109,7 @@ class RankedList extends StatelessWidget {
       children: [
         for (final (index, row) in rows.indexed)
           InkWell(
+            key: ValueKey(row.key),
             onTap: onTap == null ? null : () => onTap!(row),
             borderRadius: BorderRadius.circular(8),
             child: Padding(
@@ -124,11 +140,16 @@ class RankedList extends StatelessWidget {
                         const SizedBox(height: 4),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(2),
-                          child: LinearProgressIndicator(
-                            value: row.plays / most,
-                            minHeight: 4,
-                            color: palette.chart,
-                            backgroundColor: palette.border,
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(end: row.plays / most),
+                            duration: changeDuration,
+                            curve: changeCurve,
+                            builder: (context, share, _) => LinearProgressIndicator(
+                              value: share,
+                              minHeight: 4,
+                              color: palette.chart,
+                              backgroundColor: palette.border,
+                            ),
                           ),
                         ),
                       ],

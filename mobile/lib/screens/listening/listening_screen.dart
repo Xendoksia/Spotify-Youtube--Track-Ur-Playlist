@@ -78,15 +78,16 @@ class _ListeningScreenState extends State<ListeningScreen> {
       gap,
       // Rows rather than a grid with a fixed aspect ratio, so the tiles grow with the phone's font size
       Row(children: [
-        Expanded(child: StatTile(label: context.t('stats.plays'), value: context.number(summary.plays))),
+        Expanded(child: StatTile.count(label: context.t('stats.plays'), count: summary.plays, format: context.number)),
         const SizedBox(width: 8),
-        Expanded(child: StatTile(label: context.t('stats.time'), value: context.minutes(summary.minutes))),
+        Expanded(child: StatTile.count(label: context.t('stats.time'), count: summary.minutes, format: context.minutes)),
       ]),
       const SizedBox(height: 8),
       Row(children: [
-        Expanded(child: StatTile(label: context.t('stats.tracks'), value: context.number(summary.tracks))),
+        Expanded(child: StatTile.count(label: context.t('stats.tracks'), count: summary.tracks, format: context.number)),
         const SizedBox(width: 8),
-        Expanded(child: StatTile(label: context.t('stats.artists'), value: context.number(summary.artists))),
+        Expanded(
+            child: StatTile.count(label: context.t('stats.artists'), count: summary.artists, format: context.number)),
       ]),
       gap,
       if (plays.isEmpty)
@@ -102,7 +103,8 @@ class _ListeningScreenState extends State<ListeningScreen> {
           child: RankedList(
             rows: topTracks(plays),
             change: rankChanges(all, _period, _offset, now, trackKeyOf),
-            image: (row) => ArtworkImage.cover(artist: row.artist, album: row.album, name: row.title),
+            image: (row) => ArtworkImage.cover(
+                artist: row.artist, album: row.album, name: row.title, hero: heroTag(DetailKind.track, row.key, 1)),
             onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.track, row)),
           ),
         ),
@@ -112,7 +114,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
           child: RankedList(
             rows: topArtists(plays),
             change: rankChanges(all, _period, _offset, now, artistKeyOf),
-            image: (row) => ArtworkImage.artist(artist: row.artist),
+            image: (row) => ArtworkImage.artist(artist: row.artist, hero: heroTag(DetailKind.artist, row.key, 1)),
             onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.artist, row)),
           ),
         ),
@@ -121,7 +123,8 @@ class _ListeningScreenState extends State<ListeningScreen> {
           title: context.t('stats.top_albums'),
           child: RankedList(
             rows: topAlbums(plays),
-            image: (row) => ArtworkImage.album(artist: row.artist, album: row.album),
+            image: (row) =>
+                ArtworkImage.album(artist: row.artist, album: row.album, hero: heroTag(DetailKind.album, row.key, 1)),
             onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.album, row)),
           ),
         ),

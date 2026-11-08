@@ -15,9 +15,14 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   late final DataStore _store;
   var _page = 0;
+
+  /// The page chosen along the bottom fades in, rising a little
+  late final _shown = AnimationController(vsync: this, duration: const Duration(milliseconds: 250), value: 1);
+  late final _fade = CurvedAnimation(parent: _shown, curve: Curves.easeOut);
+  late final _rise = Tween(begin: const Offset(0, 0.02), end: Offset.zero).animate(_fade);
 
   @override
   void initState() {
@@ -36,6 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _store.dispose();
+    _fade.dispose();
+    _shown.dispose();
     super.dispose();
   }
 
@@ -47,10 +54,19 @@ class _HomeScreenState extends State<HomeScreen> {
       AccountScreen(store: _store),
     ];
     return Scaffold(
-      body: SafeArea(child: IndexedStack(index: _page, children: pages)),
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: _fade,
+          child: SlideTransition(position: _rise, child: IndexedStack(index: _page, children: pages)),
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _page,
-        onDestinationSelected: (page) => setState(() => _page = page),
+        onDestinationSelected: (page) {
+          if (page == _page) return;
+          setState(() => _page = page);
+          _shown.forward(from: 0);
+        },
         destinations: [
           NavigationDestination(icon: const Icon(Icons.headphones_outlined), selectedIcon: const Icon(Icons.headphones),
               label: context.t('nav.listening')),

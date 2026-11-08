@@ -12,8 +12,9 @@ import '../../widgets/format.dart';
 import 'listening_chart.dart';
 
 /// Opens the page of a track, artist or album
-void openDetail(BuildContext context, DataStore store, DetailTarget target) {
-  Navigator.of(context).push(MaterialPageRoute(builder: (_) => DetailScreen(store: store, target: target)));
+void openDetail(BuildContext context, DataStore store, DetailTarget target, {int depth = 1}) {
+  Navigator.of(context)
+      .push(MaterialPageRoute(builder: (_) => DetailScreen(store: store, target: target, depth: depth)));
 }
 
 /// One track, artist or album over all time, as the desktop app's detail page: its totals, plays per day or
@@ -22,7 +23,10 @@ class DetailScreen extends StatefulWidget {
   final DataStore store;
   final DetailTarget target;
 
-  const DetailScreen({super.key, required this.store, required this.target});
+  /// Its place in the stack of pages, for the pictures' flights (see DetailTarget.hero)
+  final int depth;
+
+  const DetailScreen({super.key, required this.store, required this.target, this.depth = 1});
 
   @override
   State<DetailScreen> createState() => _DetailScreenState();
@@ -40,7 +44,9 @@ class _DetailScreenState extends State<DetailScreen> {
     if (target.kind == DetailKind.album) _tracklist = Artwork.instance.tracklist(target.artist, target.album);
   }
 
-  void _open(DetailTarget other) => openDetail(context, widget.store, other);
+  int get _next => widget.depth + 1;
+
+  void _open(DetailTarget other) => openDetail(context, widget.store, other, depth: _next);
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +58,12 @@ class _DetailScreenState extends State<DetailScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         children: [
-          _Header(target: target, onArtist: () => _open(DetailTarget.artist(target.artist)), tracklist: _tracklist),
+          _Header(
+            target: target,
+            hero: target.hero(widget.depth),
+            onArtist: () => _open(DetailTarget.artist(target.artist)),
+            tracklist: _tracklist,
+          ),
           gap,
           if (detail != null) ...[
             Row(children: [
@@ -69,7 +80,11 @@ class _DetailScreenState extends State<DetailScreen> {
             gap,
           ],
           if (target.kind == DetailKind.track && target.album.isNotEmpty) ...[
-            _AlbumLink(target: target, onTap: () => _open(DetailTarget.album(target.artist, target.album))),
+            _AlbumLink(
+              target: target,
+              hero: DetailTarget.album(target.artist, target.album).hero(_next),
+              onTap: () => _open(DetailTarget.album(target.artist, target.album)),
+            ),
             gap,
           ],
           if (target.kind == DetailKind.album) ...[_albumTracks(context, plays), gap],
@@ -80,7 +95,8 @@ class _DetailScreenState extends State<DetailScreen> {
               title: context.t('stats.top_tracks'),
               child: RankedList(
                 rows: topTracks(plays, limit: 15),
-                image: (row) => ArtworkImage.cover(artist: row.artist, album: row.album, name: row.title),
+                image: (row) => ArtworkImage.cover(
+                    artist: row.artist, album: row.album, name: row.title, hero: heroTag(DetailKind.track, row.key, _next)),
                 onTap: (row) => _open(DetailTarget.ranked(DetailKind.track, row)),
               ),
             ),
@@ -90,7 +106,8 @@ class _DetailScreenState extends State<DetailScreen> {
                 title: context.t('stats.top_albums'),
                 child: RankedList(
                   rows: topAlbums(plays),
-                  image: (row) => ArtworkImage.album(artist: row.artist, album: row.album),
+                  image: (row) => ArtworkImage.album(
+                      artist: row.artist, album: row.album, hero: heroTag(DetailKind.album, row.key, _next)),
                   onTap: (row) => _open(DetailTarget.ranked(DetailKind.album, row)),
                 ),
               ),
@@ -141,19 +158,21 @@ class _DetailScreenState extends State<DetailScreen> {
 /// The big picture, the kind, the name, and the artist under a track or album
 class _Header extends StatelessWidget {
   final DetailTarget target;
+  final String hero;
   final VoidCallback onArtist;
   final Future<List<(String, int)>?>? tracklist;
 
-  const _Header({required this.target, required this.onArtist, this.tracklist});
+  const _Header({required this.target, required this.hero, required this.onArtist, this.tracklist});
 
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
     const size = 180.0;
     final image = switch (target.kind) {
-      DetailKind.track => ArtworkImage.cover(artist: target.artist, album: target.album, name: target.title, size: size),
-      DetailKind.artist => ArtworkImage.artist(artist: target.artist, size: size),
-      DetailKind.album => ArtworkImage.album(artist: target.artist, album: target.album, size: size),
+      DetailKind.track =>
+        ArtworkImage.cover(artist: target.artist, album: target.album, name: target.title, size: size, hero: hero),
+      DetailKind.artist => ArtworkImage.artist(artist: target.artist, size: size, hero: hero),
+      DetailKind.album => ArtworkImage.album(artist: target.artist, album: target.album, size: size, hero: hero),
     };
     return Column(
       children: [
@@ -195,9 +214,10 @@ class _Header extends StatelessWidget {
 /// On a track's page: its album, opening the album's page
 class _AlbumLink extends StatelessWidget {
   final DetailTarget target;
+  final String hero;
   final VoidCallback onTap;
 
-  const _AlbumLink({required this.target, required this.onTap});
+  const _AlbumLink({required this.target, required this.hero, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -209,7 +229,7 @@ class _AlbumLink extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(children: [
-            ArtworkImage.album(artist: target.artist, album: target.album, size: 56),
+            ArtworkImage.album(artist: target.artist, album: target.album, size: 56, hero: hero),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

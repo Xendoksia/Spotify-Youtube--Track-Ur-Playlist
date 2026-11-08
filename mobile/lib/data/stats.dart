@@ -174,7 +174,13 @@ class DetailTarget {
       };
 
   List<Play> playsIn(List<Play> plays) => plays.where((p) => keyOf(p) == key).toList();
+
+  /// The tag of its picture flying to its page; [depth] is the page's place in the stack (1 = opened from the
+  /// listening page), so a page's big picture never flies into a row of the page opened from it
+  String hero(int depth) => heroTag(kind, key, depth);
 }
+
+String heroTag(DetailKind kind, String key, int depth) => '${kind.name}:$key@$depth';
 
 /// The totals of a track, artist or album over all time
 class Detail {

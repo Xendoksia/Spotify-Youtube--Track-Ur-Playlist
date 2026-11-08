@@ -67,6 +67,8 @@ class ListeningChart extends StatelessWidget {
     return SizedBox(
       height: 180,
       child: BarChart(
+        duration: changeDuration,
+        curve: changeCurve,
         BarChartData(
           maxY: most == 0 ? step : (most / step).ceil() * step,
           borderData: FlBorderData(show: false),

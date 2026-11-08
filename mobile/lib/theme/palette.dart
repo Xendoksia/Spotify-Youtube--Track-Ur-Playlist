@@ -69,6 +69,10 @@ class Palette extends ThemeExtension<Palette> {
 const serviceColors = {'spotify': Color(0xFF1AA34A), 'youtube': Color(0xFFE62117)};
 const serviceNames = {'spotify': 'Spotify', 'youtube': 'YouTube'};
 
+/// How long values take to move to new ones, as the desktop app's charts.Animation
+const changeDuration = Duration(milliseconds: 450);
+const changeCurve = Curves.easeOutCubic;
+
 ThemeData buildTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final background = dark ? const Color(0xFF16181D) : const Color(0xFFD3D8E0);
@@ -99,5 +103,8 @@ ThemeData buildTheme(Brightness brightness) {
     ),
     navigationBarTheme: NavigationBarThemeData(backgroundColor: surface),
     appBarTheme: AppBarTheme(backgroundColor: background, scrolledUnderElevation: 0),
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+    }),
   );
 }
