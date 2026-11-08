@@ -12,6 +12,7 @@ import 'detail_screen.dart';
 import 'discoveries.dart';
 import 'listening_chart.dart';
 import 'period_bar.dart';
+import 'trends.dart';
 
 /// The statistics of the plays synced from the desktop app, by week, month, year or all time
 class ListeningScreen extends StatefulWidget {
@@ -158,6 +159,10 @@ class _ListeningScreenState extends State<ListeningScreen> {
         ),
         gap,
         Discoveries(store: widget.store, period: _period, range: range, plays: plays),
+        gap,
+        DiversityCard(store: widget.store, period: _period, offset: _offset, range: range, plays: plays),
+        gap,
+        MilestonesCard(store: widget.store, period: _period, range: range),
       ],
       gap,
       SectionCard(

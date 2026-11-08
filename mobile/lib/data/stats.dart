@@ -422,3 +422,94 @@ List<Discovered> forgotten(List<Play> all, DateTime now, {int days = 30, int min
   }
   return found.take(limit).toList();
 }
+
+/// How varied a period's listening was, as the desktop app's listening.diversity: its plays, different tracks and
+/// artists, the plays of its five most played artists and the plays of tracks heard for the first time in it
+class Diversity {
+  final int plays;
+  final int tracks;
+  final int artists;
+  final int top5;
+  final int fresh;
+
+  const Diversity(this.plays, this.tracks, this.artists, this.top5, this.fresh);
+
+  factory Diversity.of(List<Play> all, DateRange range) {
+    final plays = playsIn(all, range);
+    final top5 = _ordered(plays, artistKeyOf).take(5).fold<int>(0, (sum, e) => sum + e.value.length);
+    final firsts = <String, DateTime>{};
+    for (final play in all) {
+      final first = firsts[play.trackKey];
+      if (first == null || play.playedAt.isBefore(first)) firsts[play.trackKey] = play.playedAt;
+    }
+    final fresh = plays.where((p) => range.contains(firsts[p.trackKey]!)).length;
+    final summary = Summary.of(plays);
+    return Diversity(plays.length, summary.tracks, summary.artists, top5, fresh);
+  }
+}
+
+/// part of whole in whole percent, 0 of nothing
+int share(int part, int whole) => whole == 0 ? 0 : (100 * part / whole).round();
+
+/// Counts worth marking: of all plays, of one artist's plays and of one track's plays (listening.py)
+const totalSteps = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000];
+const artistSteps = [10, 25, 50, 100, 250, 500, 1000];
+const trackSteps = [10, 25, 50, 100, 250];
+
+enum MilestoneKind { total, artist, track, met, start }
+
+class Milestone {
+  final MilestoneKind kind;
+  final DateTime at;
+  final int count;
+  final String name;
+  final String artist;
+  final String key;
+
+  const Milestone(this.kind, this.at, this.count, {this.name = '', this.artist = '', this.key = ''});
+}
+
+/// Every milestone so far, newest first, as the desktop app's listening.milestones: the 100th play, an artist's
+/// 25th play, a track's 10th play, the day an artist who now has 10 plays was first heard, the start of recording
+List<Milestone> milestones(List<Play> all) {
+  final plays = [...all]..sort((a, b) => a.playedAt.compareTo(b.playedAt));
+  final found = <Milestone>[];
+  if (plays.isNotEmpty) found.add(Milestone(MilestoneKind.start, plays.first.playedAt, 0));
+  final artistPlays = <String, int>{};
+  final trackPlays = <String, int>{};
+  final firstHeard = <String, Play>{};
+  for (final (index, play) in plays.indexed) {
+    if (totalSteps.contains(index + 1)) found.add(Milestone(MilestoneKind.total, play.playedAt, index + 1));
+    final artist = artistPlays[play.artistKey] = (artistPlays[play.artistKey] ?? 0) + 1;
+    if (artist == 1) firstHeard[play.artistKey] = play;
+    if (artistSteps.contains(artist)) {
+      found.add(Milestone(MilestoneKind.artist, play.playedAt, artist, name: play.artist, key: play.artistKey));
+    }
+    final track = trackPlays[play.trackKey] = (trackPlays[play.trackKey] ?? 0) + 1;
+    if (trackSteps.contains(track)) {
+      found.add(Milestone(MilestoneKind.track, play.playedAt, track,
+          name: play.name, artist: play.artist, key: play.trackKey));
+    }
+  }
+  firstHeard.forEach((key, play) {
+    final count = artistPlays[key]!;
+    if (count >= artistSteps.first) {
+      found.add(Milestone(MilestoneKind.met, play.playedAt, count, name: play.artist, key: key));
+    }
+  });
+  return found..sort((a, b) => b.at.compareTo(a.at));
+}
+
+/// The next count of all plays worth marking and how many plays are left to it
+(int, int)? nextTotalStep(int plays) {
+  for (final step in totalSteps) {
+    if (step > plays) return (step, step - plays);
+  }
+  return null;
+}
+
+/// The same moment a year earlier (29 February becomes the 28th)
+DateTime yearBack(DateTime moment) {
+  final back = DateTime(moment.year - 1, moment.month, moment.day, moment.hour, moment.minute);
+  return back.month == moment.month ? back : DateTime(moment.year - 1, moment.month, 28, moment.hour, moment.minute);
+}

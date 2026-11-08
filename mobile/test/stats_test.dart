@@ -290,4 +290,32 @@ void main() {
       expect(rows.map((d) => (d.row.title, d.row.plays, d.at)), [('Loved', 4, DateTime(2026, 9, 4))]);
     });
   });
+
+  group('diversity and milestones', () {
+    test('the top five artists, different tracks and new tracks are counted', () {
+      final plays = [
+        play('A', 'Old', DateTime(2026, 10, 1)),
+        play('A', 'Old', DateTime(2026, 11, 2)),
+        play('A', 'New', DateTime(2026, 11, 3)),
+        for (final artist in ['B', 'C', 'D', 'E', 'F']) play(artist, 'Song', DateTime(2026, 11, 4)),
+      ];
+      final d = Diversity.of(plays, DateRange(DateTime(2026, 11), DateTime(2026, 12)));
+      expect((d.plays, d.tracks, d.artists, d.top5, d.fresh), (7, 7, 6, 6, 6));
+      expect(share(6, 7), 86);
+    });
+
+    test('counts worth marking are found in the order they were reached, newest first', () {
+      final plays = [
+        for (var i = 0; i < 100; i++) play(i < 10 ? 'A' : 'B$i', i < 10 ? 'Hit' : 'Song$i', DateTime(2026, 11, 1, 0, i)),
+      ];
+      final found = milestones(plays);
+      expect(found.first.kind, MilestoneKind.total);
+      expect(found.first.count, 100);
+      final kinds = found.map((m) => (m.kind, m.count)).toSet();
+      expect(kinds, containsAll([(MilestoneKind.artist, 10), (MilestoneKind.track, 10), (MilestoneKind.met, 10),
+          (MilestoneKind.start, 0)]));
+      expect(nextTotalStep(100), (250, 150));
+      expect(yearBack(DateTime(2028, 2, 29)), DateTime(2027, 2, 28));
+    });
+  });
 }
