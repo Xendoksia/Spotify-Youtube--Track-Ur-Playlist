@@ -73,20 +73,18 @@ class _ListeningScreenState extends State<ListeningScreen> {
         onOffset: (offset) => setState(() => _offset = offset),
       ),
       gap,
-      GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 2.2,
-        children: [
-          StatTile(label: context.t('stats.plays'), value: context.number(summary.plays)),
-          StatTile(label: context.t('stats.time'), value: context.minutes(summary.minutes)),
-          StatTile(label: context.t('stats.tracks'), value: context.number(summary.tracks)),
-          StatTile(label: context.t('stats.artists'), value: context.number(summary.artists)),
-        ],
-      ),
+      // Rows rather than a grid with a fixed aspect ratio, so the tiles grow with the phone's font size
+      Row(children: [
+        Expanded(child: StatTile(label: context.t('stats.plays'), value: context.number(summary.plays))),
+        const SizedBox(width: 8),
+        Expanded(child: StatTile(label: context.t('stats.time'), value: context.minutes(summary.minutes))),
+      ]),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: StatTile(label: context.t('stats.tracks'), value: context.number(summary.tracks))),
+        const SizedBox(width: 8),
+        Expanded(child: StatTile(label: context.t('stats.artists'), value: context.number(summary.artists))),
+      ]),
       gap,
       if (plays.isEmpty)
         MessageView(icon: Icons.music_off, text: context.t('stats.empty'))
