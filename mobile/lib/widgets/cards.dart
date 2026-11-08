@@ -43,9 +43,14 @@ class StatTile extends StatelessWidget {
   final int? count;
   final String Function(int value)? format;
 
-  const StatTile({super.key, required this.label, required this.value}) : count = null, format = null;
+  /// The change against the previous period, under the number
+  final String? note;
 
-  const StatTile.count({super.key, required this.label, required int this.count, required this.format}) : value = '';
+  const StatTile({super.key, required this.label, required this.value, this.note}) : count = null, format = null;
+
+  const StatTile.count(
+      {super.key, required this.label, required int this.count, required this.format, this.note})
+      : value = '';
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +72,10 @@ class StatTile extends StatelessWidget {
                 curve: changeCurve,
                 builder: (context, shown, _) => Text(format!(shown.round()), style: style),
               ),
+            if (note != null) ...[
+              const SizedBox(height: 2),
+              Text(note!, style: TextStyle(color: Palette.of(context).muted, fontSize: 12)),
+            ],
           ],
         ),
       ),
@@ -87,7 +96,10 @@ class RankedList extends StatelessWidget {
   /// Opens the row's page
   final void Function(Ranked row)? onTap;
 
-  const RankedList({super.key, required this.rows, this.change, this.image, this.onTap});
+  /// The first row's number: 2 under a card showing the number one
+  final int firstRank;
+
+  const RankedList({super.key, required this.rows, this.change, this.image, this.onTap, this.firstRank = 1});
 
   Widget? _change(BuildContext context, Palette palette, RankChange? change) {
     if (change == null) return null;
@@ -121,8 +133,9 @@ class RankedList extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${index + 1}', style: TextStyle(color: palette.muted, fontWeight: FontWeight.w600)),
-                        ?_change(context, palette, change?.call(row.key, index + 1)),
+                        Text('${index + firstRank}',
+                            style: TextStyle(color: palette.muted, fontWeight: FontWeight.w600)),
+                        ?_change(context, palette, change?.call(row.key, index + firstRank)),
                       ],
                     ),
                   ),
@@ -198,6 +211,84 @@ class MessageView extends StatelessWidget {
             FilledButton(onPressed: onAction, child: Text(action!)),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// A rank change written out, as on the desktop app's number one cards
+String? changeText(BuildContext context, RankChange? change, int rank) => switch (change?.kind) {
+      null => null,
+      ChangeKind.same => context.t('stats.change.same'),
+      ChangeKind.fresh => context.t('stats.change.new_long'),
+      ChangeKind.back => context.t('stats.change.back_long'),
+      ChangeKind.up || ChangeKind.down => context.t('stats.change.moved', {
+          'arrow': change!.kind == ChangeKind.up ? '▲' : '▼',
+          'count': change.count,
+          'rank': rank + (change.kind == ChangeKind.up ? change.count : -change.count),
+        }),
+    };
+
+/// The number one track or artist of the period, large with its picture, as the desktop app's hero cards
+class HeroCard extends StatelessWidget {
+  final String caption;
+  final String title;
+  final String subtitle;
+  final String detail;
+  final String? change;
+  final Widget image;
+  final VoidCallback onTap;
+
+  const HeroCard({
+    super.key,
+    required this.caption,
+    required this.title,
+    required this.subtitle,
+    required this.detail,
+    this.change,
+    required this.image,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Palette.of(context);
+    final theme = Theme.of(context);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              image,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(caption.toUpperCase(),
+                        style: TextStyle(color: palette.muted, fontSize: 11, fontWeight: FontWeight.w600,
+                            letterSpacing: 0.8)),
+                    const SizedBox(height: 4),
+                    Text(title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                    if (subtitle.isNotEmpty)
+                      Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: palette.muted)),
+                    const SizedBox(height: 4),
+                    Text(detail, style: const TextStyle(fontSize: 13)),
+                    if (change != null)
+                      Text(change!, style: TextStyle(color: palette.muted, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

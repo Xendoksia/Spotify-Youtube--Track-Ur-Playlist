@@ -338,3 +338,29 @@ LatestChanges? latestChanges(Iterable<PlaylistEvent> events) {
   }
   return LatestChanges(at, counts);
 }
+
+/// The summary of the previous period to compare with, as the desktop app's tiles: while the current period
+/// still runs, only the same stretch of the previous one. Nothing for all time.
+Summary? previousSummary(List<Play> all, Period period, int offset, DateTime now) {
+  if (period == Period.all) return null;
+  final range = periodRange(period, offset, now);
+  final previous = periodRange(period, offset + 1, now);
+  var end = previous.end;
+  if (offset == 0) {
+    final stretch = previous.start.add(now.difference(range.start));
+    if (stretch.isBefore(end)) end = stretch;
+  }
+  return Summary.of(playsIn(all, DateRange(previous.start, end)));
+}
+
+/// The change from before to now in whole percent, or null with nothing before to compare with
+int? percentChange(int now, int before) => before == 0 ? null : ((now - before) * 100 / before).round();
+
+/// Plays per local hour of the day, 0-23
+List<int> playsPerHour(List<Play> plays) {
+  final hours = List.filled(24, 0);
+  for (final play in plays) {
+    hours[play.playedAt.hour]++;
+  }
+  return hours;
+}

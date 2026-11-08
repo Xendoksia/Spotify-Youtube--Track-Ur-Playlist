@@ -232,4 +232,35 @@ void main() {
       expect(albumTracks(plays, null).map((r) => r.title), ['Two - Remastered', 'Bonus']);
     });
   });
+
+  group('comparing periods', () {
+    test('a running month is compared with the same stretch of the previous one', () {
+      final now = DateTime(2026, 11, 8, 12);
+      final plays = [
+        play('A', 'One', DateTime(2026, 11, 2)),
+        play('A', 'One', DateTime(2026, 10, 3)),
+        play('A', 'Two', DateTime(2026, 10, 5)),
+        play('B', 'Late', DateTime(2026, 10, 20)),
+      ];
+      final before = previousSummary(plays, Period.month, 0, now)!;
+      expect((before.plays, before.tracks, before.artists), (2, 2, 1));
+      expect(previousSummary(plays, Period.month, 1, now)!.plays, 0);
+      expect(previousSummary(plays, Period.all, 0, now), isNull);
+    });
+
+    test('the change is in whole percent, none without anything before', () {
+      expect(percentChange(150, 100), 50);
+      expect(percentChange(2, 3), -33);
+      expect(percentChange(5, 0), isNull);
+    });
+
+    test('plays are counted by their local hour', () {
+      final hours = playsPerHour([
+        play('A', 'One', DateTime(2026, 11, 2, 9, 30)),
+        play('A', 'One', DateTime(2026, 11, 3, 9, 5)),
+        play('A', 'One', DateTime(2026, 11, 3, 23, 59)),
+      ]);
+      expect((hours.length, hours[9], hours[23], hours[0]), (24, 2, 1, 0));
+    });
+  });
 }
