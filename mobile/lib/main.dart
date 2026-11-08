@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'config.dart';
+import 'data/genres.dart';
 import 'data/repository.dart';
 import 'state/app_controller.dart';
 
@@ -16,5 +17,7 @@ Future<void> main() async {
   }
   final controller = AppController(Repository());
   await controller.load();
+  // The artists' genres found earlier, for the genre cards
+  await Genres.instance.load();
   runApp(PlaylistTrackerApp(controller: controller));
 }

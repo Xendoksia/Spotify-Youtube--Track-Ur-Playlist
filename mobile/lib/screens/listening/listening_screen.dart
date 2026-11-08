@@ -10,6 +10,7 @@ import '../../widgets/cards.dart';
 import '../../widgets/format.dart';
 import 'detail_screen.dart';
 import 'discoveries.dart';
+import 'genre_cards.dart';
 import 'listening_chart.dart';
 import 'period_bar.dart';
 import 'trends.dart';
@@ -163,6 +164,10 @@ class _ListeningScreenState extends State<ListeningScreen> {
         DiversityCard(store: widget.store, period: _period, offset: _offset, range: range, plays: plays),
         gap,
         MilestonesCard(store: widget.store, period: _period, range: range),
+        gap,
+        GenresCard(all: all, plays: plays),
+        gap,
+        GenreShiftCard(period: _period, range: range, plays: plays),
       ],
       gap,
       SectionCard(
