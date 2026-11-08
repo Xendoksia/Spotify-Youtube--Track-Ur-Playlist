@@ -263,4 +263,31 @@ void main() {
       expect((hours.length, hours[9], hours[23], hours[0]), (24, 2, 1, 0));
     });
   });
+
+  group('discoveries', () {
+    final plays = [
+      play('A', 'Old', DateTime(2026, 10, 1)),
+      play('A', 'Old', DateTime(2026, 11, 3)),
+      play('A', 'New', DateTime(2026, 11, 4)),
+      play('B', 'Fresh', DateTime(2026, 11, 5)),
+      play('B', 'Fresh', DateTime(2026, 11, 6)),
+    ];
+    final november = DateRange(DateTime(2026, 11), DateTime(2026, 12));
+
+    test('only what was first heard in the period is new, most played first', () {
+      expect(newTracks(plays, november).map((d) => (d.row.title, d.row.plays)), [('Fresh', 2), ('New', 1)]);
+      final artists = newArtists(plays, november);
+      expect(artists.map((d) => (d.row.title, d.tracks, d.at)), [('B', 1, DateTime(2026, 11, 5))]);
+    });
+
+    test('forgotten tracks were played often but not lately', () {
+      final often = [
+        for (var day = 1; day <= 4; day++) play('C', 'Loved', DateTime(2026, 9, day)),
+        for (var day = 1; day <= 2; day++) play('C', 'Liked', DateTime(2026, 9, day)),
+        for (var day = 1; day <= 3; day++) play('C', 'Recent', DateTime(2026, 11, day)),
+      ];
+      final rows = forgotten(often, DateTime(2026, 11, 8));
+      expect(rows.map((d) => (d.row.title, d.row.plays, d.at)), [('Loved', 4, DateTime(2026, 9, 4))]);
+    });
+  });
 }

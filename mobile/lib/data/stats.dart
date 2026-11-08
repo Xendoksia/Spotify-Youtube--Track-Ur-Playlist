@@ -364,3 +364,61 @@ List<int> playsPerHour(List<Play> plays) {
   }
   return hours;
 }
+
+/// A track or artist heard for the first time ever in a period, or one not played lately
+class Discovered {
+  final Ranked row;
+
+  /// Its very first play (a discovery) or its last one (forgotten)
+  final DateTime at;
+
+  /// An artist's different tracks in the period
+  final int tracks;
+
+  const Discovered(this.row, this.at, {this.tracks = 0});
+}
+
+DateTime _earliest(Iterable<Play> plays) => plays.map((p) => p.playedAt).reduce((a, b) => a.isBefore(b) ? a : b);
+DateTime _latest(Iterable<Play> plays) => plays.map((p) => p.playedAt).reduce((a, b) => a.isAfter(b) ? a : b);
+
+/// Tracks or artists whose very first recorded play falls in the period, most played in it first, as the desktop
+/// app's new_tracks / new_artists
+List<Discovered> _firstHeard(List<Play> all, DateRange range, String Function(Play) keyOf,
+    Ranked Function(String key, List<Play> plays) row) {
+  final everything = <String, List<Play>>{};
+  for (final play in all) {
+    everything.putIfAbsent(keyOf(play), () => []).add(play);
+  }
+  final found = <Discovered>[];
+  everything.forEach((key, plays) {
+    final first = _earliest(plays);
+    if (!range.contains(first)) return;
+    final inside = plays.where((p) => range.contains(p.playedAt)).toList();
+    found.add(Discovered(row(key, inside), first, tracks: inside.map((p) => p.trackKey).toSet().length));
+  });
+  return found
+    ..sort((a, b) => a.row.plays != b.row.plays ? b.row.plays.compareTo(a.row.plays) : b.at.compareTo(a.at));
+}
+
+List<Discovered> newTracks(List<Play> all, DateRange range) => _firstHeard(all, range, trackKeyOf,
+    (key, plays) => Ranked(key, plays.first.name, plays.first.artist, plays.length, _minutes(plays),
+        artist: plays.first.artist, album: plays.first.album));
+
+List<Discovered> newArtists(List<Play> all, DateRange range) => _firstHeard(all, range, artistKeyOf,
+    (key, plays) => Ranked(key, plays.first.artist, '', plays.length, _minutes(plays), artist: plays.first.artist));
+
+/// Tracks played at least [minPlays] times but not once in the last [days] days, most played first
+List<Discovered> forgotten(List<Play> all, DateTime now, {int days = 30, int minPlays = 3, int limit = 10}) {
+  final since = now.subtract(Duration(days: days));
+  final found = <Discovered>[];
+  for (final MapEntry(:key, value: plays) in _ordered(all, trackKeyOf)) {
+    if (plays.length < minPlays) break;
+    final last = _latest(plays);
+    if (!last.isBefore(since)) continue;
+    found.add(Discovered(
+        Ranked(key, plays.first.name, plays.first.artist, plays.length, _minutes(plays),
+            artist: plays.first.artist, album: plays.first.album),
+        last));
+  }
+  return found.take(limit).toList();
+}

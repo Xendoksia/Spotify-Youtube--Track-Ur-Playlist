@@ -9,6 +9,7 @@ import '../../widgets/artwork_image.dart';
 import '../../widgets/cards.dart';
 import '../../widgets/format.dart';
 import 'detail_screen.dart';
+import 'discoveries.dart';
 import 'listening_chart.dart';
 import 'period_bar.dart';
 
@@ -155,6 +156,8 @@ class _ListeningScreenState extends State<ListeningScreen> {
             label: (context, start) => start.hour.toString().padLeft(2, '0'),
           ),
         ),
+        gap,
+        Discoveries(store: widget.store, period: _period, range: range, plays: plays),
       ],
       gap,
       SectionCard(
