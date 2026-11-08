@@ -66,7 +66,10 @@ class RankedList extends StatelessWidget {
   /// The row's move against the previous period, shown under its number
   final RankChange? Function(String key, int rank)? change;
 
-  const RankedList({super.key, required this.rows, this.change});
+  /// The row's cover or photo, between its number and its title
+  final Widget Function(Ranked row)? image;
+
+  const RankedList({super.key, required this.rows, this.change, this.image});
 
   Widget? _change(BuildContext context, Palette palette, RankChange? change) {
     if (change == null) return null;
@@ -101,6 +104,7 @@ class RankedList extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (image != null) ...[image!(row), const SizedBox(width: 12)],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

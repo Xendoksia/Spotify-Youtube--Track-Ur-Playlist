@@ -5,6 +5,7 @@ import '../../data/stats.dart';
 import '../../l10n/strings.dart';
 import '../../state/data_store.dart';
 import '../../theme/palette.dart';
+import '../../widgets/artwork_image.dart';
 import '../../widgets/cards.dart';
 import '../../widgets/format.dart';
 import 'listening_chart.dart';
@@ -97,15 +98,29 @@ class _ListeningScreenState extends State<ListeningScreen> {
         gap,
         SectionCard(
           title: context.t('stats.top_tracks'),
-          child: RankedList(rows: topTracks(plays), change: rankChanges(all, _period, _offset, now, trackKeyOf)),
+          child: RankedList(
+            rows: topTracks(plays),
+            change: rankChanges(all, _period, _offset, now, trackKeyOf),
+            image: (row) => ArtworkImage.cover(artist: row.artist, album: row.album, name: row.title),
+          ),
         ),
         gap,
         SectionCard(
           title: context.t('stats.top_artists'),
-          child: RankedList(rows: topArtists(plays), change: rankChanges(all, _period, _offset, now, artistKeyOf)),
+          child: RankedList(
+            rows: topArtists(plays),
+            change: rankChanges(all, _period, _offset, now, artistKeyOf),
+            image: (row) => ArtworkImage.artist(artist: row.artist),
+          ),
         ),
         gap,
-        SectionCard(title: context.t('stats.top_albums'), child: RankedList(rows: topAlbums(plays))),
+        SectionCard(
+          title: context.t('stats.top_albums'),
+          child: RankedList(
+            rows: topAlbums(plays),
+            image: (row) => ArtworkImage.album(artist: row.artist, album: row.album),
+          ),
+        ),
       ],
       gap,
       SectionCard(title: context.t('stats.recent'), child: _RecentPlays(plays: all)),

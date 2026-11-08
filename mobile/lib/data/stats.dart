@@ -61,7 +61,11 @@ class Ranked {
   final int plays;
   final int minutes;
 
-  const Ranked(this.key, this.title, this.subtitle, this.plays, this.minutes);
+  /// The artist and album of its first play, for its picture
+  final String artist;
+  final String album;
+
+  const Ranked(this.key, this.title, this.subtitle, this.plays, this.minutes, {this.artist = '', this.album = ''});
 }
 
 String trackKeyOf(Play play) => play.trackKey;
@@ -85,7 +89,8 @@ List<Ranked> _top(List<Play> plays, String Function(Play) keyOf, String Function
         String Function(Play) subtitle, int limit) =>
     _ordered(plays, keyOf)
         .take(limit)
-        .map((e) => Ranked(e.key, title(e.value.first), subtitle(e.value.first), e.value.length, _minutes(e.value)))
+        .map((e) => Ranked(e.key, title(e.value.first), subtitle(e.value.first), e.value.length, _minutes(e.value),
+            artist: e.value.first.artist, album: e.value.first.album))
         .toList();
 
 List<Ranked> topTracks(List<Play> plays, {int limit = 10}) =>
