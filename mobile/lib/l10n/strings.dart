@@ -79,6 +79,13 @@ const _strings = <String, Map<String, String>>{
     'theme.dark': 'Dark',
     'account.logout': 'Log out',
     'account.member_since': 'Member since {date}',
+    'mini.playing': 'Playing',
+    'mini.paused': 'Paused',
+    'phone.title': 'Playing on this phone',
+    'phone.lead': 'The song Spotify plays on this phone shows above the bottom bar. Android lets the app see it '
+        'only with notification access.',
+    'phone.allow': 'Give access',
+    'phone.allowed': 'Access given',
   },
   'tr': {
     'app.title': 'Playlist Tracker',
@@ -151,6 +158,13 @@ const _strings = <String, Map<String, String>>{
     'theme.dark': 'Koyu',
     'account.logout': 'Çıkış yap',
     'account.member_since': '{date} tarihinden beri üye',
+    'mini.playing': 'Çalıyor',
+    'mini.paused': 'Duraklatıldı',
+    'phone.title': 'Bu telefonda çalan',
+    'phone.lead': 'Spotify\'ın bu telefonda çaldığı şarkı alt çubuğun üstünde görünür. Android bunu uygulamaya '
+        'yalnızca bildirim erişimiyle gösterir.',
+    'phone.allow': 'Erişim ver',
+    'phone.allowed': 'Erişim verildi',
   },
 };
 

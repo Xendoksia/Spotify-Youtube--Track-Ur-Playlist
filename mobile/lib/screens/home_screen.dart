@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/strings.dart';
+import '../data/now_playing.dart';
 import '../state/app_controller.dart';
 import '../state/data_store.dart';
+import '../widgets/mini_player.dart';
 import 'account_screen.dart';
 import 'listening/listening_screen.dart';
 import 'playlists/playlists_screen.dart';
@@ -17,6 +19,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   late final DataStore _store;
+  final _nowPlaying = NowPlaying();
   var _page = 0;
 
   /// The page chosen along the bottom fades in, rising a little
@@ -41,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void dispose() {
     _store.dispose();
+    _nowPlaying.dispose();
     _fade.dispose();
     _shown.dispose();
     super.dispose();
@@ -51,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final pages = [
       ListeningScreen(store: _store, onRefresh: refresh),
       PlaylistsScreen(store: _store, onRefresh: refresh),
-      AccountScreen(store: _store),
+      AccountScreen(store: _store, nowPlaying: _nowPlaying),
     ];
     return Scaffold(
       body: SafeArea(
@@ -60,22 +64,25 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           child: SlideTransition(position: _rise, child: IndexedStack(index: _page, children: pages)),
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _page,
-        onDestinationSelected: (page) {
-          if (page == _page) return;
-          setState(() => _page = page);
-          _shown.forward(from: 0);
-        },
-        destinations: [
-          NavigationDestination(icon: const Icon(Icons.headphones_outlined), selectedIcon: const Icon(Icons.headphones),
-              label: context.t('nav.listening')),
-          NavigationDestination(icon: const Icon(Icons.queue_music_outlined),
-              selectedIcon: const Icon(Icons.queue_music), label: context.t('nav.playlists')),
-          NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person),
-              label: context.t('nav.account')),
-        ],
-      ),
+      bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
+        MiniPlayer(nowPlaying: _nowPlaying, store: _store),
+        NavigationBar(
+          selectedIndex: _page,
+          onDestinationSelected: (page) {
+            if (page == _page) return;
+            setState(() => _page = page);
+            _shown.forward(from: 0);
+          },
+          destinations: [
+            NavigationDestination(icon: const Icon(Icons.headphones_outlined), selectedIcon: const Icon(Icons.headphones),
+                label: context.t('nav.listening')),
+            NavigationDestination(icon: const Icon(Icons.queue_music_outlined),
+                selectedIcon: const Icon(Icons.queue_music), label: context.t('nav.playlists')),
+            NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person),
+                label: context.t('nav.account')),
+          ],
+        ),
+      ]),
     );
   }
 }

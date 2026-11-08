@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../data/now_playing.dart';
 import '../data/stats.dart';
 import '../l10n/strings.dart';
 import '../state/app_controller.dart';
@@ -12,8 +13,9 @@ import '../widgets/format.dart';
 /// The logged-in user, the devices that recorded plays, the language and theme (shared by all devices), log out
 class AccountScreen extends StatelessWidget {
   final DataStore store;
+  final NowPlaying nowPlaying;
 
-  const AccountScreen({super.key, required this.store});
+  const AccountScreen({super.key, required this.store, required this.nowPlaying});
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +72,31 @@ class AccountScreen extends StatelessWidget {
                     title: Text(device.isEmpty ? context.t('account.device_unknown') : device),
                     trailing: Text(context.plays(count)),
                   ),
+              ],
+            ),
+          ),
+        ),
+        gap,
+        ListenableBuilder(
+          listenable: nowPlaying,
+          builder: (context, _) => SectionCard(
+            title: context.t('phone.title'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(context.t('phone.lead'), style: TextStyle(color: muted, fontSize: 13)),
+                const SizedBox(height: 8),
+                nowPlaying.hasAccess
+                    ? TextButton.icon(
+                        onPressed: nowPlaying.openSettings,
+                        icon: Icon(Icons.check_circle, color: Palette.of(context).added),
+                        label: Text(context.t('phone.allowed')),
+                      )
+                    : FilledButton.icon(
+                        onPressed: nowPlaying.openSettings,
+                        icon: const Icon(Icons.notifications_active_outlined),
+                        label: Text(context.t('phone.allow')),
+                      ),
               ],
             ),
           ),

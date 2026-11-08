@@ -34,6 +34,16 @@
                 <data android:scheme="io.github.xendoksia.playlisttracker" android:host="login-callback"/>
             </intent-filter>
         </activity>
+        <!-- Given notification access, lets the app read what Spotify plays (NowPlaying.kt) -->
+        <service
+            android:name=".MediaListener"
+            android:label="Playlist Tracker"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService"/>
+            </intent-filter>
+        </service>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
