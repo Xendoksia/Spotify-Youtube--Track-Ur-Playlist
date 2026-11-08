@@ -61,20 +61,26 @@ class AccountScreen extends StatelessWidget {
         gap,
         ListenableBuilder(
           listenable: store,
-          builder: (context, _) => SectionCard(
-            title: context.t('account.devices'),
-            child: Column(
-              children: [
-                for (final MapEntry(key: device, value: count) in playsPerDevice(store.plays))
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.computer),
-                    title: Text(device.isEmpty ? context.t('account.device_unknown') : device),
-                    trailing: Text(context.plays(count)),
-                  ),
-              ],
-            ),
-          ),
+          builder: (context, _) {
+            final phones = {
+              for (final play in store.plays)
+                if (play.source == NowPlaying.source) play.deviceName ?? '',
+            };
+            return SectionCard(
+              title: context.t('account.devices'),
+              child: Column(
+                children: [
+                  for (final MapEntry(key: device, value: count) in playsPerDevice(store.plays))
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(phones.contains(device) ? Icons.smartphone : Icons.computer),
+                      title: Text(device.isEmpty ? context.t('account.device_unknown') : device),
+                      trailing: Text(context.plays(count)),
+                    ),
+                ],
+              ),
+            );
+          },
         ),
         gap,
         ListenableBuilder(
@@ -85,6 +91,10 @@ class AccountScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(context.t('phone.lead'), style: TextStyle(color: muted, fontSize: 13)),
+                if (nowPlaying.hasAccess) ...[
+                  const SizedBox(height: 6),
+                  Text(context.t('phone.battery'), style: TextStyle(color: muted, fontSize: 13)),
+                ],
                 const SizedBox(height: 8),
                 nowPlaying.hasAccess
                     ? TextButton.icon(

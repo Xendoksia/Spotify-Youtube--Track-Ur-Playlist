@@ -81,9 +81,13 @@ const _strings = <String, Map<String, String>>{
     'account.member_since': 'Member since {date}',
     'mini.playing': 'Playing',
     'mini.paused': 'Paused',
+    'mini.recorded': '  ·  recorded ✓',
     'phone.title': 'Playing on this phone',
-    'phone.lead': 'The song Spotify plays on this phone shows above the bottom bar. Android lets the app see it '
-        'only with notification access.',
+    'phone.lead': 'The song Spotify plays on this phone shows above the bottom bar, and songs listened to for 30 '
+        'seconds are recorded, also while the app is closed; they are sent to your account when you open it. '
+        'Android lets the app see them only with notification access.',
+    'phone.battery': 'Some phones (Honor, Huawei, Xiaomi…) stop apps in the background: in the battery settings, '
+        'let Playlist Tracker start and run in the background.',
     'phone.allow': 'Give access',
     'phone.allowed': 'Access given',
   },
@@ -160,9 +164,13 @@ const _strings = <String, Map<String, String>>{
     'account.member_since': '{date} tarihinden beri üye',
     'mini.playing': 'Çalıyor',
     'mini.paused': 'Duraklatıldı',
+    'mini.recorded': '  ·  kaydedildi ✓',
     'phone.title': 'Bu telefonda çalan',
-    'phone.lead': 'Spotify\'ın bu telefonda çaldığı şarkı alt çubuğun üstünde görünür. Android bunu uygulamaya '
+    'phone.lead': 'Spotify\'ın bu telefonda çaldığı şarkı alt çubuğun üstünde görünür; 30 saniye dinlenen şarkılar '
+        'uygulama kapalıyken de kaydedilir ve uygulamayı açınca hesabına gönderilir. Android bunları uygulamaya '
         'yalnızca bildirim erişimiyle gösterir.',
+    'phone.battery': 'Bazı telefonlar (Honor, Huawei, Xiaomi…) arka plandaki uygulamaları durdurur: pil ayarlarında '
+        'Playlist Tracker\'ın kendiliğinden başlamasına ve arka planda çalışmasına izin ver.',
     'phone.allow': 'Erişim ver',
     'phone.allowed': 'Erişim verildi',
   },

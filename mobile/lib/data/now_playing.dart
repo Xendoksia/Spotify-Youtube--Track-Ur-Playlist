@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models.dart';
 
@@ -12,6 +15,9 @@ class Song {
   final String album;
   final int? duration;
   final bool playing;
+
+  /// Stored as a play of the phone, once listened to for 30 seconds
+  final bool recorded;
 
   /// Where the song was at [positionAt], moving on at [speed] while playing
   final int? position;
@@ -27,6 +33,7 @@ class Song {
     this.positionAt,
     this.speed = 1,
     required this.playing,
+    this.recorded = false,
   });
 
   factory Song.fromMap(Map<Object?, Object?> map) => Song(
@@ -40,6 +47,7 @@ class Song {
             : DateTime.fromMillisecondsSinceEpoch((map['positionAt'] as num).toInt()),
         speed: (map['speed'] as num?)?.toDouble() ?? 1,
         playing: map['playing'] as bool? ?? false,
+        recorded: map['recorded'] as bool? ?? false,
       );
 
   /// The same key as the plays', so the song's page can be found
@@ -85,6 +93,57 @@ class NowPlaying extends ChangeNotifier with WidgetsBindingObserver {
       await _methods.invokeMethod('restart');
       notifyListeners();
     }
+  }
+
+  /// Send the plays recorded on the phone (PlayRecorder.kt) to Supabase, as the desktop app sends its own;
+  /// return how many. A play whose listening time grew since it was sent is sent again with the new time.
+  Future<int> sendPlays() async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) return 0;
+    final List<Map<Object?, Object?>> plays;
+    try {
+      plays = [...?await _methods.invokeListMethod<Map<Object?, Object?>>('unsyncedPlays')];
+    } on MissingPluginException {
+      return 0;
+    }
+    if (plays.isEmpty) return 0;
+    final (deviceId, deviceName) = await device();
+    await client.from('plays').upsert([
+      for (final play in plays)
+        {
+          'user_id': user.id,
+          'uid': play['uid'],
+          'device_id': deviceId,
+          'device_name': deviceName,
+          'played_at': play['played_at'],
+          'source': source,
+          'artist': play['artist'],
+          'name': play['name'],
+          'album': play['album'],
+          'ms_played': play['ms_played'],
+        },
+    ], onConflict: 'user_id,uid');
+    await _methods.invokeMethod('markSynced', plays);
+    return plays.length;
+  }
+
+  /// The source of the phone's plays in Supabase (the desktop app's are "local")
+  static const source = 'android';
+
+  /// This phone's id (made once, as the desktop app's DEVICE_ID) and name
+  static Future<(String, String)> device() async {
+    final prefs = await SharedPreferences.getInstance();
+    var id = prefs.getString('DEVICE_ID');
+    if (id == null) {
+      final random = Random.secure();
+      final hex = [for (var i = 0; i < 32; i++) random.nextInt(16).toRadixString(16)].join();
+      id = '${hex.substring(0, 8)}-${hex.substring(8, 12)}-4${hex.substring(13, 16)}-'
+          '${'89ab'[random.nextInt(4)]}${hex.substring(17, 20)}-${hex.substring(20)}';
+      await prefs.setString('DEVICE_ID', id);
+    }
+    final name = await _methods.invokeMethod<String>('deviceName') ?? 'Android';
+    return (id, name);
   }
 
   /// Android's notification access page, where the app is switched on

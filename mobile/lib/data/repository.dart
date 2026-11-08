@@ -13,7 +13,7 @@ class Repository {
   Future<List<Play>> plays() async {
     final rows = await _all((from, to) => _db
         .from('plays')
-        .select('uid,device_id,device_name,played_at,artist,name,album,ms_played')
+        .select('uid,device_id,device_name,played_at,source,artist,name,album,ms_played')
         .order('played_at', ascending: false)
         .order('uid')
         .range(from, to));

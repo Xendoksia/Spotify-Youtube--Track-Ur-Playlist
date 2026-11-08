@@ -23,6 +23,9 @@ class Play {
   final String album;
   final int msPlayed;
 
+  /// Where it was recorded: "android" on a phone, "local" or "spotify" by the desktop app
+  final String source;
+
   Play({
     required this.uid,
     required this.deviceId,
@@ -32,6 +35,7 @@ class Play {
     required this.name,
     required this.album,
     required this.msPlayed,
+    this.source = '',
   });
 
   String get artistKey => textKey(artist);
@@ -46,6 +50,7 @@ class Play {
         name: row['name'] as String? ?? '',
         album: row['album'] as String? ?? '',
         msPlayed: row['ms_played'] as int? ?? 0,
+        source: row['source'] as String? ?? '',
       );
 }
 

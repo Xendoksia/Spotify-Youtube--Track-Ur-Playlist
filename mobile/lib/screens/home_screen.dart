@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../l10n/strings.dart';
@@ -20,6 +22,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   late final DataStore _store;
   final _nowPlaying = NowPlaying();
+
+  /// Sends the phone's plays while the app is open; they are also sent on every refresh
+  Timer? _sending;
+  var _recorded = false;
   var _page = 0;
 
   /// The page chosen along the bottom fades in, rising a little
@@ -32,18 +38,35 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     super.initState();
     final controller = AppScope.read(context);
     _store = DataStore(controller.repository);
+    _sending = Timer.periodic(const Duration(minutes: 1), (_) => _sendPlays());
+    _nowPlaying.addListener(_songChanged);
     refresh();
   }
 
-  /// Load the data and the settings chosen on other devices
+  /// Send the phone's plays, then load the data and the settings chosen on other devices
   Future<void> refresh() async {
     final controller = AppScope.read(context);
+    await _nowPlaying.sendPlays().catchError((_) => 0);
     await Future.wait([_store.refresh(), controller.syncSettings().catchError((_) {})]);
+  }
+
+  /// A song just recorded shows in the lists at once
+  void _songChanged() {
+    final recorded = _nowPlaying.song?.recorded ?? false;
+    if (recorded && !_recorded) _sendPlays();
+    _recorded = recorded;
+  }
+
+  Future<void> _sendPlays() async {
+    final sent = await _nowPlaying.sendPlays().catchError((_) => 0);
+    if (sent > 0 && mounted) await _store.refresh();
   }
 
   @override
   void dispose() {
     _store.dispose();
+    _sending?.cancel();
+    _nowPlaying.removeListener(_songChanged);
     _nowPlaying.dispose();
     _fade.dispose();
     _shown.dispose();

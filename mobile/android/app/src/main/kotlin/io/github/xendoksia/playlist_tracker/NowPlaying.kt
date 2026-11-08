@@ -7,6 +7,7 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -24,6 +25,7 @@ class NowPlaying(private val context: Context, messenger: BinaryMessenger) : Eve
         const val SPOTIFY = "com.spotify.music"
     }
 
+    private val store = PlayStore(context)
     private val listener = ComponentName(context, MediaListener::class.java)
     private val sessions = context.getSystemService(MediaSessionManager::class.java)
     private val main = Handler(Looper.getMainLooper())
@@ -51,28 +53,44 @@ class NowPlaying(private val context: Context, messenger: BinaryMessenger) : Eve
                 }
                 // After coming back from the settings, where access may have just been given
                 "restart" -> {
+                    ListenerKeeper.revive(context)
                     stop()
                     if (events != null) start()
                     result.success(null)
                 }
+                // The plays recorded here and not sent yet, and this phone's name for the Account page
+                "unsyncedPlays" -> result.success(store.unsynced())
+                "markSynced" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    for (play in call.arguments as List<Map<String, Any>>) {
+                        store.markSynced(play["uid"] as String, (play["ms_played"] as Number).toLong())
+                    }
+                    result.success(null)
+                }
+                "deviceName" -> result.success(
+                    if (Build.MODEL.startsWith(Build.MANUFACTURER, ignoreCase = true)) Build.MODEL
+                    else "${Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${Build.MODEL}"
+                )
                 else -> result.notImplemented()
             }
         }
         EventChannel(messenger, "playlist_tracker/now_playing/events").setStreamHandler(this)
+        // Recording goes on from here if Android stopped it since the app was last open
+        ListenerKeeper.revive(context)
+        if (hasAccess()) ListenerKeeper.schedule(context)
     }
 
-    private fun hasAccess(): Boolean {
-        val enabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners") ?: ""
-        return enabled.split(':').any { ComponentName.unflattenFromString(it) == listener }
-    }
+    private fun hasAccess() = ListenerKeeper.hasAccess(context)
 
     override fun onListen(arguments: Any?, sink: EventChannel.EventSink?) {
         events = sink
+        PlayRecorder.onRecorded = { main.post { send() } }
         start()
     }
 
     override fun onCancel(arguments: Any?) {
         stop()
+        PlayRecorder.onRecorded = null
         events = null
     }
 
@@ -119,6 +137,7 @@ class NowPlaying(private val context: Context, messenger: BinaryMessenger) : Eve
         val metadata = playing.metadata ?: return null
         val state = playing.playbackState
         val title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE) ?: return null
+        val artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: ""
         val position = state?.position?.takeIf { it >= 0 && state.state != PlaybackState.STATE_NONE }
         // The position was read at lastPositionUpdateTime (time since boot); as wall clock time for Dart
         val positionAt = state?.lastPositionUpdateTime?.let {
@@ -127,13 +146,15 @@ class NowPlaying(private val context: Context, messenger: BinaryMessenger) : Eve
         return mapOf(
             "app" to playing.packageName,
             "title" to title,
-            "artist" to (metadata.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: ""),
+            "artist" to artist,
             "album" to (metadata.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: ""),
             "duration" to metadata.getLong(MediaMetadata.METADATA_KEY_DURATION).takeIf { it > 0 },
             "position" to position,
             "positionAt" to positionAt,
             "speed" to (state?.playbackSpeed?.toDouble() ?: 1.0),
             "playing" to (state?.state == PlaybackState.STATE_PLAYING),
+            // Stored as a play of the phone (30 seconds listened)
+            "recorded" to (PlayRecorder.recordedKey == PlayRecorder.key(artist, title)),
         )
     }
 }

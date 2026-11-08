@@ -124,7 +124,8 @@ class _MiniPlayerState extends State<MiniPlayer> {
                       Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(song.playing ? Icons.play_arrow : Icons.pause, size: 16, color: state),
                         const SizedBox(width: 2),
-                        Text(context.t(song.playing ? 'mini.playing' : 'mini.paused'),
+                        Text(context.t(song.playing ? 'mini.playing' : 'mini.paused') +
+                                (song.recorded ? context.t('mini.recorded') : ''),
                             style: TextStyle(color: state, fontSize: 13)),
                       ]),
                     ],
