@@ -182,4 +182,54 @@ void main() {
       expect(rankChanges(all, Period.all, 0, now, trackKeyOf)(play('A', 'One', now).trackKey, 1), isNull);
     });
   });
+
+  group('detail pages', () {
+    test('a target finds its own plays, case and spacing aside', () {
+      final all = [
+        play('Band', 'One', DateTime(2026, 11, 1), album: 'Record'),
+        play('band ', 'ONE', DateTime(2026, 11, 2), album: 'record'),
+        play('Band', 'Two', DateTime(2026, 11, 3), album: 'Record'),
+        play('Other', 'One', DateTime(2026, 11, 4), album: 'Record'),
+      ];
+      expect(DetailTarget.track(all.first).playsIn(all), hasLength(2));
+      expect(DetailTarget.artist('BAND').playsIn(all), hasLength(3));
+      expect(DetailTarget.album('Band', 'Record').playsIn(all), hasLength(3));
+      final top = topAlbums(all).first;
+      expect(DetailTarget.ranked(DetailKind.album, top).playsIn(all), hasLength(3));
+    });
+
+    test('totals over all time', () {
+      final detail = Detail.of([
+        play('A', 'One', DateTime(2026, 11, 3), minutes: 4),
+        play('A', 'One', DateTime(2026, 11, 1), minutes: 2),
+      ])!;
+      expect((detail.plays, detail.minutes, detail.first, detail.last), (2, 6, DateTime(2026, 11, 1), DateTime(2026, 11, 3)));
+      expect(Detail.of([]), isNull);
+    });
+
+    test('the chart covers at least two weeks by day, and goes by month after 62 days', () {
+      final now = DateTime(2026, 11, 8, 12);
+      final (recent, daily) = detailBuckets([play('A', 'One', DateTime(2026, 11, 7))], now);
+      expect(daily, isTrue);
+      expect(recent, hasLength(14));
+      expect(recent.last.start, DateTime(2026, 11, 8));
+      expect(recent[recent.length - 2].plays, 1);
+      final (old, byDay) = detailBuckets([play('A', 'One', DateTime(2026, 6, 15))], now);
+      expect(byDay, isFalse);
+      expect(old.first.start, DateTime(2026, 6));
+      expect(old, hasLength(6));
+      expect(old.first.plays, 1);
+    });
+
+    test("an album's tracks follow the track list, version notes aside, and unlisted played ones come after", () {
+      final plays = [
+        play('A', 'Two - Remastered', DateTime(2026, 11, 1)),
+        play('A', 'Two - Remastered', DateTime(2026, 11, 2)),
+        play('A', 'Bonus', DateTime(2026, 11, 3)),
+      ];
+      final rows = albumTracks(plays, [('One', 180000), ('Two', 200000)]);
+      expect(rows.map((r) => (r.title, r.played?.plays)), [('One', null), ('Two', 2), ('Bonus', 1)]);
+      expect(albumTracks(plays, null).map((r) => r.title), ['Two - Remastered', 'Bonus']);
+    });
+  });
 }

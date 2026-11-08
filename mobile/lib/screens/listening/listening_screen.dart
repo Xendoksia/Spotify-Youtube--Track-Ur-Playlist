@@ -8,6 +8,7 @@ import '../../theme/palette.dart';
 import '../../widgets/artwork_image.dart';
 import '../../widgets/cards.dart';
 import '../../widgets/format.dart';
+import 'detail_screen.dart';
 import 'listening_chart.dart';
 import 'period_bar.dart';
 
@@ -102,6 +103,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
             rows: topTracks(plays),
             change: rankChanges(all, _period, _offset, now, trackKeyOf),
             image: (row) => ArtworkImage.cover(artist: row.artist, album: row.album, name: row.title),
+            onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.track, row)),
           ),
         ),
         gap,
@@ -111,6 +113,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
             rows: topArtists(plays),
             change: rankChanges(all, _period, _offset, now, artistKeyOf),
             image: (row) => ArtworkImage.artist(artist: row.artist),
+            onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.artist, row)),
           ),
         ),
         gap,
@@ -119,11 +122,15 @@ class _ListeningScreenState extends State<ListeningScreen> {
           child: RankedList(
             rows: topAlbums(plays),
             image: (row) => ArtworkImage.album(artist: row.artist, album: row.album),
+            onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.album, row)),
           ),
         ),
       ],
       gap,
-      SectionCard(title: context.t('stats.recent'), child: _RecentPlays(plays: all)),
+      SectionCard(title: context.t('stats.recent'), child: _RecentPlays(
+            plays: all,
+            onTap: (play) => openDetail(context, widget.store, DetailTarget.track(play)),
+          )),
     ];
   }
 }
@@ -131,8 +138,9 @@ class _ListeningScreenState extends State<ListeningScreen> {
 /// The latest plays of any period, under their day
 class _RecentPlays extends StatelessWidget {
   final List<Play> plays;
+  final void Function(Play play) onTap;
 
-  const _RecentPlays({required this.plays});
+  const _RecentPlays({required this.plays, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -146,22 +154,25 @@ class _RecentPlays extends StatelessWidget {
             child: Text(context.day(day), style: TextStyle(color: muted, fontWeight: FontWeight.w600)),
           ),
           for (final play in dayPlays)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  SizedBox(width: 48, child: Text(context.time(play.playedAt), style: TextStyle(color: muted))),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(play.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        Text(play.artist,
-                            maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: muted, fontSize: 13)),
-                      ],
+            InkWell(
+              onTap: () => onTap(play),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    SizedBox(width: 48, child: Text(context.time(play.playedAt), style: TextStyle(color: muted))),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(play.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(play.artist,
+                              maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: muted, fontSize: 13)),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
         ],

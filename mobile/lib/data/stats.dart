@@ -140,6 +140,121 @@ RankChange? Function(String key, int rank) rankChanges(
   };
 }
 
+/// What a detail page shows: one track, artist or album
+enum DetailKind { track, artist, album }
+
+class DetailTarget {
+  final DetailKind kind;
+  final String key;
+
+  /// The track's, artist's or album's name
+  final String title;
+  final String artist;
+  final String album;
+
+  const DetailTarget(this.kind, this.key, this.title, {this.artist = '', this.album = ''});
+
+  factory DetailTarget.track(Play play) =>
+      DetailTarget(DetailKind.track, play.trackKey, play.name, artist: play.artist, album: play.album);
+
+  factory DetailTarget.artist(String artist) =>
+      DetailTarget(DetailKind.artist, textKey(artist), artist, artist: artist);
+
+  factory DetailTarget.album(String artist, String album) =>
+      DetailTarget(DetailKind.album, '${textKey(artist)}|${album.toLowerCase()}', album, artist: artist, album: album);
+
+  /// A row of a top list of this kind
+  factory DetailTarget.ranked(DetailKind kind, Ranked row) => DetailTarget(kind, row.key, row.title,
+      artist: row.artist, album: kind == DetailKind.album ? row.title : row.album);
+
+  String Function(Play) get keyOf => switch (kind) {
+        DetailKind.track => trackKeyOf,
+        DetailKind.artist => artistKeyOf,
+        DetailKind.album => albumKeyOf,
+      };
+
+  List<Play> playsIn(List<Play> plays) => plays.where((p) => keyOf(p) == key).toList();
+}
+
+/// The totals of a track, artist or album over all time
+class Detail {
+  final int plays;
+  final int minutes;
+  final DateTime first;
+  final DateTime last;
+
+  const Detail(this.plays, this.minutes, this.first, this.last);
+
+  static Detail? of(List<Play> plays) {
+    if (plays.isEmpty) return null;
+    final times = plays.map((p) => p.playedAt);
+    return Detail(plays.length, _minutes(plays), times.reduce((a, b) => a.isBefore(b) ? a : b),
+        times.reduce((a, b) => a.isAfter(b) ? a : b));
+  }
+}
+
+/// A detail page's chart covers at least two weeks, so a track heard only lately does not fill it with two huge
+/// columns, and goes by month when it would have more days than this; as in the desktop app
+const detailMinDays = 14;
+const detailDailyLimit = 62;
+
+/// The plays of a detail page per day (daily: true) or per month, from its first play to today
+(List<Bucket>, bool daily) detailBuckets(List<Play> plays, DateTime now) {
+  final today = DateTime(now.year, now.month, now.day);
+  final first = plays.map((p) => p.playedAt).fold(today, (a, b) => b.isBefore(a) ? b : a);
+  var start = DateTime(first.year, first.month, first.day);
+  final earliest = DateTime(today.year, today.month, today.day - (detailMinDays - 1));
+  if (earliest.isBefore(start)) start = earliest;
+  final end = DateTime(today.year, today.month, today.day + 1);
+  final daily = end.difference(start).inDays <= detailDailyLimit;
+  final starts = <DateTime>[
+    if (daily)
+      for (var d = start; d.isBefore(end); d = DateTime(d.year, d.month, d.day + 1)) d
+    else
+      for (var m = DateTime(start.year, start.month); m.isBefore(end); m = DateTime(m.year, m.month + 1)) m,
+  ];
+  return (
+    [
+      for (var i = 0; i < starts.length; i++)
+        () {
+          final range = DateRange(starts[i], i + 1 < starts.length ? starts[i + 1] : end);
+          final inside = plays.where((p) => range.contains(p.playedAt));
+          return Bucket(starts[i], _minutes(inside), inside.length);
+        }(),
+    ],
+    daily,
+  );
+}
+
+/// A track of an album's page: from Deezer's track list (with its length) and/or from the plays
+class AlbumTrack {
+  final String title;
+  final int? lengthMs;
+  final Ranked? played;
+
+  const AlbumTrack(this.title, this.lengthMs, this.played);
+}
+
+/// The album's tracks in album order with their plays; tracks are the same apart from version notes. Played
+/// tracks the list does not have (bonus tracks, other editions) come after. Without a list, the played ones.
+List<AlbumTrack> albumTracks(List<Play> albumPlays, List<(String, int)>? tracklist) {
+  String same(String title) => textKey(plainTitle(title));
+  final left = topTracks(albumPlays, limit: 1 << 30);
+  final rows = <AlbumTrack>[];
+  for (final (title, ms) in tracklist ?? const <(String, int)>[]) {
+    final match = left.where((r) => same(r.title) == same(title)).firstOrNull;
+    if (match != null) left.remove(match);
+    rows.add(AlbumTrack(title, ms, match));
+  }
+  return rows..addAll(left.map((r) => AlbumTrack(r.title, null, r)));
+}
+
+/// Drop version notes such as " - Remastered 2026" or " (Deluxe)" that other catalogs spell differently
+String plainTitle(String name) {
+  final plain = name.split(' - ').first.replaceAll(RegExp(r'\s*(\(.*?\)|\[.*?\])'), '').trim();
+  return plain.isEmpty ? name : plain;
+}
+
 /// One bar of the listening chart
 class Bucket {
   final DateTime start;

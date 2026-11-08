@@ -10,17 +10,42 @@ class ListeningChart extends StatelessWidget {
   final Period period;
   final List<Bucket> buckets;
 
-  const ListeningChart({super.key, required this.period, required this.buckets});
+  /// Plays instead of minutes, as on the detail pages
+  final bool plays;
 
-  String _label(BuildContext context, DateTime start) => switch (period) {
+  /// Another name for a bar's day or month than the period's
+  final String Function(BuildContext context, DateTime start)? label;
+
+  const ListeningChart({super.key, required this.period, required this.buckets, this.plays = false, this.label});
+
+  /// Shown on the detail pages: plays per day or per month
+  factory ListeningChart.detail({Key? key, required List<Bucket> buckets, required bool daily}) => ListeningChart(
+        key: key,
+        period: daily ? Period.month : Period.year,
+        buckets: buckets,
+        plays: true,
+        label: daily ? null : (context, start) => context.dateFormat("MMM ''yy").format(start),
+      );
+
+  String _label(BuildContext context, DateTime start) =>
+      label?.call(context, start) ??
+      switch (period) {
         Period.week => context.dateFormat('E').format(start),
         Period.month => '${start.day}',
         Period.year => context.dateFormat('MMMMM').format(start),
         Period.all => '${start.year}',
       };
 
-  /// A month has too many days to label each bar
-  bool _labelled(int index) => period != Period.month || index % 5 == 0;
+  /// About seven labels at most, so they do not run together
+  bool _labelled(int index) {
+    final every = buckets.length <= 12 && label == null ? 1 : (buckets.length / 7).ceil();
+    return index % every == 0;
+  }
+
+  int _value(Bucket bucket) => plays ? bucket.plays : bucket.minutes;
+
+  String _valueText(BuildContext context, int value) =>
+      plays ? context.plays(value) : context.minutes(value);
 
   /// A round step (1, 2, 5 × 10ⁿ) that splits the axis into about four parts
   static double _step(int most) {
@@ -36,7 +61,7 @@ class ListeningChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
-    final most = buckets.fold<int>(0, (m, b) => b.minutes > m ? b.minutes : m);
+    final most = buckets.fold<int>(0, (m, b) => _value(b) > m ? _value(b) : m);
     final width = buckets.length > 12 ? 6.0 : 16.0;
     final step = _step(most);
     return SizedBox(
@@ -82,7 +107,7 @@ class ListeningChart extends StatelessWidget {
           barTouchData: BarTouchData(
             touchTooltipData: BarTouchTooltipData(
               getTooltipItem: (group, _, rod, _) => BarTooltipItem(
-                '${_label(context, buckets[group.x].start)}\n${context.minutes(rod.toY.round())}',
+                '${_label(context, buckets[group.x].start)}\n${_valueText(context, rod.toY.round())}',
                 const TextStyle(color: Colors.white, fontSize: 12),
               ),
             ),
@@ -91,7 +116,7 @@ class ListeningChart extends StatelessWidget {
             for (final (index, bucket) in buckets.indexed)
               BarChartGroupData(x: index, barRods: [
                 BarChartRodData(
-                  toY: bucket.minutes.toDouble(),
+                  toY: _value(bucket).toDouble(),
                   color: palette.chart,
                   width: width,
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),

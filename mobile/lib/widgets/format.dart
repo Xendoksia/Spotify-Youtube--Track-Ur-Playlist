@@ -14,6 +14,9 @@ extension Formats on BuildContext {
 
   String number(int value) => NumberFormat.decimalPattern(_locale).format(value);
 
+  /// "1 play", "3 plays"
+  String plays(int count) => t(count == 1 ? 'stats.plays_one' : 'stats.plays_count', {'count': number(count)});
+
   /// Today, yesterday, or the date with its weekday
   String day(DateTime day) {
     final today = DateTime.now();
@@ -26,6 +29,14 @@ extension Formats on BuildContext {
   String time(DateTime moment) => DateFormat.Hm(_locale).format(moment);
 
   String dateTime(DateTime moment) => DateFormat.yMMMd(_locale).add_Hm().format(moment);
+
+  String date(DateTime moment) => DateFormat.yMMMd(_locale).format(moment);
+
+  /// A track's length: 214000 ms → "3:34"
+  String length(int ms) {
+    final seconds = ms ~/ 1000;
+    return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+  }
 
   DateFormat dateFormat(String pattern) => DateFormat(pattern, _locale);
 }

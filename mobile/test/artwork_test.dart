@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playlist_tracker/data/artwork.dart';
+import 'package:playlist_tracker/data/stats.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Deezer answering from a table of query → results, counting the requests
@@ -69,5 +70,26 @@ void main() {
     expect(await artwork.cover('Band', 'Album', 'One'), 'album.jpg');
     expect(await artwork.cover('Band', 'Album', 'Two'), 'album.jpg');
     expect(deezer.requests, hasLength(1));
+  });
+
+  test("an album's track list comes from the same artist's album of that title", () async {
+    final deezer = FakeDeezer({
+      '/search/album artist:"Band" album:"Record (Deluxe)"': [
+        {'id': 1, 'title': 'Other Record', 'artist': {'name': 'Band'}},
+        {'id': 2, 'title': 'Record', 'artist': {'name': 'Band'}},
+      ],
+    });
+    final artwork = Artwork(fetch: (url) async {
+      if (url.path == '/album/2/tracks') {
+        return {
+          'data': [
+            {'title': 'One', 'duration': 180},
+            {'title': 'Two', 'duration': 200},
+          ],
+        };
+      }
+      return deezer.fetch(url);
+    });
+    expect(await artwork.tracklist('Band', 'Record (Deluxe)'), [('One', 180000), ('Two', 200000)]);
   });
 }

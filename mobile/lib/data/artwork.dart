@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models.dart';
+import 'stats.dart';
 
 const _searchUrl = 'https://api.deezer.com';
 
@@ -18,12 +19,6 @@ const retryAfter = Duration(days: 7);
 
 /// Deezer returns this placeholder path for artists without a photo
 const _emptyPicture = '/images/artist//';
-
-/// Drop version notes such as " - Remastered 2026" or " (Deluxe)" that other catalogs spell differently
-String plainTitle(String name) {
-  final plain = name.split(' - ').first.replaceAll(RegExp(r'\s*(\(.*?\)|\[.*?\])'), '').trim();
-  return plain.isEmpty ? name : plain;
-}
 
 typedef Fetch = Future<Object?> Function(Uri url);
 
@@ -82,6 +77,16 @@ class Artwork {
       _lookup('cover:${textKey(artist)}|${textKey(album)}', () => _findAlbumCover(artist, album));
 
   Future<String?> artistPhoto(String artist) => _lookup('artist:${textKey(artist)}', () => _findArtistPhoto(artist));
+
+  /// The tracks of an album in album order with their length in milliseconds, or null when Deezer does not have it
+  Future<List<(String, int)>?> tracklist(String artist, String album) async {
+    final found = await _lookup('tracks:${textKey(artist)}|${textKey(album)}', () => _findTracklist(artist, album));
+    if (found == null) return null;
+    return [
+      for (final track in (jsonDecode(found) as List).cast<Map<String, dynamic>>())
+        (track['title'] as String, track['ms'] as int),
+    ];
+  }
 
   /// What the cache knows: the address, "" for nothing found lately, null when not looked up yet
   String? _known(Map<String, Object?> cache, String key) {
@@ -153,6 +158,27 @@ class Artwork {
       final results = await _searchBoth('/search/album', 'artist:"$artist" album:"$title"', '$artist $title');
       for (final result in results) {
         if (_artistOf(result) == textKey(artist)) return result['cover_big'] as String?;
+      }
+    }
+    return null;
+  }
+
+  /// The album's track list as JSON: the same artist and the same title apart from version notes
+  Future<String?> _findTracklist(String artist, String album) async {
+    for (final title in {album, plainTitle(album)}) {
+      final results = await _searchBoth('/search/album', 'artist:"$artist" album:"$title"', '$artist $title');
+      for (final result in results) {
+        if (_artistOf(result) != textKey(artist) ||
+            textKey(plainTitle(result['title'] as String? ?? '')) != textKey(plainTitle(album))) {
+          continue;
+        }
+        final answer = await fetch(Uri.parse('$_searchUrl/album/${result['id']}/tracks?limit=200'));
+        final data = answer is Map && answer['data'] is List ? answer['data'] as List : const [];
+        final tracks = [
+          for (final track in data.whereType<Map<String, dynamic>>())
+            {'title': track['title'] as String? ?? '', 'ms': ((track['duration'] as num?) ?? 0).toInt() * 1000},
+        ];
+        if (tracks.isNotEmpty) return jsonEncode(tracks);
       }
     }
     return null;

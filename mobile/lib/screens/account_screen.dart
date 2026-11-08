@@ -68,7 +68,7 @@ class AccountScreen extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.computer),
                     title: Text(device.isEmpty ? context.t('account.device_unknown') : device),
-                    trailing: Text(context.t('stats.plays_count', {'count': context.number(count)})),
+                    trailing: Text(context.plays(count)),
                   ),
               ],
             ),

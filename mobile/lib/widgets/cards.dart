@@ -69,7 +69,10 @@ class RankedList extends StatelessWidget {
   /// The row's cover or photo, between its number and its title
   final Widget Function(Ranked row)? image;
 
-  const RankedList({super.key, required this.rows, this.change, this.image});
+  /// Opens the row's page
+  final void Function(Ranked row)? onTap;
+
+  const RankedList({super.key, required this.rows, this.change, this.image, this.onTap});
 
   Widget? _change(BuildContext context, Palette palette, RankChange? change) {
     if (change == null) return null;
@@ -90,53 +93,59 @@ class RankedList extends StatelessWidget {
     return Column(
       children: [
         for (final (index, row) in rows.indexed)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 40,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${index + 1}', style: TextStyle(color: palette.muted, fontWeight: FontWeight.w600)),
-                      ?_change(context, palette, change?.call(row.key, index + 1)),
-                    ],
+          InkWell(
+            onTap: onTap == null ? null : () => onTap!(row),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 40,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${index + 1}', style: TextStyle(color: palette.muted, fontWeight: FontWeight.w600)),
+                        ?_change(context, palette, change?.call(row.key, index + 1)),
+                      ],
+                    ),
                   ),
-                ),
-                if (image != null) ...[image!(row), const SizedBox(width: 12)],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(row.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      if (row.subtitle.isNotEmpty)
-                        Text(row.subtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: palette.muted, fontSize: 13)),
-                      const SizedBox(height: 4),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: LinearProgressIndicator(
-                          value: row.plays / most,
-                          minHeight: 4,
-                          color: palette.chart,
-                          backgroundColor: palette.border,
+                  if (image != null) ...[image!(row), const SizedBox(width: 12)],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(row.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        if (row.subtitle.isNotEmpty)
+                          Text(row.subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: palette.muted, fontSize: 13)),
+                        const SizedBox(height: 4),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(
+                            value: row.plays / most,
+                            minHeight: 4,
+                            color: palette.chart,
+                            backgroundColor: palette.border,
+                          ),
                         ),
-                      ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(context.plays(row.plays)),
+                      // Plays stored without a length have none to show, as in the desktop app
+                      if (row.minutes > 0)
+                        Text(context.minutes(row.minutes), style: TextStyle(color: palette.muted, fontSize: 13)),
                     ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(context.t('stats.plays_count', {'count': context.number(row.plays)})),
-                    Text(context.minutes(row.minutes), style: TextStyle(color: palette.muted, fontSize: 13)),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
       ],
