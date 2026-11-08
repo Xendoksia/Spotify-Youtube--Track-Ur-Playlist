@@ -55,38 +55,85 @@ int _minutes(Iterable<Play> plays) => plays.fold<int>(0, (sum, p) => sum + p.msP
 
 /// A row of a top list: a track, artist or album with how often and how long it was played
 class Ranked {
+  final String key;
   final String title;
   final String subtitle;
   final int plays;
   final int minutes;
 
-  const Ranked(this.title, this.subtitle, this.plays, this.minutes);
+  const Ranked(this.key, this.title, this.subtitle, this.plays, this.minutes);
 }
 
-/// The most played groups; ties go to the one played last, as in the desktop app
-List<Ranked> _top(List<Play> plays, String Function(Play) groupKey, Ranked Function(List<Play>) rank, int limit) {
+String trackKeyOf(Play play) => play.trackKey;
+String artistKeyOf(Play play) => play.artistKey;
+String albumKeyOf(Play play) => '${play.artistKey}|${play.album.toLowerCase()}';
+
+/// The plays grouped by key, most played first; ties go to the one played last, as in the desktop app
+List<MapEntry<String, List<Play>>> _ordered(List<Play> plays, String Function(Play) keyOf) {
   final groups = <String, List<Play>>{};
   for (final play in plays) {
-    groups.putIfAbsent(groupKey(play), () => []).add(play);
+    groups.putIfAbsent(keyOf(play), () => []).add(play);
   }
   DateTime last(List<Play> group) => group.map((p) => p.playedAt).reduce((a, b) => a.isAfter(b) ? a : b);
-  final ordered = groups.values.toList()
-    ..sort((a, b) => a.length != b.length ? b.length.compareTo(a.length) : last(b).compareTo(last(a)));
-  return ordered.take(limit).map(rank).toList();
+  return groups.entries.toList()
+    ..sort((a, b) => a.value.length != b.value.length
+        ? b.value.length.compareTo(a.value.length)
+        : last(b.value).compareTo(last(a.value)));
 }
 
-List<Ranked> topTracks(List<Play> plays, {int limit = 10}) => _top(
-    plays, (p) => p.trackKey, (g) => Ranked(g.first.name, g.first.artist, g.length, _minutes(g)), limit);
+List<Ranked> _top(List<Play> plays, String Function(Play) keyOf, String Function(Play) title,
+        String Function(Play) subtitle, int limit) =>
+    _ordered(plays, keyOf)
+        .take(limit)
+        .map((e) => Ranked(e.key, title(e.value.first), subtitle(e.value.first), e.value.length, _minutes(e.value)))
+        .toList();
 
-List<Ranked> topArtists(List<Play> plays, {int limit = 10}) => _top(plays, (p) => p.artistKey,
-    (g) => Ranked(g.first.artist, '', g.length, _minutes(g)), limit);
+List<Ranked> topTracks(List<Play> plays, {int limit = 10}) =>
+    _top(plays, trackKeyOf, (p) => p.name, (p) => p.artist, limit);
+
+List<Ranked> topArtists(List<Play> plays, {int limit = 10}) =>
+    _top(plays, artistKeyOf, (p) => p.artist, (p) => '', limit);
 
 /// Plays without an album name are left out
-List<Ranked> topAlbums(List<Play> plays, {int limit = 10}) => _top(
-    plays.where((p) => p.album.trim().isNotEmpty).toList(),
-    (p) => '${p.artistKey}|${p.album.toLowerCase()}',
-    (g) => Ranked(g.first.album, g.first.artist, g.length, _minutes(g)),
-    limit);
+List<Ranked> topAlbums(List<Play> plays, {int limit = 10}) =>
+    _top(plays.where((p) => p.album.trim().isNotEmpty).toList(), albumKeyOf, (p) => p.album, (p) => p.artist, limit);
+
+/// How a row's rank compares with the whole previous period
+enum ChangeKind { up, down, same, fresh, back }
+
+class RankChange {
+  final ChangeKind kind;
+
+  /// Places moved up or down
+  final int count;
+
+  const RankChange(this.kind, [this.count = 0]);
+}
+
+/// Returns change(key, rank), as the desktop app's _rank_changes: ▲▼ against the previous period's rank; one not
+/// in the previous period is new (never heard before) or back. Songs heard before recording began look new too,
+/// so new and back are only told apart once the whole previous period was recorded. Nothing for all time.
+RankChange? Function(String key, int rank) rankChanges(
+    List<Play> all, Period period, int offset, DateTime now, String Function(Play) keyOf) {
+  if (period == Period.all) return (_, _) => null;
+  final range = periodRange(period, offset, now);
+  final previousRange = periodRange(period, offset + 1, now);
+  final previous = {
+    for (final (index, entry) in _ordered(playsIn(all, previousRange), keyOf).indexed) entry.key: index + 1,
+  };
+  final known = all.where((p) => p.playedAt.isBefore(range.start)).map(keyOf).toSet();
+  final first = all.isEmpty ? null : all.map((p) => p.playedAt).reduce((a, b) => a.isBefore(b) ? a : b);
+  final recordedBefore = first != null && !first.isAfter(previousRange.start);
+  return (key, rank) {
+    final before = previous[key];
+    if (before == null) {
+      if (!recordedBefore) return null;
+      return RankChange(known.contains(key) ? ChangeKind.back : ChangeKind.fresh);
+    }
+    if (before == rank) return const RankChange(ChangeKind.same);
+    return RankChange(before > rank ? ChangeKind.up : ChangeKind.down, (before - rank).abs());
+  };
+}
 
 /// One bar of the listening chart
 class Bucket {

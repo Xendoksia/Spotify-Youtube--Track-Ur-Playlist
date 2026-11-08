@@ -63,7 +63,22 @@ class StatTile extends StatelessWidget {
 class RankedList extends StatelessWidget {
   final List<Ranked> rows;
 
-  const RankedList({super.key, required this.rows});
+  /// The row's move against the previous period, shown under its number
+  final RankChange? Function(String key, int rank)? change;
+
+  const RankedList({super.key, required this.rows, this.change});
+
+  Widget? _change(BuildContext context, Palette palette, RankChange? change) {
+    if (change == null) return null;
+    final (text, color) = switch (change.kind) {
+      ChangeKind.up => ('▲${change.count}', palette.added),
+      ChangeKind.down => ('▼${change.count}', palette.removed),
+      ChangeKind.same => ('=', palette.muted),
+      ChangeKind.fresh => (context.t('stats.change.new'), palette.playable),
+      ChangeKind.back => ('↺', palette.muted),
+    };
+    return Text(text, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,8 +92,14 @@ class RankedList extends StatelessWidget {
             child: Row(
               children: [
                 SizedBox(
-                  width: 28,
-                  child: Text('${index + 1}', style: TextStyle(color: palette.muted, fontWeight: FontWeight.w600)),
+                  width: 40,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${index + 1}', style: TextStyle(color: palette.muted, fontWeight: FontWeight.w600)),
+                      ?_change(context, palette, change?.call(row.key, index + 1)),
+                    ],
+                  ),
                 ),
                 Expanded(
                   child: Column(

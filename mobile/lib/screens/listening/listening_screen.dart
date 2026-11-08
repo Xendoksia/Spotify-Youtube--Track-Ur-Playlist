@@ -57,7 +57,8 @@ class _ListeningScreenState extends State<ListeningScreen> {
   }
 
   List<Widget> _content(BuildContext context, List<Play> all) {
-    final range = periodRange(_period, _offset, DateTime.now());
+    final now = DateTime.now();
+    final range = periodRange(_period, _offset, now);
     final plays = playsIn(all, range);
     final summary = Summary.of(plays);
     const gap = SizedBox(height: 12);
@@ -94,9 +95,15 @@ class _ListeningScreenState extends State<ListeningScreen> {
           child: ListeningChart(period: _period, buckets: buckets(_period, range, plays)),
         ),
         gap,
-        SectionCard(title: context.t('stats.top_tracks'), child: RankedList(rows: topTracks(plays))),
+        SectionCard(
+          title: context.t('stats.top_tracks'),
+          child: RankedList(rows: topTracks(plays), change: rankChanges(all, _period, _offset, now, trackKeyOf)),
+        ),
         gap,
-        SectionCard(title: context.t('stats.top_artists'), child: RankedList(rows: topArtists(plays))),
+        SectionCard(
+          title: context.t('stats.top_artists'),
+          child: RankedList(rows: topArtists(plays), change: rankChanges(all, _period, _offset, now, artistKeyOf)),
+        ),
         gap,
         SectionCard(title: context.t('stats.top_albums'), child: RankedList(rows: topAlbums(plays))),
       ],

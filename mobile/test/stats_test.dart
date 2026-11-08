@@ -135,4 +135,51 @@ void main() {
       expect(PlaylistEvent.fromRow({...row, 'event': 'REMOVED'})!.checkedAt, DateTime.utc(2026, 11, 7, 7).toLocal());
     });
   });
+
+  group('rank changes', () {
+    final now = DateTime(2026, 11, 20);
+
+    test('compare with the whole previous month', () {
+      final all = [
+        play('A', 'One', DateTime(2026, 9, 5)),
+        play('A', 'Two', DateTime(2026, 10, 1)),
+        play('A', 'Two', DateTime(2026, 10, 2)),
+        play('A', 'One', DateTime(2026, 10, 3)),
+        play('A', 'One', DateTime(2026, 11, 1)),
+        play('A', 'One', DateTime(2026, 11, 2)),
+        play('A', 'Two', DateTime(2026, 11, 3)),
+        play('A', 'Old', DateTime(2026, 11, 4)),
+        play('A', 'New', DateTime(2026, 11, 5)),
+      ];
+      final change = rankChanges(all, Period.month, 0, now, trackKeyOf);
+      final key = play('A', 'One', now).trackKey;
+      expect(change(key, 1)!.kind, ChangeKind.up);
+      expect(change(key, 1)!.count, 1);
+      expect(change(play('A', 'Two', now).trackKey, 2)!.kind, ChangeKind.down);
+      expect(change(play('A', 'New', now).trackKey, 3)!.kind, ChangeKind.fresh);
+    });
+
+    test('one heard before the previous period is back', () {
+      final all = [
+        play('A', 'Old', DateTime(2026, 9, 5)),
+        play('A', 'Other', DateTime(2026, 10, 5)),
+        play('A', 'Old', DateTime(2026, 11, 5)),
+      ];
+      final change = rankChanges(all, Period.month, 0, now, trackKeyOf);
+      expect(change(play('A', 'Old', now).trackKey, 1)!.kind, ChangeKind.back);
+    });
+
+    test('new and back are not told apart before the previous period was recorded in full', () {
+      final all = [play('A', 'Other', DateTime(2026, 10, 15)), play('A', 'One', DateTime(2026, 11, 5))];
+      final change = rankChanges(all, Period.month, 0, now, trackKeyOf);
+      expect(change(play('A', 'One', now).trackKey, 1), isNull);
+    });
+
+    test('same place, and nothing for all time', () {
+      final all = [play('A', 'One', DateTime(2026, 10, 1)), play('A', 'One', DateTime(2026, 11, 1))];
+      expect(rankChanges(all, Period.month, 0, now, trackKeyOf)(play('A', 'One', now).trackKey, 1)!.kind,
+          ChangeKind.same);
+      expect(rankChanges(all, Period.all, 0, now, trackKeyOf)(play('A', 'One', now).trackKey, 1), isNull);
+    });
+  });
 }
