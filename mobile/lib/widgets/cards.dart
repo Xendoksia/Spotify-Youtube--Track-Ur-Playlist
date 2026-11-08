@@ -216,18 +216,24 @@ class MessageView extends StatelessWidget {
   }
 }
 
-/// A rank change written out, as on the desktop app's number one cards
-String? changeText(BuildContext context, RankChange? change, int rank) => switch (change?.kind) {
-      null => null,
-      ChangeKind.same => context.t('stats.change.same'),
-      ChangeKind.fresh => context.t('stats.change.new_long'),
-      ChangeKind.back => context.t('stats.change.back_long'),
-      ChangeKind.up || ChangeKind.down => context.t('stats.change.moved', {
+/// A rank change written out, as on the desktop app's number one cards, in the list arrows' color
+(String, Color)? changeText(BuildContext context, RankChange? change, int rank) {
+  final palette = Palette.of(context);
+  return switch (change?.kind) {
+    null => null,
+    ChangeKind.same => (context.t('stats.change.same'), palette.muted),
+    ChangeKind.fresh => (context.t('stats.change.new_long'), palette.playable),
+    ChangeKind.back => (context.t('stats.change.back_long'), palette.muted),
+    ChangeKind.up || ChangeKind.down => (
+        context.t('stats.change.moved', {
           'arrow': change!.kind == ChangeKind.up ? '▲' : '▼',
           'count': change.count,
           'rank': rank + (change.kind == ChangeKind.up ? change.count : -change.count),
         }),
-    };
+        change.kind == ChangeKind.up ? palette.added : palette.removed,
+      ),
+  };
+}
 
 /// The number one track or artist of the period, large with its picture, as the desktop app's hero cards
 class HeroCard extends StatelessWidget {
@@ -235,7 +241,9 @@ class HeroCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String detail;
-  final String? change;
+
+  /// The rank change and its color (changeText)
+  final (String, Color)? change;
   final Widget image;
   final VoidCallback onTap;
 
@@ -281,8 +289,8 @@ class HeroCard extends StatelessWidget {
                           style: TextStyle(color: palette.muted)),
                     const SizedBox(height: 4),
                     Text(detail, style: const TextStyle(fontSize: 13)),
-                    if (change != null)
-                      Text(change!, style: TextStyle(color: palette.muted, fontSize: 12)),
+                    if (change case (final text, final color))
+                      Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
