@@ -116,6 +116,14 @@ class StatisticsTest(ListeningTestCase):
         self.assertEqual([(a["key"], a["plays"], a["tracks"]) for a in artists],
                          [("slipknot", 4, 2), ("evanescence", 2, 1)])
 
+    def test_equal_plays_go_to_the_longer_listened(self):
+        self.play("Linkin Park", "Short", "2026-11-05 13:00", ms=90_000)
+        self.play("Linkin Park", "Short", "2026-11-05 14:00", ms=90_000)
+        tracks = listening.top_tracks(self.start, self.end, db_path=self.db)
+        self.assertEqual([t["key"] for t in tracks][1:3], ["evanescence|lithium", "linkin park|short"])
+        ranks = listening.ranks(self.start, self.end, "track_key", self.db)
+        self.assertLess(ranks["evanescence|lithium"], ranks["linkin park|short"])
+
     def test_top_tracks_of_one_artist_and_album(self):
         only = listening.top_tracks(self.start, self.end, artist_key="evanescence", db_path=self.db)
         self.assertEqual([t["key"] for t in only], ["evanescence|lithium"])

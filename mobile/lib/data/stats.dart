@@ -51,7 +51,8 @@ class Summary {
       );
 }
 
-int _minutes(Iterable<Play> plays) => plays.fold<int>(0, (sum, p) => sum + p.msPlayed) ~/ 60000;
+int _ms(Iterable<Play> plays) => plays.fold<int>(0, (sum, p) => sum + p.msPlayed);
+int _minutes(Iterable<Play> plays) => _ms(plays) ~/ 60000;
 
 /// A row of a top list: a track, artist or album with how often and how long it was played
 class Ranked {
@@ -72,7 +73,8 @@ String trackKeyOf(Play play) => play.trackKey;
 String artistKeyOf(Play play) => play.artistKey;
 String albumKeyOf(Play play) => '${play.artistKey}|${play.album.toLowerCase()}';
 
-/// The plays grouped by key, most played first; ties go to the one played last, as in the desktop app
+/// The plays grouped by key, most played first; ties go to the one listened to longer, then to the one played
+/// last, as in the desktop app
 List<MapEntry<String, List<Play>>> _ordered(List<Play> plays, String Function(Play) keyOf) {
   final groups = <String, List<Play>>{};
   for (final play in plays) {
@@ -80,9 +82,11 @@ List<MapEntry<String, List<Play>>> _ordered(List<Play> plays, String Function(Pl
   }
   DateTime last(List<Play> group) => group.map((p) => p.playedAt).reduce((a, b) => a.isAfter(b) ? a : b);
   return groups.entries.toList()
-    ..sort((a, b) => a.value.length != b.value.length
-        ? b.value.length.compareTo(a.value.length)
-        : last(b.value).compareTo(last(a.value)));
+    ..sort((a, b) {
+      if (a.value.length != b.value.length) return b.value.length.compareTo(a.value.length);
+      final time = _ms(b.value).compareTo(_ms(a.value));
+      return time != 0 ? time : last(b.value).compareTo(last(a.value));
+    });
 }
 
 List<Ranked> _top(List<Play> plays, String Function(Play) keyOf, String Function(Play) title,
@@ -390,14 +394,20 @@ List<Discovered> _firstHeard(List<Play> all, DateRange range, String Function(Pl
     everything.putIfAbsent(keyOf(play), () => []).add(play);
   }
   final found = <Discovered>[];
+  final ms = <String, int>{};
   everything.forEach((key, plays) {
     final first = _earliest(plays);
     if (!range.contains(first)) return;
     final inside = plays.where((p) => range.contains(p.playedAt)).toList();
+    ms[key] = _ms(inside);
     found.add(Discovered(row(key, inside), first, tracks: inside.map((p) => p.trackKey).toSet().length));
   });
   return found
-    ..sort((a, b) => a.row.plays != b.row.plays ? b.row.plays.compareTo(a.row.plays) : b.at.compareTo(a.at));
+    ..sort((a, b) {
+      if (a.row.plays != b.row.plays) return b.row.plays.compareTo(a.row.plays);
+      final time = ms[b.row.key]!.compareTo(ms[a.row.key]!);
+      return time != 0 ? time : b.at.compareTo(a.at);
+    });
 }
 
 List<Discovered> newTracks(List<Play> all, DateRange range) => _firstHeard(all, range, trackKeyOf,

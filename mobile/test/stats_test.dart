@@ -72,9 +72,11 @@ void main() {
       expect([summary.plays, summary.minutes, summary.tracks, summary.artists], [4, 13, 3, 3]);
     });
 
-    test('top lists order by plays, then by the latest play', () {
-      expect(topTracks(plays).map((r) => (r.title, r.plays)), [('One', 2), ('Three', 1), ('Two', 1)]);
-      expect(topArtists(plays, limit: 2).map((r) => r.title), ['A', 'C']);
+    test('top lists order by plays, then by listening time, then by the latest play', () {
+      expect(topTracks(plays).map((r) => (r.title, r.plays)), [('One', 2), ('Two', 1), ('Three', 1)]);
+      expect(topArtists(plays, limit: 2).map((r) => r.title), ['A', 'B']);
+      final even = [...plays, play('D', 'Four', DateTime(2026, 11, 1, 10), minutes: 4)];
+      expect(topTracks(even).map((r) => r.title), ['One', 'Two', 'Four', 'Three']);
     });
 
     test('plays without an album are left out of the top albums', () {

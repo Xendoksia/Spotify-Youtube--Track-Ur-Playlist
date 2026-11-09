@@ -235,7 +235,7 @@ def top_tracks(start: datetime, end: datetime, limit: int = 10, artist_key: str 
             "SELECT track_key AS key, MAX(name) AS name, MAX(artist) AS artist, MAX(album) AS album, "
             "COUNT(*) AS plays, COALESCE(SUM(ms_played), 0) / 60000 AS minutes, MAX(played_at) AS last_played "
             f"FROM listens WHERE played_at >= ? AND played_at < ? AND {where} "
-            "GROUP BY track_key ORDER BY plays DESC, last_played DESC LIMIT ?",
+            "GROUP BY track_key ORDER BY plays DESC, SUM(ms_played) DESC, last_played DESC LIMIT ?",
             (*_range(start, end), *params, limit))]
 
 
@@ -247,7 +247,7 @@ def top_albums(start: datetime, end: datetime, limit: int = 10, db_path: Path = 
             "MAX(name) AS name, COUNT(*) AS plays, "
             "MAX(played_at) AS last_played "
             "FROM listens WHERE played_at >= ? AND played_at < ? AND COALESCE(album, '') != '' "
-            "GROUP BY artist_key, LOWER(album) ORDER BY plays DESC, last_played DESC LIMIT ?",
+            "GROUP BY artist_key, LOWER(album) ORDER BY plays DESC, SUM(ms_played) DESC, last_played DESC LIMIT ?",
             (*_range(start, end), limit))]
 
 
@@ -257,7 +257,7 @@ def top_artists(start: datetime, end: datetime, limit: int = 10, db_path: Path =
             "SELECT artist_key AS key, MAX(artist) AS name, COUNT(*) AS plays, COUNT(DISTINCT track_key) AS tracks, "
             "COALESCE(SUM(ms_played), 0) / 60000 AS minutes "
             "FROM listens WHERE played_at >= ? AND played_at < ? "
-            "GROUP BY artist_key ORDER BY plays DESC, MAX(played_at) DESC LIMIT ?", (*_range(start, end), limit))]
+            "GROUP BY artist_key ORDER BY plays DESC, SUM(ms_played) DESC, MAX(played_at) DESC LIMIT ?", (*_range(start, end), limit))]
 
 
 def _first_heard(start: datetime, end: datetime, column: str, fields: str, db_path: Path) -> list[dict]:
@@ -269,7 +269,7 @@ def _first_heard(start: datetime, end: datetime, column: str, fields: str, db_pa
             "COALESCE(SUM(l.ms_played), 0) / 60000 AS minutes, MIN(f.first_played) AS first_played "
             f"FROM listens l JOIN firsts f ON f.key = l.{column} "
             "WHERE f.first_played >= ? AND f.first_played < ? AND l.played_at >= ? AND l.played_at < ? "
-            f"GROUP BY l.{column} ORDER BY plays DESC, first_played DESC", _range(start, end) * 2)]
+            f"GROUP BY l.{column} ORDER BY plays DESC, SUM(l.ms_played) DESC, first_played DESC", _range(start, end) * 2)]
 
 
 def new_tracks(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list[dict]:
@@ -291,7 +291,7 @@ def forgotten(days: int = 30, min_plays: int = 3, limit: int = 10, now: datetime
             "SELECT track_key AS key, MAX(name) AS name, MAX(artist) AS artist, MAX(album) AS album, "
             "COUNT(*) AS plays, COALESCE(SUM(ms_played), 0) / 60000 AS minutes, MAX(played_at) AS last_played "
             "FROM listens GROUP BY track_key HAVING plays >= ? AND last_played < ? "
-            "ORDER BY plays DESC, last_played DESC LIMIT ?", (min_plays, since, limit))]
+            "ORDER BY plays DESC, SUM(ms_played) DESC, last_played DESC LIMIT ?", (min_plays, since, limit))]
 
 
 def diversity(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
@@ -412,7 +412,7 @@ def ranks(start: datetime, end: datetime, column: str, db_path: Path = DB_PATH) 
     with open_db(db_path) as db:
         rows = db.execute(
             f"SELECT {column} FROM listens WHERE played_at >= ? AND played_at < ? "
-            f"GROUP BY {column} ORDER BY COUNT(*) DESC, MAX(played_at) DESC", _range(start, end))
+            f"GROUP BY {column} ORDER BY COUNT(*) DESC, SUM(ms_played) DESC, MAX(played_at) DESC", _range(start, end))
         return {row[0]: index for index, row in enumerate(rows, start=1)}
 
 
