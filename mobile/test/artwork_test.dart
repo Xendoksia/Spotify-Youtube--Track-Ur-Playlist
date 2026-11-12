@@ -49,6 +49,18 @@ void main() {
     expect(await Artwork(fetch: deezer.fetch).artistPhoto('Band'), isNull);
   });
 
+  test('a collaboration gets its main artist\'s photo and covers', () async {
+    final deezer = FakeDeezer({
+      '/search/artist Pera': [
+        {'name': 'Pera', 'picture_big': 'pera.jpg'},
+      ],
+      '/search artist:"Pera" track:"Song"': [track('Pera', 'song.jpg')],
+    });
+    final artwork = Artwork(fetch: deezer.fetch);
+    expect(await artwork.artistPhoto('Pera, Işıl Ayman'), 'pera.jpg');
+    expect(await artwork.cover('Pera, Işıl Ayman', '', 'Song'), 'song.jpg');
+  });
+
   test('what was found is not looked up again, nothing found is tried again after a week', () async {
     var now = DateTime(2026, 11, 8);
     final deezer = FakeDeezer({});

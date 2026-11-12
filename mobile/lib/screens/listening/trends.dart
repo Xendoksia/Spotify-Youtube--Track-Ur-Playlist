@@ -71,13 +71,16 @@ class DiversityCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _value(context, 'stats.diversity.top5', percent(top5))),
-              Expanded(child: _value(context, 'stats.diversity.variety', percent(share(now.tracks, now.plays)))),
-              if (period != Period.all) Expanded(child: _value(context, 'stats.diversity.new', percent(fresh))),
-            ],
+          // A label on two lines must not push its value below the others
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _value(context, 'stats.diversity.top5', percent(top5))),
+                Expanded(child: _value(context, 'stats.diversity.variety', percent(share(now.tracks, now.plays)))),
+                if (period != Period.all) Expanded(child: _value(context, 'stats.diversity.new', percent(fresh))),
+              ],
+            ),
           ),
           if (sentences.isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -102,6 +105,7 @@ class DiversityCard extends StatelessWidget {
 
   static Widget _value(BuildContext context, String label, String value) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(context.t(label), style: TextStyle(color: Palette.of(context).muted, fontSize: 12)),
           const SizedBox(height: 2),

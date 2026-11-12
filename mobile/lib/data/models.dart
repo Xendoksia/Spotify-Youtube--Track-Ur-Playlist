@@ -4,6 +4,12 @@ library;
 /// The same text with different case or spacing is the same artist or track, as in the desktop app's key().
 String textKey(String? text) => (text ?? '').toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).join(' ');
 
+/// Media controls sometimes list several artists in one name; the first is the main one
+List<String> nameVariants(String artist) {
+  final first = artist.split(RegExp(r',|&| feat\.? | ft\.? | x ', caseSensitive: false)).first.trim();
+  return {artist, first}.where((name) => name.isNotEmpty).toList();
+}
+
 /// A time as the desktop app writes it for syncing: UTC with microseconds, so such texts sort by time.
 String utcStamp(DateTime moment) {
   final utc = moment.toUtc();

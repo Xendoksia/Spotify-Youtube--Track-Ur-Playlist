@@ -39,12 +39,6 @@ Future<Object?> _fetch(Uri url) async {
 /// Compare titles without version notes such as " - Remastered" or " (Deluxe Edition)"
 String titleKey(String title) => textKey(plainTitle(title));
 
-/// Media controls sometimes list several artists in one name; the first is the main one
-List<String> nameVariants(String artist) {
-  final first = artist.split(RegExp(r',|&| feat\.? | ft\.? | x ', caseSensitive: false)).first.trim();
-  return {artist, first}.where((name) => name.isNotEmpty).toList();
-}
-
 class Genres extends ChangeNotifier {
   static final instance = Genres();
 
@@ -186,7 +180,10 @@ class GenreShare {
     if (genre != null) {
       shares.putIfAbsent(genre, () => GenreShare(genre, 0, []));
       final share = shares[genre]!;
-      shares[genre] = GenreShare(genre, share.plays + artist.plays, [...share.artists, artist.title]);
+      // A collaboration is listed by its main artist, once
+      final name = nameVariants(artist.title).last;
+      shares[genre] = GenreShare(genre, share.plays + artist.plays,
+          share.artists.any((a) => textKey(a) == textKey(name)) ? share.artists : [...share.artists, name]);
       known += artist.plays;
     } else {
       genres.request(artist.title, artist.key, {

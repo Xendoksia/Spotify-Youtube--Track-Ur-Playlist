@@ -20,6 +20,9 @@ const retryAfter = Duration(days: 7);
 /// Deezer returns this placeholder path for artists without a photo
 const _emptyPicture = '/images/artist//';
 
+/// Raised when misses should be looked up again: 3 since collaborations are also searched by their main artist
+const _cacheVersion = 3;
+
 typedef Fetch = Future<Object?> Function(Uri url);
 
 Future<Object?> _fetch(Uri url) async {
@@ -41,21 +44,26 @@ class Artwork {
 
   /// key → picture address, or "" with the time when nothing was found
   Map<String, Object?>? _cache;
+  Future<Map<String, Object?>>? _loading;
   final _pending = <String, Future<String?>>{};
   var _running = 0;
   final _waiting = <Completer<void>>[];
   Timer? _saveTimer;
 
-  Future<Map<String, Object?>> _load() async {
-    if (_cache != null) return _cache!;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _cache = (jsonDecode(prefs.getString('ARTWORK') ?? '{}') as Map).cast<String, Object?>();
-    } catch (_) {
-      _cache = {};
-    }
-    return _cache!;
-  }
+  /// Loaded once even when many pictures are asked for at the same time
+  Future<Map<String, Object?>> _load() => _loading ??= () async {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          _cache = (jsonDecode(prefs.getString('ARTWORK') ?? '{}') as Map).cast<String, Object?>();
+          if (prefs.getInt('ARTWORK_VERSION') != _cacheVersion) {
+            _cache!.removeWhere((_, entry) => entry is int);
+            await prefs.setInt('ARTWORK_VERSION', _cacheVersion);
+          }
+        } catch (_) {
+          _cache = {};
+        }
+        return _cache!;
+      }();
 
   void _save() {
     _saveTimer?.cancel();
@@ -143,21 +151,26 @@ class Artwork {
 
   static String _artistOf(Map<String, dynamic> result) => textKey((result['artist'] as Map?)?['name'] as String?);
 
+  /// A collaboration such as "Pera, Işıl Ayman" is under its main artist at Deezer, so that is searched second
   Future<String?> _findCover(String artist, String name) async {
-    for (final title in {name, plainTitle(name)}) {
-      final results = await _searchBoth('/search', 'artist:"$artist" track:"$title"', '$artist $title');
-      for (final result in results) {
-        if (_artistOf(result) == textKey(artist)) return (result['album'] as Map?)?['cover_big'] as String?;
+    for (final who in nameVariants(artist)) {
+      for (final title in {name, plainTitle(name)}) {
+        final results = await _searchBoth('/search', 'artist:"$who" track:"$title"', '$who $title');
+        for (final result in results) {
+          if (_artistOf(result) == textKey(who)) return (result['album'] as Map?)?['cover_big'] as String?;
+        }
       }
     }
     return null;
   }
 
   Future<String?> _findAlbumCover(String artist, String album) async {
-    for (final title in {album, plainTitle(album)}) {
-      final results = await _searchBoth('/search/album', 'artist:"$artist" album:"$title"', '$artist $title');
-      for (final result in results) {
-        if (_artistOf(result) == textKey(artist)) return result['cover_big'] as String?;
+    for (final who in nameVariants(artist)) {
+      for (final title in {album, plainTitle(album)}) {
+        final results = await _searchBoth('/search/album', 'artist:"$who" album:"$title"', '$who $title');
+        for (final result in results) {
+          if (_artistOf(result) == textKey(who)) return result['cover_big'] as String?;
+        }
       }
     }
     return null;
@@ -165,10 +178,13 @@ class Artwork {
 
   /// The album's track list as JSON: the same artist and the same title apart from version notes
   Future<String?> _findTracklist(String artist, String album) async {
-    for (final title in {album, plainTitle(album)}) {
-      final results = await _searchBoth('/search/album', 'artist:"$artist" album:"$title"', '$artist $title');
+    for (final (who, title) in [
+      for (final who in nameVariants(artist))
+        for (final title in {album, plainTitle(album)}) (who, title),
+    ]) {
+      final results = await _searchBoth('/search/album', 'artist:"$who" album:"$title"', '$who $title');
       for (final result in results) {
-        if (_artistOf(result) != textKey(artist) ||
+        if (_artistOf(result) != textKey(who) ||
             textKey(plainTitle(result['title'] as String? ?? '')) != textKey(plainTitle(album))) {
           continue;
         }
@@ -184,10 +200,13 @@ class Artwork {
     return null;
   }
 
+  /// A collaboration gets its main artist's photo
   Future<String?> _findArtistPhoto(String artist) async {
-    for (final result in await _search('/search/artist', artist)) {
-      final picture = result['picture_big'] as String? ?? '';
-      if (textKey(result['name'] as String?) == textKey(artist) && !picture.contains(_emptyPicture)) return picture;
+    for (final who in nameVariants(artist)) {
+      for (final result in await _search('/search/artist', who)) {
+        final picture = result['picture_big'] as String? ?? '';
+        if (textKey(result['name'] as String?) == textKey(who) && !picture.contains(_emptyPicture)) return picture;
+      }
     }
     return null;
   }

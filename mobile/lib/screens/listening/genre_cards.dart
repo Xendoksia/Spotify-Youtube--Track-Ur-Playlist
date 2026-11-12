@@ -35,8 +35,15 @@ class GenresCard extends StatelessWidget {
           final result = genreShares(all, plays);
           final muted = Palette.of(context).muted;
           String percent(int value) => context.t('stats.percent', {'value': value});
+          final names = [for (final genre in result.genres) capitalized(genre.name)];
           final parts = [
-            if (result.total > 0) context.t('stats.genres.summary', {'percent': percent(share(result.known, result.total))}),
+            if (names.isNotEmpty)
+              context.t('stats.genres.summary.${names.length.clamp(1, 3)}', {
+                'first': names[0],
+                if (names.length > 1) 'second': names[1],
+                if (names.length > 2) 'third': names[2],
+                'count': context.number(names.length),
+              }),
             if (result.waiting > 0) context.t('stats.genres.loading', {'count': context.number(result.waiting)}),
           ];
           return SectionCard(
