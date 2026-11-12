@@ -34,6 +34,10 @@ class _ListeningScreenState extends State<ListeningScreen> {
   var _recentShown = recentStep;
   var _wrappedChecked = false;
 
+  /// Where the next period's content comes from: -1 from the left (an earlier period), 1 from the right, 0 rising
+  /// (another kind of period)
+  var _direction = 0;
+
   /// On the first days of a month the summary of the month before opens by itself, once
   void _checkWrapped() {
     if (_wrappedChecked) return;
@@ -93,10 +97,14 @@ class _ListeningScreenState extends State<ListeningScreen> {
         offset: _offset,
         range: range,
         onPeriod: (period) => setState(() {
+          _direction = 0;
           _period = period;
           _offset = 0;
         }),
-        onOffset: (offset) => setState(() => _offset = offset),
+        onOffset: (offset) => setState(() {
+          _direction = offset > _offset ? -1 : 1;
+          _offset = offset;
+        }),
       ),
       if (_period == Period.month && plays.isNotEmpty)
         Center(
@@ -120,79 +128,89 @@ class _ListeningScreenState extends State<ListeningScreen> {
         Expanded(child: _tile(context, 'stats.artists', summary.artists, previous?.artists, context.number)),
       ]),
       gap,
-      if (plays.isEmpty)
-        MessageView(icon: Icons.music_off, text: context.t('stats.empty'))
-      else ...[
-        _trackHero(context, tracks.first, trackChange),
-        const SizedBox(height: 8),
-        _artistHero(context, artists.first, plays, artistChange),
-        if (tracks.length > 1) ...[
-          gap,
-          SectionCard(
-            title: context.t('stats.top_tracks'),
-            child: RankedList(
-              rows: tracks.sublist(1),
-              firstRank: 2,
-              change: trackChange,
-              image: (row) => ArtworkImage.cover(
-                  artist: row.artist, album: row.album, name: row.title, hero: heroTag(DetailKind.track, row.key, 1)),
-              onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.track, row)),
-            ),
-          ),
-        ],
-        if (artists.length > 1) ...[
-          gap,
-          SectionCard(
-            title: context.t('stats.top_artists'),
-            child: RankedList(
-              rows: artists.sublist(1),
-              firstRank: 2,
-              change: artistChange,
-              image: (row) => ArtworkImage.artist(artist: row.artist, hero: heroTag(DetailKind.artist, row.key, 1)),
-              onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.artist, row)),
-            ),
-          ),
-        ],
-        gap,
-        SectionCard(
-          title: context.t('stats.top_albums'),
-          child: RankedList(
-            rows: topAlbums(plays),
-            image: (row) =>
-                ArtworkImage.album(artist: row.artist, album: row.album, hero: heroTag(DetailKind.album, row.key, 1)),
-            onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.album, row)),
-          ),
-        ),
-        gap,
-        SectionCard(
-          title: context.t('stats.chart'),
-          child: ListeningChart(period: _period, buckets: buckets(_period, range, plays)),
-        ),
-        gap,
-        SectionCard(
-          title: context.t('stats.hours'),
-          child: ListeningChart(
-            period: Period.all,
-            plays: true,
-            buckets: [
-              for (final (hour, count) in playsPerHour(plays).indexed) Bucket(DateTime(2000, 1, 1, hour), 0, count),
-            ],
-            label: (context, start) => start.hour.toString().padLeft(2, '0'),
-          ),
-        ),
-        gap,
-        Discoveries(store: widget.store, period: _period, range: range, plays: plays),
-        gap,
-        DiversityCard(store: widget.store, period: _period, offset: _offset, range: range, plays: plays),
-        gap,
-        MilestonesCard(store: widget.store, period: _period, range: range),
-        gap,
-        GenresCard(all: all, plays: plays),
-        gap,
-        GenreShiftCard(period: _period, range: range, plays: plays),
-        gap,
-        CollageCard(store: widget.store, plays: plays),
-      ],
+      // The tiles count to the new numbers; everything under them changes with the period as a whole
+      _PeriodSwitcher(
+        contentKey: ValueKey('$_period/$_offset'),
+        direction: _direction,
+        children: plays.isEmpty
+            ? [MessageView(icon: Icons.music_off, text: context.t('stats.empty'))]
+            : [
+              _trackHero(context, tracks.first, trackChange),
+              const SizedBox(height: 8),
+              _artistHero(context, artists.first, plays, artistChange),
+              if (tracks.length > 1) ...[
+                gap,
+                SectionCard(
+                  title: context.t('stats.top_tracks'),
+                  child: RankedList(
+                    rows: tracks.sublist(1),
+                    firstRank: 2,
+                    change: trackChange,
+                    image: (row) => ArtworkImage.cover(
+                        artist: row.artist,
+                        album: row.album,
+                        name: row.title,
+                        hero: heroTag(DetailKind.track, row.key, 1)),
+                    onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.track, row)),
+                  ),
+                ),
+              ],
+              if (artists.length > 1) ...[
+                gap,
+                SectionCard(
+                  title: context.t('stats.top_artists'),
+                  child: RankedList(
+                    rows: artists.sublist(1),
+                    firstRank: 2,
+                    change: artistChange,
+                    image: (row) =>
+                        ArtworkImage.artist(artist: row.artist, hero: heroTag(DetailKind.artist, row.key, 1)),
+                    onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.artist, row)),
+                  ),
+                ),
+              ],
+              gap,
+              SectionCard(
+                title: context.t('stats.top_albums'),
+                child: RankedList(
+                  rows: topAlbums(plays),
+                  image: (row) => ArtworkImage.album(
+                      artist: row.artist, album: row.album, hero: heroTag(DetailKind.album, row.key, 1)),
+                  onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.album, row)),
+                ),
+              ),
+              gap,
+              SectionCard(
+                title: context.t('stats.chart'),
+                child: ListeningChart(period: _period, buckets: buckets(_period, range, plays)),
+              ),
+              gap,
+              SectionCard(
+                title: context.t('stats.hours'),
+                child: ListeningChart(
+                  period: Period.all,
+                  plays: true,
+                  buckets: [
+                    for (final (hour, count) in playsPerHour(plays).indexed)
+                      Bucket(DateTime(2000, 1, 1, hour), 0, count),
+                  ],
+                  label: (context, start) => start.hour.toString().padLeft(2, '0'),
+                ),
+              ),
+              gap,
+              Discoveries(store: widget.store, period: _period, range: range, plays: plays),
+              gap,
+              DiversityCard(store: widget.store, period: _period, offset: _offset, range: range, plays: plays),
+              gap,
+              MilestonesCard(store: widget.store, period: _period, range: range),
+              gap,
+              GenresCard(all: all, plays: plays),
+              gap,
+              GenreShiftCard(period: _period, range: range, plays: plays),
+              gap,
+              CollageCard(store: widget.store, plays: plays),
+              ],
+      ),
       gap,
       SectionCard(
         title: context.t('stats.recent'),
@@ -244,6 +262,37 @@ class _ListeningScreenState extends State<ListeningScreen> {
       onTap: () => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.artist, top)),
     );
   }
+}
+
+/// A period's content, sliding in from the side of the arrow that was tapped, or rising in for another kind of
+/// period, while the one before fades out
+class _PeriodSwitcher extends StatelessWidget {
+  /// Changes with the period, so the switcher knows its content is new
+  final Key contentKey;
+  final int direction;
+  final List<Widget> children;
+
+  const _PeriodSwitcher({required this.contentKey, required this.direction, required this.children});
+
+  @override
+  Widget build(BuildContext context) => AnimatedSwitcher(
+        duration: const Duration(milliseconds: 380),
+        reverseDuration: const Duration(milliseconds: 160),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeIn,
+        layoutBuilder: (current, previous) =>
+            Stack(alignment: Alignment.topCenter, children: [...previous, ?current]),
+        transitionBuilder: (shown, animation) {
+          // The one going out only fades
+          if (shown.key != contentKey) return FadeTransition(opacity: animation, child: shown);
+          final from = direction == 0 ? const Offset(0, 0.03) : Offset(0.25 * direction, 0);
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(position: Tween(begin: from, end: Offset.zero).animate(animation), child: shown),
+          );
+        },
+        child: Column(key: contentKey, crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+      );
 }
 
 /// How many recent plays show at first, and how many more each tap on "Show more" adds
