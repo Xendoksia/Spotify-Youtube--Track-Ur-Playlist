@@ -8,12 +8,14 @@ import '../../theme/palette.dart';
 import '../../widgets/artwork_image.dart';
 import '../../widgets/cards.dart';
 import '../../widgets/format.dart';
+import 'collage_card.dart';
 import 'detail_screen.dart';
 import 'discoveries.dart';
 import 'genre_cards.dart';
 import 'listening_chart.dart';
 import 'period_bar.dart';
 import 'trends.dart';
+import 'wrapped_screen.dart';
 
 /// The statistics of the plays synced from the desktop app, by week, month, year or all time
 class ListeningScreen extends StatefulWidget {
@@ -30,6 +32,17 @@ class _ListeningScreenState extends State<ListeningScreen> {
   var _period = Period.month;
   var _offset = 0;
   var _recentShown = recentStep;
+  var _wrappedChecked = false;
+
+  /// On the first days of a month the summary of the month before opens by itself, once
+  void _checkWrapped() {
+    if (_wrappedChecked) return;
+    _wrappedChecked = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final month = await wrappedDue(widget.store.plays, DateTime.now());
+      if (month != null && mounted) openWrapped(context, widget.store, month);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +62,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
                 : const CircularProgressIndicator(),
           );
         }
+        if (store.plays.isNotEmpty) _checkWrapped();
         return RefreshIndicator(
           onRefresh: widget.onRefresh,
           child: ListView(
@@ -84,6 +98,14 @@ class _ListeningScreenState extends State<ListeningScreen> {
         }),
         onOffset: (offset) => setState(() => _offset = offset),
       ),
+      if (_period == Period.month && plays.isNotEmpty)
+        Center(
+          child: FilledButton.tonalIcon(
+            onPressed: () => openWrapped(context, widget.store, range),
+            icon: const Icon(Icons.auto_awesome, size: 18),
+            label: Text(context.t('wrapped.button')),
+          ),
+        ),
       gap,
       // Rows rather than a grid with a fixed aspect ratio, so the tiles grow with the phone's font size
       Row(children: [
@@ -168,6 +190,8 @@ class _ListeningScreenState extends State<ListeningScreen> {
         GenresCard(all: all, plays: plays),
         gap,
         GenreShiftCard(period: _period, range: range, plays: plays),
+        gap,
+        CollageCard(store: widget.store, plays: plays),
       ],
       gap,
       SectionCard(
