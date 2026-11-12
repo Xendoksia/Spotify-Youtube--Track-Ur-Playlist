@@ -25,7 +25,7 @@ from typing import Callable
 from playlist_tracker.core.i18n import current as current_language, t
 from playlist_tracker.music import listening
 from playlist_tracker.music.artwork import ART_DIR, RETRY_SECONDS, SSL_CONTEXT
-from playlist_tracker.music.listening import key
+from playlist_tracker.music.listening import key, name_variants
 
 CACHE_PATH = ART_DIR / "artist_info.json"
 MUSICBRAINZ_URL = "https://musicbrainz.org/ws/2"
@@ -98,15 +98,9 @@ def _title_key(title: str) -> str:
     return key(re.sub(r"\s*(\(.*?\)|\[.*?\])", "", (title or "").split(" - ")[0]))
 
 
-def _name_variants(artist: str) -> list[str]:
-    # Media controls sometimes list several artists in one name; the first is the main one
-    first = re.split(r",|&| feat\.? | ft\.? | x ", artist, maxsplit=1, flags=re.IGNORECASE)[0].strip()
-    return list(dict.fromkeys(name for name in (artist, first) if name))
-
-
 def _find_artist(artist: str, titles: set[str]) -> str | None:
     """The MusicBrainz id of the artist, or None when no same named artist has releases we listened to."""
-    for name in _name_variants(artist):
+    for name in name_variants(artist):
         results = _musicbrainz("/artist/", query=f'artist:"{name}"', limit=10).get("artists") or []
         same_name = [a for a in results if key(a.get("name", "")) == key(name)
                      or any(key(alias.get("name", "")) == key(name) for alias in a.get("aliases") or [])]

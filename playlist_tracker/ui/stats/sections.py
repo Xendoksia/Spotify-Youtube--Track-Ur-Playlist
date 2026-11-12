@@ -13,6 +13,7 @@ from tkinter import ttk
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import format_date
 from playlist_tracker.music import artist_info, collage, listening
+from playlist_tracker.music.listening import key, name_variants
 from playlist_tracker.ui.charts import BarList, StackedColumns, series_colors
 from playlist_tracker.ui.stats.text import month_name, plays_text, summary_text, tracks_text
 from playlist_tracker.ui.stats.widgets import SECTION_GAP, card, card_column
@@ -152,20 +153,25 @@ class Genres:
         artists = listening.top_artists(*self._range, -1)
         total = sum(a["plays"] for a in artists)
         genres: dict[str, dict] = {}
-        known = waiting = 0
+        waiting = 0
         for artist in artists:
             facts = artist_info.request(artist["name"], artist["key"], self.card, self._arrived,
                                         priority=artist_info.LATER)
             if facts and facts["genres"]:
                 genre = genres.setdefault(facts["genres"][0], {"plays": 0, "artists": []})
                 genre["plays"] += artist["plays"]
-                genre["artists"].append(artist["name"])
-                known += artist["plays"]
+                # A collaboration is listed by its main artist, once
+                name = name_variants(artist["name"])[-1]
+                if all(key(name) != key(other) for other in genre["artists"]):
+                    genre["artists"].append(name)
             elif artist_info.waiting(artist["key"]):
                 waiting += 1
         parts = []
-        if total:
-            parts.append(t("stats.genres.summary", percent=t("stats.percent", value=round(100 * known / total))))
+        names = [name[:1].upper() + name[1:] for name, _ in sorted(genres.items(), key=lambda item: -item[1]["plays"])]
+        if names:
+            parts.append(t(f"stats.genres.summary.{min(len(names), 3)}", first=names[0],
+                           second=names[1] if len(names) > 1 else "", third=names[2] if len(names) > 2 else "",
+                           count=number(len(names))))
         if waiting:
             parts.append(t("stats.genres.loading", count=number(waiting)))
         self.card.summary.configure(text="  ·  ".join(parts))

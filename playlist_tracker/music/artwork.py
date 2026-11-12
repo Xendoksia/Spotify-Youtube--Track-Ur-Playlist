@@ -25,7 +25,7 @@ from typing import Callable
 
 from playlist_tracker.core.config import BASE_DIR
 from playlist_tracker.music import listening
-from playlist_tracker.music.listening import key
+from playlist_tracker.music.listening import key, name_variants
 
 try:
     from PIL import Image, ImageDraw, ImageTk
@@ -39,6 +39,8 @@ SAVED_SIZE = 300
 RETRY_SECONDS = 7 * 24 * 3600
 # Deezer returns this placeholder path for artists without a photo
 EMPTY_PICTURE = "/images/artist//"
+# Misses from before collaborations were also searched by their main artist (2026-11-12) are tried again
+MAIN_ARTIST_SEARCH = 1794486975
 
 # One context for every download: building it reads the whole certificate store each time.
 # Some Windows certificate stores still hold an expired root that Wikidata's chain runs into,
@@ -84,7 +86,10 @@ def _missing_marker(path: Path) -> Path:
 
 def _recently_missed(path: Path) -> bool:
     marker = _missing_marker(path)
-    return marker.exists() and time.time() - marker.stat().st_mtime < RETRY_SECONDS
+    if not marker.exists():
+        return False
+    missed = marker.stat().st_mtime
+    return missed >= MAIN_ARTIST_SEARCH and time.time() - missed < RETRY_SECONDS
 
 
 def _get(url: str, as_json: bool = True):
@@ -103,19 +108,23 @@ def _plain_title(name: str) -> str:
 
 
 def _find_cover(artist: str, name: str) -> str | None:
-    for title in dict.fromkeys((name, _plain_title(name))):
-        results = _search("/search", f'artist:"{artist}" track:"{title}"') or _search("/search", f"{artist} {title}")
-        for result in results:
-            if key((result.get("artist") or {}).get("name", "")) == key(artist):
-                return (result.get("album") or {}).get("cover_big")
+    # A collaboration such as "Pera, Işıl Ayman" is under its main artist at Deezer, so that is searched second
+    for who in name_variants(artist):
+        for title in dict.fromkeys((name, _plain_title(name))):
+            results = _search("/search", f'artist:"{who}" track:"{title}"') or _search("/search", f"{who} {title}")
+            for result in results:
+                if key((result.get("artist") or {}).get("name", "")) == key(who):
+                    return (result.get("album") or {}).get("cover_big")
     return None
 
 
 def _find_artist_photo(artist: str) -> str | None:
-    for result in _search("/search/artist", artist):
-        picture = result.get("picture_big") or ""
-        if key(result.get("name", "")) == key(artist) and EMPTY_PICTURE not in picture:
-            return picture
+    # A collaboration gets its main artist's photo
+    for who in name_variants(artist):
+        for result in _search("/search/artist", who):
+            picture = result.get("picture_big") or ""
+            if key(result.get("name", "")) == key(who) and EMPTY_PICTURE not in picture:
+                return picture
     return None
 
 
@@ -138,7 +147,8 @@ def cached_tracklist(artist: str, album: str) -> list[dict] | None:
     """The tracks of an album looked up before ([] when Deezer did not have it), or None when not yet."""
     with _tracklists_lock:
         entry = _load_tracklists().get(f"{key(artist)}|{key(album)}")
-    if entry is None or (entry.get("missing") and time.time() - entry["missing"] > RETRY_SECONDS):
+    missing = entry and entry.get("missing")
+    if entry is None or (missing and (missing < MAIN_ARTIST_SEARCH or time.time() - missing > RETRY_SECONDS)):
         return None
     return entry.get("tracks", [])
 
@@ -146,11 +156,12 @@ def cached_tracklist(artist: str, album: str) -> list[dict] | None:
 def fetch_tracklist(artist: str, album: str) -> None:
     """Look up the tracks of an album on Deezer (title and length, in album order) and cache them."""
     tracks = None
-    for title in dict.fromkeys((album, _plain_title(album))):
-        results = (_search("/search/album", f'artist:"{artist}" album:"{title}"')
-                   or _search("/search/album", f"{artist} {title}"))
+    for who, title in ((who, title) for who in name_variants(artist)
+                       for title in dict.fromkeys((album, _plain_title(album)))):
+        results = (_search("/search/album", f'artist:"{who}" album:"{title}"')
+                   or _search("/search/album", f"{who} {title}"))
         for result in results:
-            if (key((result.get("artist") or {}).get("name", "")) == key(artist)
+            if (key((result.get("artist") or {}).get("name", "")) == key(who)
                     and key(_plain_title(result.get("title", ""))) == key(_plain_title(album))):
                 data = _get(f"{SEARCH_URL}/album/{result['id']}/tracks?limit=200").get("data") or []
                 tracks = [{"title": t["title"], "ms": (t.get("duration") or 0) * 1000} for t in data]

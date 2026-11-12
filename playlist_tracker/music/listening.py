@@ -5,6 +5,7 @@ the Spotify API, and stores the plays in listening.db. All statistics are counte
 
 from __future__ import annotations
 
+import re
 import sqlite3
 import uuid
 from collections.abc import Iterator
@@ -96,6 +97,12 @@ def _move_spotify_plays(db: sqlite3.Connection) -> None:
 
 def key(text: str) -> str:
     return " ".join((text or "").casefold().split())
+
+
+def name_variants(artist: str) -> list[str]:
+    """Media controls sometimes list several artists in one name; the first is the main one."""
+    first = re.split(r",|&| feat\.? | ft\.? | x ", artist, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+    return list(dict.fromkeys(name for name in (artist, first) if name))
 
 
 def to_utc(moment: datetime) -> str:
