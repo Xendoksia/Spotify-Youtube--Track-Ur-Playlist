@@ -7,12 +7,13 @@ sections.py. Everything is counted from the plays recorded in listening.db.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-import tkinter as tk
+import time
 from tkinter import ttk
 
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.music import listening
 from playlist_tracker.ui.charts import BarList, ColumnChart, count_up
+from playlist_tracker.ui.inbox import BellButton, InboxPopup, Item
 from playlist_tracker.ui.stats import wrapped
 from playlist_tracker.ui.stats.sections import Collage, Discoveries, Diversity, Genres, GenreShift, Milestones
 from playlist_tracker.ui.stats.text import (duration_text, hour_buckets, month_name, period_title, plays_text,
@@ -65,9 +66,9 @@ class Overview(ttk.Frame):
         # The summaries waiting to be seen (wrapped.inbox), with their number beside the bell: the only way to
         # them besides their opening by itself, so that they stay something to look forward to
         self.open_wrapped = open_wrapped
-        self.inbox_button = ttk.Button(toolbar, text=icon("bell"), style="Icon.TButton", command=self._show_inbox)
+        self.inbox_button = BellButton(toolbar, P.surface, self._toggle_inbox)
         self.inbox_button.pack(side="right")
-        self.inbox_count = ttk.Label(toolbar, style="Card.TLabel", foreground=P.chart, font=TYPE["heading"])
+        self.inbox_popup: InboxPopup | None = None
 
         page = ScrollFrame(self)
         page.pack(fill="both", expand=True, pady=(px(12), 0))
@@ -128,25 +129,22 @@ class Overview(ttk.Frame):
 
     def update_inbox(self):
         self.inbox = wrapped.inbox()
-        if self.inbox:
-            self.inbox_count.configure(text=number(len(self.inbox)))
-            self.inbox_count.pack(side="right", after=self.inbox_button, padx=(0, px(4)))
-        else:
-            self.inbox_count.pack_forget()
+        self.inbox_button.set_count(len(self.inbox))
 
-    def _show_inbox(self):
-        menu = tk.Menu(self, tearoff=0, background=P.surface, foreground=P.text, activebackground=P.hover,
-                       activeforeground=P.text, disabledforeground=P.muted, font=TYPE["body"])
-        menu.add_command(label=t("inbox.title"), state="disabled")
-        menu.add_separator()
+    def _toggle_inbox(self):
+        popup = self.inbox_popup
+        # A click on the bell while the card is open closes it (the card closes itself as the click takes focus)
+        if popup is not None and (popup.winfo_exists() or time.monotonic() - (popup.closed_at or 0) < 0.3):
+            popup.close()
+            self.inbox_popup = None
+            return
+        items = []
         for summary in self.inbox:
-            name = period_title("year" if wrapped.is_year(*summary) else "month", *summary)
-            menu.add_command(label=t("wrapped.inbox.item", name=name),
-                             command=lambda summary=summary: self.open_wrapped(summary))
-        if not self.inbox:
-            menu.add_command(label=t("inbox.empty"), state="disabled")
-        button = self.inbox_button
-        menu.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height())
+            year = wrapped.is_year(*summary)
+            items.append(Item(t("wrapped.inbox.item", name=period_title("year" if year else "month", *summary)),
+                              t("wrapped.inbox.detail.year" if year else "wrapped.inbox.detail"),
+                              lambda summary=summary: self.open_wrapped(summary)))
+        self.inbox_popup = InboxPopup(self.inbox_button, items)
 
     def move(self, step: int):
         self.offset = max(0, self.offset + step)
