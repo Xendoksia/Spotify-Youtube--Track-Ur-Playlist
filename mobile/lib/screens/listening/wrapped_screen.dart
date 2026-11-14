@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/genres.dart';
@@ -83,10 +84,62 @@ Future<DateRange?> wrappedDue(List<Play> all, DateTime now) async {
   final month = periodRange(Period.month, 1, now);
   if (!all.any((p) => month.contains(p.playedAt))) return null;
   final prefs = await SharedPreferences.getInstance();
-  final key = '${month.start.year}-${month.start.month.toString().padLeft(2, '0')}';
+  final key = _monthKey(month.start);
   if (prefs.getString('WRAPPED_SHOWN') == key) return null;
   await prefs.setString('WRAPPED_SHOWN', key);
   return month;
+}
+
+String _monthKey(DateTime month) => '${month.year}-${month.month.toString().padLeft(2, '0')}';
+
+/// The phone's "your month in review is ready" notification (WrappedNotice.kt), sent on the first days of a month
+/// while the app is closed. It is told here which months have plays; tapping it opens the summary
+class WrappedNotice {
+  static const _channel = MethodChannel('playlist_tracker/wrapped');
+
+  /// The month of a notification tapped while the app was open
+  static final tapped = ValueNotifier<DateRange?>(null);
+
+  static DateRange? _month(Object? key) {
+    final parts = key is String ? key.split('-') : const <String>[];
+    if (parts.length != 2) return null;
+    final start = DateTime(int.parse(parts[0]), int.parse(parts[1]));
+    return DateRange(start, DateTime(start.year, start.month + 1));
+  }
+
+  static void listen() => _channel.setMethodCallHandler((call) async {
+        if (call.method == 'tapped') tapped.value = _month(call.arguments);
+      });
+
+  /// The month of the notification the app was opened from, marked as seen
+  static Future<DateRange?> takeTapped() async {
+    try {
+      final month = _month(await _channel.invokeMethod<String>('takeTapped'));
+      if (month != null) await (await SharedPreferences.getInstance()).setString('WRAPPED_SHOWN', _monthKey(month.start));
+      return month;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  /// The months with plays (the last and this one), for the notification to know whether there is a summary
+  static Future<void> remember(List<Play> all, DateTime now) async {
+    final since = periodRange(Period.month, 1, now).start;
+    final months = {for (final play in all) if (!play.playedAt.isBefore(since)) _monthKey(play.playedAt)};
+    await (await SharedPreferences.getInstance()).setString('PLAY_MONTHS', months.join(','));
+  }
+
+  /// Asked once, on Android 13 and later
+  static Future<void> askPermission() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('NOTIFICATIONS_ASKED') ?? false) return;
+    await prefs.setBool('NOTIFICATIONS_ASKED', true);
+    try {
+      await _channel.invokeMethod('askPermission');
+    } on MissingPluginException {
+      // Not on Android
+    }
+  }
 }
 
 void openWrapped(BuildContext context, DataStore store, DateRange month) => Navigator.of(context)
@@ -104,17 +157,23 @@ class WrappedScreen extends StatefulWidget {
 
 class _WrappedScreenState extends State<WrappedScreen> {
   final _pages = PageController();
-  var _index = 0;
+
+  /// Kept out of the state so that turning a page, halfway through the swipe, redraws only the dots below
+  final _index = ValueNotifier(0);
+
+  /// Worked out once: going over every play again at each page turn made the swipes stutter
+  late final _data = WrappedData.of(widget.store.plays, widget.month);
 
   @override
   void dispose() {
     _pages.dispose();
+    _index.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final data = WrappedData.of(widget.store.plays, widget.month);
+    final data = _data;
     final month = context.dateFormat('MMMM y').format(widget.month.start);
     // Each slide comes in its own way
     final slides = <(_Entrance, List<Widget> Function())>[
@@ -145,50 +204,56 @@ class _WrappedScreenState extends State<WrappedScreen> {
               child: PageView.builder(
                 controller: _pages,
                 itemCount: slides.length,
-                onPageChanged: (index) => setState(() => _index = index),
+                onPageChanged: (index) => _index.value = index,
                 // A slide shrinks and fades a little while it is swiped away
                 itemBuilder: (context, index) => AnimatedBuilder(
                   animation: _pages,
                   builder: (context, child) {
                     final page =
-                        _pages.hasClients && _pages.position.haveDimensions ? _pages.page! : _index.toDouble();
+                        _pages.hasClients && _pages.position.haveDimensions ? _pages.page! : _index.value.toDouble();
                     final away = (page - index).abs().clamp(0.0, 1.0);
                     return Opacity(
                       opacity: 1 - away * 0.6,
                       child: Transform.scale(scale: 1 - away * 0.12, child: child),
                     );
                   },
-                  child: _Slide(key: ValueKey(index), entrance: slides[index].$1, child: slides[index].$2()),
+                  // Scaling and fading the slide reuses its last drawing instead of painting it again every frame
+                  child: RepaintBoundary(
+                    child: _Slide(key: ValueKey(index), entrance: slides[index].$1, child: slides[index].$2()),
+                  ),
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              child: Row(
-                children: [
-                  IconButton(onPressed: _index > 0 ? () => go(_index - 1) : null, icon: const Icon(Icons.chevron_left)),
-                  Expanded(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (var i = 0; i < slides.length; i++)
-                          AnimatedContainer(
-                            duration: changeDuration,
-                            curve: changeCurve,
-                            margin: const EdgeInsets.symmetric(horizontal: 3),
-                            width: i == _index ? 18 : 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: i == _index ? Palette.of(context).chart : Palette.of(context).border,
-                              borderRadius: BorderRadius.circular(4),
+            ValueListenableBuilder(
+              valueListenable: _index,
+              builder: (context, index, _) => Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                child: Row(
+                  children: [
+                    IconButton(onPressed: index > 0 ? () => go(index - 1) : null, icon: const Icon(Icons.chevron_left)),
+                    Expanded(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          for (var i = 0; i < slides.length; i++)
+                            AnimatedContainer(
+                              duration: changeDuration,
+                              curve: changeCurve,
+                              margin: const EdgeInsets.symmetric(horizontal: 3),
+                              width: i == index ? 18 : 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                color: i == index ? Palette.of(context).chart : Palette.of(context).border,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  IconButton(
-                      onPressed: _index < last ? () => go(_index + 1) : null, icon: const Icon(Icons.chevron_right)),
-                ],
+                    IconButton(
+                        onPressed: index < last ? () => go(index + 1) : null, icon: const Icon(Icons.chevron_right)),
+                  ],
+                ),
               ),
             ),
           ],

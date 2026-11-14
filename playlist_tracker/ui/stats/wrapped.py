@@ -3,7 +3,8 @@ A month in review, shown slide by slide in the statistics tab: time listened, th
 month, the top five of each, discoveries, the busiest day and hour, genres and a closing summary.
 
 It is there only on the first days of a month (SHOW_DAYS), for the month before: it opens by itself the first
-time the window is shown on one of those days (AUTO_OPEN), and from the "Monthly summary" button.
+time the window is shown on one of those days (AUTO_OPEN), and from the "Monthly summary" button. While the app
+runs in the tray, a notification says it is ready (notice_due).
 """
 
 from __future__ import annotations
@@ -29,6 +30,8 @@ except ImportError:  # artwork.picture() then gives no pictures, so these are no
 SHOW_DAYS = (1, 2)
 # Open it by itself the first time the window is shown on one of those days
 AUTO_OPEN = True
+# The "ready" notification comes on the first of those days from this hour, not to come at midnight
+NOTICE_HOUR = 10
 TOP = 5
 IMAGE = 200
 LIST_WIDTH = 620
@@ -66,6 +69,23 @@ def auto_open_due() -> tuple[datetime, datetime] | None:
     if month is None or load_config().get("WRAPPED_SHOWN") == month[0].strftime("%Y-%m"):
         return None
     return month
+
+
+def notice_due() -> tuple[datetime, datetime] | None:
+    """The month to tell about with a notification, once: its summary is there and was not seen yet."""
+    now = datetime.now()
+    if now.day == SHOW_DAYS[0] and now.hour < NOTICE_HOUR:
+        return None
+    month = auto_open_due()
+    if month is None or load_config().get("WRAPPED_NOTIFIED") == month[0].strftime("%Y-%m"):
+        return None
+    return month
+
+
+def mark_notified(start: datetime) -> None:
+    config = load_config()
+    config["WRAPPED_NOTIFIED"] = start.strftime("%Y-%m")
+    save_config(config)
 
 
 def mark_shown(start: datetime) -> None:

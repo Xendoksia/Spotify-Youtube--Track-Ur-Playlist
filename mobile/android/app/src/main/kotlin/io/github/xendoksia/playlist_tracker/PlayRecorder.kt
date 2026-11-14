@@ -231,6 +231,12 @@ class PlayStore(context: Context) :
                 "ORDER BY played_at DESC LIMIT 1", arrayOf(artist, name, from, to)
         ).use { if (it.moveToFirst()) Triple(it.getString(0), it.getString(1), it.getLong(2)) else null }
 
+    /** Whether a play started between from and to (UTC texts) */
+    fun hasPlays(from: String, to: String): Boolean =
+        readableDatabase.rawQuery(
+            "SELECT 1 FROM plays WHERE played_at >= ? AND played_at < ? LIMIT 1", arrayOf(from, to)
+        ).use { it.moveToFirst() }
+
     /** A longer listening time is sent again */
     fun update(uid: String, ms: Long) {
         writableDatabase.execSQL("UPDATE plays SET ms_played = ?, synced = 0 WHERE uid = ?", arrayOf<Any>(ms, uid))

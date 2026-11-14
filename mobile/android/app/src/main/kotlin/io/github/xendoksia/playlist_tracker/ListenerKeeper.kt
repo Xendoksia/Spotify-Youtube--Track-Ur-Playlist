@@ -15,7 +15,8 @@ import android.service.notification.NotificationListenerService
 /**
  * Brings MediaListener back when Android stopped it: after the app's process was killed (or crashed) Android
  * keeps the notification access but does not always bind the listener again, and then nothing is recorded.
- * Checked when the app opens and every 15 minutes by a job Android runs while the app is closed.
+ * Checked when the app opens and every 15 minutes by a job Android runs while the app is closed, which also
+ * sends the monthly summary notification (WrappedNotice).
  */
 class ListenerKeeper : JobService() {
     companion object {
@@ -55,6 +56,7 @@ class ListenerKeeper : JobService() {
 
     override fun onStartJob(params: JobParameters?): Boolean {
         revive(this)
+        WrappedNotice.check(this)
         return false
     }
 

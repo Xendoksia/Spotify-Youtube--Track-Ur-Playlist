@@ -51,4 +51,12 @@ void main() {
     // A month without plays has no summary
     expect(await wrappedDue(all, DateTime(2027, 1, 1)), isNull);
   });
+
+  test('the notification is told which of the last and this month have plays', () async {
+    SharedPreferences.setMockInitialValues({});
+    await WrappedNotice.remember([...october, ...november], DateTime(2026, 11, 20));
+    expect((await SharedPreferences.getInstance()).getString('PLAY_MONTHS'), '2026-10,2026-11');
+    await WrappedNotice.remember([...october, ...november], DateTime(2026, 12, 1));
+    expect((await SharedPreferences.getInstance()).getString('PLAY_MONTHS'), '2026-11');
+  });
 }

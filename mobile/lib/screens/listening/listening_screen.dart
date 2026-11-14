@@ -38,13 +38,46 @@ class _ListeningScreenState extends State<ListeningScreen> {
   /// (another kind of period)
   var _direction = 0;
 
-  /// On the first days of a month the summary of the month before opens by itself, once
+  @override
+  void initState() {
+    super.initState();
+    WrappedNotice.listen();
+    WrappedNotice.tapped.addListener(_noticeTapped);
+  }
+
+  @override
+  void dispose() {
+    WrappedNotice.tapped.removeListener(_noticeTapped);
+    super.dispose();
+  }
+
+  /// The summary notification tapped while the app was open
+  void _noticeTapped() {
+    final month = WrappedNotice.tapped.value;
+    if (month == null || !widget.store.loaded) return;
+    WrappedNotice.tapped.value = null;
+    openWrapped(context, widget.store, month);
+  }
+
+  /// On the first days of a month the summary of the month before opens by itself, once, or the one of the
+  /// notification the app was opened from
   void _checkWrapped() {
     if (_wrappedChecked) return;
     _wrappedChecked = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final month = await wrappedDue(widget.store.plays, DateTime.now());
-      if (month != null && mounted) openWrapped(context, widget.store, month);
+      final plays = widget.store.plays;
+      final now = DateTime.now();
+      await WrappedNotice.remember(plays, now);
+      final tapped = WrappedNotice.tapped.value;
+      WrappedNotice.tapped.value = null;
+      final month = tapped ?? await WrappedNotice.takeTapped() ?? await wrappedDue(plays, now);
+      if (!mounted) return;
+      if (month != null) {
+        openWrapped(context, widget.store, month);
+      } else {
+        // Not over the summary
+        WrappedNotice.askPermission();
+      }
     });
   }
 

@@ -76,6 +76,7 @@ class App(tk.Tk):
         threading.Thread(target=artwork.fill_missing_lengths, name="lengths", daemon=True,
                          args=(lambda: self.after(0, self.listening.mark_stale),)).start()
         self._poll_commands()
+        self.after(60_000, self._notify_monthly_summary)
 
         if hidden:
             # Started with Windows: keep running in the tray, or minimized when there is no tray
@@ -233,6 +234,17 @@ class App(tk.Tk):
             self.show_section("listening")
             self.listening.tabs.select(self.listening.stats)
             self.listening.stats.open_wrapped(due)
+
+    def _notify_monthly_summary(self):
+        """On the first days of a month, say once that the summary of the month before is ready; it opens when
+        the window is shown from the tray. Checked every 10 minutes, so it comes also when the month turns."""
+        from playlist_tracker.ui.stats import wrapped
+        from playlist_tracker.ui.stats.text import month_name
+        due = wrapped.notice_due()
+        if due:
+            wrapped.mark_notified(due[0])
+            self.tray.notify(t("wrapped.notice", month=month_name(due[0].month)))
+        self.after(600_000, self._notify_monthly_summary)
 
     def open_track_page(self, track_key: str):
         self.show_section("listening")
