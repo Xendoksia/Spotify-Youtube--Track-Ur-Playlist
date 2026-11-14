@@ -250,9 +250,8 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     style.configure("Section.TLabel", background=P.surface, font=FONT_BOLD)
     style.configure("Title.TLabel", font=TYPE["title"])
     style.configure("Tile.TFrame", background=P.surface, bordercolor=P.border, relief="solid", borderwidth=1)
-    # The bordered panel under a row of tabs (Tabs), on the window's background or on a card
-    for name in ("Panel.TFrame", "SurfacePanel.TFrame"):
-        style.configure(name, background=P.surface, bordercolor=P.border, relief="solid", borderwidth=1)
+    # The bordered panel under a row of tabs (Tabs)
+    style.configure("Panel.TFrame", background=P.surface, bordercolor=P.border, relief="solid", borderwidth=1)
     style.configure("TileValue.TLabel", background=P.surface, font=TYPE["tile"])
     style.configure("Period.TLabel", background=P.surface, font=TYPE["heading"])
     style.configure("Caption.TLabel", background=P.surface, foreground=P.muted, font=TYPE["caption"])

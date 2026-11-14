@@ -51,6 +51,7 @@ class Overview(ttk.Frame):
         toolbar = ttk.Frame(self, style="Card.TFrame")
         toolbar.pack(fill="x", padx=px(16), pady=(px(16), 0))
         switcher = ttk.Frame(toolbar, padding=px(4), style="Nav.TFrame")
+        skin.track(switcher)
         switcher.pack(side="left")
         self.period_buttons = {}
         for period in listening.PERIODS:

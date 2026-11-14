@@ -145,24 +145,15 @@ def apply(root: tk.Misc, style: ttk.Style, accents: dict[str, tuple[str, str]]) 
     for prefix, (color, active) in accents.items():
         _button(style, root, f"{prefix}.Accent.TButton", color, None, active, None, P.disabled, None)
 
-    # The period switcher: a pill-shaped track, the chosen period on a raised pill
-    style.element_create("Nav.track", "image", _box(root, P.nav, None, px(10)), border=px(12), sticky="nsew")
-    style.layout("Nav.TFrame", [("Nav.track", {"sticky": "nsew"})])
-    # Around the track's corners: the card it is on
-    style.configure("Nav.TFrame", background=P.surface)
+    # The period switcher: the chosen period on a raised pill (the track under them is drawn by track())
     _button(style, root, "Nav.TButton", P.nav, None, mix(P.nav, P.surface, 0.5), None, P.nav, None, px(7), P.nav)
     _button(style, root, "NavSelected.TButton", P.surface, None, P.surface, None, P.surface, None, px(7), P.nav)
     for name in ("Nav.TButton", "NavSelected.TButton"):
         style.configure(name, padding=(px(16), px(5)), font=FONT_BOLD)
 
-    # The panel under a row of tabs: rounded, on the color around it. Cards (Tile) are not done this way: an image
-    # element in their layout made pages with many of them recompute their layout for ever; see tile()
-    card = _box(root, P.surface, P.border, px(RADIUS + 4))
-    style.element_create("Panel.card", "image", card, border=px(RADIUS + 4) + 2, padding=1, sticky="nsew")
-    for name, behind in (("Panel.TFrame", P.bg), ("SurfacePanel.TFrame", P.surface)):
-        style.layout(name, [("Panel.card", {"sticky": "nsew"})])
-        style.configure(name, background=behind)
-    # The flat square border of a card gives way to the rounded one drawn behind it
+    # Frames holding other widgets are never given an image element in their layout: that made Tk recompute the
+    # layout of pages with them for ever (the app froze at start). Their rounded shape is drawn behind their
+    # widgets instead (Backdrop: tile(), track()); their flat square border gives way to it
     style.configure("Tile.TFrame", bordercolor=P.surface)
 
     # Entry fields and drop-downs
@@ -189,13 +180,35 @@ def apply(root: tk.Misc, style: ttk.Style, accents: dict[str, tuple[str, str]]) 
                     darkcolor=P.surface)
 
 
-def _rounded_mask(width: int, height: int, radius: float, inset: float = 0):
-    """An antialiased mask of a rounded rectangle filling width x height, inset pixels in from its edges."""
-    k = SUPERSAMPLE
-    mask = Image.new("L", (width * k, height * k), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((inset * k, inset * k, (width - inset) * k - 1, (height - inset) * k - 1),
-                                           max(0.0, radius - inset) * k, fill=255)
-    return mask.resize((width, height), Image.BOX)
+_corners: dict = {}
+
+
+def _corner(radius: int, inset: int):
+    """The top left corner of a rounded mask, radius pixels square, antialiased; made once for each size."""
+    key = (radius, inset)
+    if key not in _corners:
+        k = SUPERSAMPLE
+        corner = Image.new("L", (radius * k, radius * k), 0)
+        ImageDraw.Draw(corner).ellipse((inset * k, inset * k, (2 * radius - inset) * k - 1,
+                                        (2 * radius - inset) * k - 1), fill=255)
+        _corners[key] = corner.resize((radius, radius), Image.BOX)
+    return _corners[key]
+
+
+def _rounded_mask(width: int, height: int, radius: int, inset: int = 0):
+    """A mask of a rounded rectangle filling width x height, inset pixels in from its edges: two plain rectangles
+    and the four corners, which are drawn smooth only once (resizing the window draws cards again and again)."""
+    radius = max(1, min(radius, width // 2, height // 2))
+    mask = Image.new("L", (width, height), 0)
+    draw = ImageDraw.Draw(mask)
+    draw.rectangle((inset, radius, width - 1 - inset, height - 1 - radius), fill=255)
+    draw.rectangle((radius, inset, width - 1 - radius, height - 1 - inset), fill=255)
+    corner = _corner(radius, inset)
+    mask.paste(corner, (0, 0))
+    mask.paste(corner.transpose(Image.FLIP_LEFT_RIGHT), (width - radius, 0))
+    mask.paste(corner.transpose(Image.FLIP_TOP_BOTTOM), (0, height - radius))
+    mask.paste(corner.transpose(Image.ROTATE_180), (width - radius, height - radius))
+    return mask
 
 
 def rounded_card(width: int, height: int, fill, border: str | None, behind: str, radius: int | None = None):
@@ -222,8 +235,8 @@ class Backdrop:
     # Drawn again this long after the frame's size last changed, not on every step of resizing the window
     DELAY_MS = 30
 
-    def __init__(self, frame: tk.Misc, fill: str, border: str | None, behind: str):
-        self.frame, self.fill, self.border, self.behind = frame, fill, border, behind
+    def __init__(self, frame: tk.Misc, fill: str, border: str | None, behind: str, radius: int | None = None):
+        self.frame, self.fill, self.border, self.behind, self.radius = frame, fill, border, behind, radius
         self.label = tk.Label(frame, background=behind, borderwidth=0, highlightthickness=0)
         # A ttk frame places inside its padding: out by as much, to cover all of it
         left, top, right, bottom = _padding(frame)
@@ -253,7 +266,7 @@ class Backdrop:
         if size == self._size:
             return
         self._size = size
-        image = rounded_card(*size, self.fill, self.border, self.behind)
+        image = rounded_card(*size, self.fill, self.border, self.behind, self.radius)
         if image is not None:
             self._photo = ImageTk.PhotoImage(image, master=self.frame)
             self.label.configure(image=self._photo)
@@ -281,3 +294,10 @@ def tile(parent, behind: str | None = None, **options) -> ttk.Frame:
     if Image is not None:
         frame.backdrop = Backdrop(frame, P.surface, P.border, behind or P.surface)
     return frame
+
+
+def track(frame: ttk.Frame) -> None:
+    """The pill-shaped track of the period switcher, on a card."""
+    if Image is not None:
+        frame.configure(style="Card.TFrame")
+        frame.backdrop = Backdrop(frame, P.nav, None, P.surface, px(10))
