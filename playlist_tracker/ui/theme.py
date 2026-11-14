@@ -46,7 +46,8 @@ TYPE = {
     "lead": ("Segoe UI", 12),              # the line under a title
     "heading": ("Segoe UI Semibold", 12),  # section titles
     "title": ("Segoe UI Semibold", 15),    # the window title
-    "display": ("Segoe UI Semibold", 18),  # the name on a top card, the numbers in the tiles
+    "display": ("Segoe UI Semibold", 18),  # the name on a top card
+    "tile": ("Segoe UI Semibold", 22),     # the numbers in the tiles
     "name": ("Segoe UI Semibold", 24),     # names in the monthly summary
     "big": ("Segoe UI Semibold", 44),      # the large numbers of the monthly summary
 }
@@ -249,7 +250,10 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     style.configure("Section.TLabel", background=P.surface, font=FONT_BOLD)
     style.configure("Title.TLabel", font=TYPE["title"])
     style.configure("Tile.TFrame", background=P.surface, bordercolor=P.border, relief="solid", borderwidth=1)
-    style.configure("TileValue.TLabel", background=P.surface, font=TYPE["display"])
+    # The bordered panel under a row of tabs (Tabs), on the window's background or on a card
+    for name in ("Panel.TFrame", "SurfacePanel.TFrame"):
+        style.configure(name, background=P.surface, bordercolor=P.border, relief="solid", borderwidth=1)
+    style.configure("TileValue.TLabel", background=P.surface, font=TYPE["tile"])
     style.configure("Period.TLabel", background=P.surface, font=TYPE["heading"])
     style.configure("Caption.TLabel", background=P.surface, foreground=P.muted, font=TYPE["caption"])
     style.configure("Nav.TFrame", background=P.nav)

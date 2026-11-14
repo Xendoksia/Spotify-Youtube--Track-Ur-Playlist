@@ -12,6 +12,7 @@ from tkinter import ttk
 
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.music import listening
+from playlist_tracker.ui import skin
 from playlist_tracker.ui.charts import BarList, ColumnChart, count_up
 from playlist_tracker.ui.inbox import BellButton, InboxPopup, Item
 from playlist_tracker.ui.stats import wrapped
@@ -79,7 +80,7 @@ class Overview(ttk.Frame):
         self.tiles = {}
         for index, name in enumerate(("plays", "time", "tracks", "artists")):
             tiles.columnconfigure(index, weight=1, uniform="tile")
-            tile = ttk.Frame(tiles, padding=(px(16), px(12)), style="Tile.TFrame")
+            tile = skin.tile(tiles, padding=(px(16), px(12)))
             tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else px(12), 0))
             ttk.Label(tile, text=t(f"stats.tile.{name}"), style="CardMuted.TLabel").pack(anchor="w")
             value = ttk.Label(tile, style="TileValue.TLabel")

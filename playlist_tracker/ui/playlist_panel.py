@@ -16,6 +16,7 @@ from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import track_label
 from playlist_tracker.playlists import history
+from playlist_tracker.ui import skin
 from playlist_tracker.ui.services import EVENTS, Service, event_color, event_label
 from playlist_tracker.ui.stats.text import month_name
 from playlist_tracker.ui.stats.widgets import ScrollFrame
@@ -49,8 +50,9 @@ class PlaylistCard(tk.Frame):
         self.background = panel.service.tint if tracked else P.surface
         # The service's color, softened so a row of tracked cards does not shout
         self.border = mix(P.surface, panel.service.accent, 0.7) if tracked else P.border
-        super().__init__(parent, background=self.background, highlightthickness=1,
-                         highlightbackground=self.border, highlightcolor=self.border, cursor="hand2")
+        super().__init__(parent, background=P.surface, cursor="hand2")
+        # Rounded, drawn behind the texts (a plain frame's border is square)
+        self.backdrop = skin.Backdrop(self, self.background, self.border, P.surface)
         self.panel, self.playlist_id = panel, playlist_id
         summary = summary or {}
         body = tk.Frame(self, background=self.background)
@@ -71,7 +73,7 @@ class PlaylistCard(tk.Frame):
         details = [part for part in (playlist["owner"],
                                      f"{number(count)} {t(f'items.{panel.service.items}')}" if count is not None
                                      else "") if part]
-        clickable = [self, body, check, name]
+        clickable = [self, self.backdrop.label, body, check, name]
         line = self._line(body, "  ·  ".join(details), 1)
         if line:
             clickable.append(line)
@@ -120,8 +122,7 @@ class PlaylistCard(tk.Frame):
         return label
 
     def _hover(self, on: bool):
-        color = P.muted if on and self.border == P.border else self.border
-        self.configure(highlightbackground=color, highlightcolor=color)
+        self.backdrop.set_border(P.muted if on and self.border == P.border else self.border)
 
     def _on_leave(self, event):
         # Moving onto a part of the card is not leaving it

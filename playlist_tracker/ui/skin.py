@@ -155,6 +155,16 @@ def apply(root: tk.Misc, style: ttk.Style, accents: dict[str, tuple[str, str]]) 
     for name in ("Nav.TButton", "NavSelected.TButton"):
         style.configure(name, padding=(px(16), px(5)), font=FONT_BOLD)
 
+    # The panel under a row of tabs: rounded, on the color around it. Cards (Tile) are not done this way: an image
+    # element in their layout made pages with many of them recompute their layout for ever; see tile()
+    card = _box(root, P.surface, P.border, px(RADIUS + 4))
+    style.element_create("Panel.card", "image", card, border=px(RADIUS + 4) + 2, padding=1, sticky="nsew")
+    for name, behind in (("Panel.TFrame", P.bg), ("SurfacePanel.TFrame", P.surface)):
+        style.layout(name, [("Panel.card", {"sticky": "nsew"})])
+        style.configure(name, background=behind)
+    # The flat square border of a card gives way to the rounded one drawn behind it
+    style.configure("Tile.TFrame", bordercolor=P.surface)
+
     # Entry fields and drop-downs
     _field(style, root, "TEntry", arrow=False)
     style.element_create("TCombobox.chevron", "image", _chevron(root, P.muted),
@@ -177,3 +187,97 @@ def apply(root: tk.Misc, style: ttk.Style, accents: dict[str, tuple[str, str]]) 
         ("Thin.thumb", {"expand": "1", "sticky": "nsew"})]})])
     style.configure("Vertical.TScrollbar", troughcolor=P.surface, bordercolor=P.surface, lightcolor=P.surface,
                     darkcolor=P.surface)
+
+
+def _rounded_mask(width: int, height: int, radius: float, inset: float = 0):
+    """An antialiased mask of a rounded rectangle filling width x height, inset pixels in from its edges."""
+    k = SUPERSAMPLE
+    mask = Image.new("L", (width * k, height * k), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((inset * k, inset * k, (width - inset) * k - 1, (height - inset) * k - 1),
+                                           max(0.0, radius - inset) * k, fill=255)
+    return mask.resize((width, height), Image.BOX)
+
+
+def rounded_card(width: int, height: int, fill, border: str | None, behind: str, radius: int | None = None):
+    """A card of width x height as a Pillow image: fill (a color, or an image of that size such as a gradient) with
+    round corners and a 1 px border, on the color behind it. None without Pillow."""
+    if Image is None or width < 2 or height < 2:
+        return None
+    radius = px(RADIUS + 4) if radius is None else radius
+    card = Image.new("RGB", (width, height), behind)
+    body = fill if not isinstance(fill, str) else Image.new("RGB", (width, height), fill)
+    if border:
+        card.paste(Image.new("RGB", (width, height), border), (0, 0), _rounded_mask(width, height, radius))
+        card.paste(body, (0, 0), _rounded_mask(width, height, radius, inset=1))
+    else:
+        card.paste(body, (0, 0), _rounded_mask(width, height, radius))
+    return card
+
+
+class Backdrop:
+    """A rounded card drawn behind the widgets of a frame, as rounded_card, following its size. The frame's own
+    background should be the color behind the card, and its children keep inside the corners. It is a picture
+    placed under them, so it takes no part in laying them out."""
+
+    # Drawn again this long after the frame's size last changed, not on every step of resizing the window
+    DELAY_MS = 30
+
+    def __init__(self, frame: tk.Misc, fill: str, border: str | None, behind: str):
+        self.frame, self.fill, self.border, self.behind = frame, fill, border, behind
+        self.label = tk.Label(frame, background=behind, borderwidth=0, highlightthickness=0)
+        # A ttk frame places inside its padding: out by as much, to cover all of it
+        left, top, right, bottom = _padding(frame)
+        self.label.place(x=-left, y=-top, relwidth=1, relheight=1, width=left + right, height=top + bottom)
+        self.label.lower()
+        self._size = None
+        self._photo = None
+        self._job = None
+        frame.bind("<Configure>", lambda event: self._later(), add="+")
+
+    def set_border(self, border: str | None):
+        if border != self.border:
+            self.border = border
+            self._size = None
+            self.draw()
+
+    def _later(self):
+        if self._job is not None:
+            self.frame.after_cancel(self._job)
+        self._job = self.frame.after(self.DELAY_MS, self.draw)
+
+    def draw(self):
+        self._job = None
+        if not self.frame.winfo_exists():
+            return
+        size = (self.frame.winfo_width(), self.frame.winfo_height())
+        if size == self._size:
+            return
+        self._size = size
+        image = rounded_card(*size, self.fill, self.border, self.behind)
+        if image is not None:
+            self._photo = ImageTk.PhotoImage(image, master=self.frame)
+            self.label.configure(image=self._photo)
+
+
+def _padding(frame: tk.Misc) -> tuple[int, int, int, int]:
+    """A ttk frame's padding as left, top, right, bottom (none for a plain tk frame)."""
+    try:
+        values = [int(float(str(value))) for value in frame.tk.splitlist(frame.cget("padding"))]
+    except (tk.TclError, ValueError):
+        return 0, 0, 0, 0
+    if not values:
+        return 0, 0, 0, 0
+    left = values[0]
+    top = values[1] if len(values) > 1 else left
+    right = values[2] if len(values) > 2 else left
+    bottom = values[3] if len(values) > 3 else top
+    return left, top, right, bottom
+
+
+def tile(parent, behind: str | None = None, **options) -> ttk.Frame:
+    """A card (a ttk frame in the Tile style) with round corners; behind is the color around it, by default that
+    of the surface it is on."""
+    frame = ttk.Frame(parent, style="Tile.TFrame", **options)
+    if Image is not None:
+        frame.backdrop = Backdrop(frame, P.surface, P.border, behind or P.surface)
+    return frame

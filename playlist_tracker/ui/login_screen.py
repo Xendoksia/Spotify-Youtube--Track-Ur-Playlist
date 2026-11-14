@@ -14,6 +14,7 @@ from playlist_tracker import background
 from playlist_tracker.core import account
 from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.core.i18n import t
+from playlist_tracker.ui import skin
 from playlist_tracker.ui.theme import FONT, TYPE, P, px
 
 CARD_WIDTH = 400
@@ -26,7 +27,7 @@ class LoginScreen(tk.Frame):
         super().__init__(parent, background=P.bg)
         self.on_done = on_done
         self.busy = False
-        card = ttk.Frame(self, padding=(px(40), px(36)), style="Tile.TFrame")
+        card = skin.tile(self, behind=P.bg, padding=(px(40), px(36)))
         card.place(relx=0.5, rely=0.45, anchor="center", width=px(CARD_WIDTH))
 
         if background.TRAY_AVAILABLE:

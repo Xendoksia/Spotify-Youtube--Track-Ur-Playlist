@@ -10,6 +10,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from playlist_tracker.music import artwork
+from playlist_tracker.ui import skin
 from playlist_tracker.ui.charts import placeholder, rounded_rect
 from playlist_tracker.ui.theme import TYPE, P, icon, icon_font, mix, px, readable
 
@@ -56,7 +57,7 @@ def card(parent, icon_name: str, title: str, column: int | None = None, weight: 
          summary: bool = False) -> ttk.Frame:
     """A bordered card with an icon and a title, in a column of parent's grid or packed alone;
     .title and .summary (a muted line under it, when asked for) can be changed later."""
-    frame = ttk.Frame(parent, padding=px(16), style="Tile.TFrame")
+    frame = skin.tile(parent, padding=px(16))
     header = ttk.Frame(frame, style="Card.TFrame")
     header.pack(fill="x")
     glyph = icon(icon_name)
@@ -238,14 +239,14 @@ class Hero(tk.Canvas):
         return [card_tint(color, strength) for color, strength in zip(colors, (left, right))]
 
     def _background(self, width: int, height: int):
-        """The two color gradient of the picture, or None to keep the plain card color."""
+        """The two color gradient of the picture (a Pillow image), or None to keep the plain card color."""
         tints = self._tints()
         if len(tints) < 2:
             return None
         start, end = (Image.new("RGB", (1, 1), tint).resize((width, height)) for tint in tints)
         # Left to right, from the picture's first color to its second
         mask = Image.linear_gradient("L").rotate(90).resize((width, height))
-        return ImageTk.PhotoImage(Image.composite(start, end, mask))
+        return Image.composite(start, end, mask)
 
     def _draw(self):
         width = self.winfo_width()
@@ -296,9 +297,12 @@ class Hero(tk.Canvas):
         height = max(2 * pad + size, y + pad)
         if int(self.cget("height")) != height:
             self.configure(height=height)
-        background = self._background(width, height) if artwork.available else None
-        if background is not None:
-            self._images.append(background)
-            self.create_image(0, 0, image=background, anchor="nw", tags="background")
+        border = P.muted if self._hovered else P.border
+        gradient = self._background(width, height) if artwork.available else None
+        card = skin.rounded_card(width, height, gradient or P.surface, border, P.surface)
+        if card is not None:
+            self._images.append(ImageTk.PhotoImage(card))
+            self.create_image(0, 0, image=self._images[-1], anchor="nw", tags="background")
             self.tag_lower("background")
-        self.create_rectangle(0, 0, width - 1, height - 1, outline=P.muted if self._hovered else P.border)
+        else:
+            self.create_rectangle(0, 0, width - 1, height - 1, outline=border)

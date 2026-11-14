@@ -14,6 +14,7 @@ from tkinter import ttk
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import format_length
 from playlist_tracker.music import artist_info, artwork, listening
+from playlist_tracker.ui import skin
 from playlist_tracker.ui.charts import Animation, BarList, ColumnChart, count_up, rounded_rect
 from playlist_tracker.ui.stats.text import (date_text, duration_text, hour_buckets, month_name, plays_text,
                                             summary_text, tracks_text)
@@ -121,7 +122,7 @@ class DetailPage(ttk.Frame):
         self.tiles = {}
         for index, name in enumerate(names):
             tiles.columnconfigure(index, weight=1, uniform="tile")
-            tile = ttk.Frame(tiles, padding=(px(16), px(12)), style="Tile.TFrame")
+            tile = skin.tile(tiles, padding=(px(16), px(12)))
             tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else px(12), 0))
             ttk.Label(tile, text=t(f"detail.tile.{name}"), style="CardMuted.TLabel").pack(anchor="w")
             # Dates and names are longer than numbers, so they get a smaller font
@@ -149,7 +150,7 @@ class DetailPage(ttk.Frame):
 
     def _build_album(self, content):
         # How much of the album was heard, as a bar filling up
-        progress = ttk.Frame(content, padding=(px(16), px(12)), style="Tile.TFrame")
+        progress = skin.tile(content, padding=(px(16), px(12)))
         progress.pack(fill="x", pady=(px(16), 0))
         self.progress_label = ttk.Label(progress, style="Card.TLabel", font=TYPE["heading"])
         self.progress_label.pack(anchor="w")
@@ -171,7 +172,7 @@ class DetailPage(ttk.Frame):
         row.pack(fill="x", pady=(px(16), 0))
         row.columnconfigure(0, weight=2, uniform="track")
         row.columnconfigure(1, weight=3, uniform="track")
-        self.album_card = ttk.Frame(row, padding=px(16), style="Tile.TFrame", cursor="hand2")
+        self.album_card = skin.tile(row, padding=px(16), cursor="hand2")
         self.album_card.grid(row=0, column=0, sticky="nsew")
         ttk.Label(self.album_card, text=t("detail.album").upper(), style="Caption.TLabel").pack(anchor="w")
         inner = ttk.Frame(self.album_card, style="Card.TFrame")
@@ -191,7 +192,7 @@ class DetailPage(ttk.Frame):
                        self.album_go):
             widget.bind("<Button-1>", lambda e: self._album_action and self._album_action())
 
-        hours = ttk.Frame(row, padding=px(16), style="Tile.TFrame")
+        hours = skin.tile(row, padding=px(16))
         hours.grid(row=0, column=1, sticky="nsew", padx=(px(16), 0))
         ttk.Label(hours, text=t("detail.track_hours"), style="Section.TLabel").pack(anchor="w", pady=(0, px(8)))
         self.hours = ColumnChart(hours, 120, t("stats.empty"))

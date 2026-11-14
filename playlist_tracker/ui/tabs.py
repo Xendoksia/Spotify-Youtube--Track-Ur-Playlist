@@ -22,7 +22,9 @@ class Tabs(ttk.Frame):
         self.background = background or P.bg
         self.bar = tk.Frame(self, background=self.background)
         self.bar.pack(fill="x")
-        self.panel = ttk.Frame(self, style="Tile.TFrame", padding=1)
+        # Its page keeps inside the panel's rounded corners
+        self.panel = ttk.Frame(self, style="SurfacePanel.TFrame" if background == P.surface else "Panel.TFrame",
+                               padding=px(5))
         self.panel.pack(fill="both", expand=True, pady=(px(8), 0))
         self.pages: list[ttk.Frame] = []
         self._titles: dict[ttk.Frame, tuple[tk.Frame, tk.Label, tk.Frame]] = {}
