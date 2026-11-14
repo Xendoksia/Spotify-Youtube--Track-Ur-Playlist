@@ -48,15 +48,38 @@ void main() {
     final due = await wrappedDue(all, DateTime(2026, 12, 1, 10));
     expect(due?.start, DateTime(2026, 11));
     expect(await wrappedDue(all, DateTime(2026, 12, 2)), isNull);
-    // A month without plays has no summary
+    // A month without plays has no summary: in January only the year's opens
+    expect(isYear((await wrappedDue(all, DateTime(2027, 1, 1)))!), isTrue);
     expect(await wrappedDue(all, DateTime(2027, 1, 1)), isNull);
   });
 
-  test('the notification is told which of the last and this month have plays', () async {
+  test('in January the year before opens first, then its last month', () async {
+    SharedPreferences.setMockInitialValues({});
+    final december = [play('Band', 'One', DateTime(2026, 12, 20, 21))];
+    final all = [...october, ...november, ...december];
+    final year = await wrappedDue(all, DateTime(2027, 1, 1, 10));
+    expect((year?.start, year?.end), (DateTime(2026), DateTime(2027)));
+    expect(isYear(year!), isTrue);
+    final month = await wrappedDue(all, DateTime(2027, 1, 1, 11));
+    expect((month?.start, isYear(month!)), (DateTime(2026, 12), false));
+    expect(await wrappedDue(all, DateTime(2027, 1, 2)), isNull);
+    // It covers the whole year
+    expect(WrappedData.of(all, year).summary.plays, 6);
+  });
+
+  test('a notification names a month or a year', () {
+    expect(WrappedNotice.range('2026-10')?.start, DateTime(2026, 10));
+    expect(WrappedNotice.range('2026-12')?.end, DateTime(2027));
+    final year = WrappedNotice.range('2026')!;
+    expect((year.start, year.end, isYear(year)), (DateTime(2026), DateTime(2027), true));
+    expect(WrappedNotice.range('x'), isNull);
+  });
+
+  test('the notification is told which months since the start of last year have plays', () async {
     SharedPreferences.setMockInitialValues({});
     await WrappedNotice.remember([...october, ...november], DateTime(2026, 11, 20));
     expect((await SharedPreferences.getInstance()).getString('PLAY_MONTHS'), '2026-10,2026-11');
-    await WrappedNotice.remember([...october, ...november], DateTime(2026, 12, 1));
-    expect((await SharedPreferences.getInstance()).getString('PLAY_MONTHS'), '2026-11');
+    await WrappedNotice.remember([...october, ...november], DateTime(2028, 1, 1));
+    expect((await SharedPreferences.getInstance()).getString('PLAY_MONTHS'), '');
   });
 }

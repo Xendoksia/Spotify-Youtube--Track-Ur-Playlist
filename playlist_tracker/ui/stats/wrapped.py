@@ -1,10 +1,11 @@
 """
-A month in review, shown slide by slide in the statistics tab: time listened, the song and artist of the
-month, the top five of each, discoveries, the busiest day and hour, genres and a closing summary.
+A month (or a year) in review, shown slide by slide in the statistics tab: time listened, the song and artist
+of the month, the top five of each, discoveries, the busiest day and hour, genres and a closing summary.
 
-It is there only on the first days of a month (SHOW_DAYS), for the month before: it opens by itself the first
-time the window is shown on one of those days (AUTO_OPEN), and from the "Monthly summary" button. While the app
-runs in the tray, a notification says it is ready (notice_due).
+It is there only on the first days of a month (SHOW_DAYS), for the month before, and on the first days of January
+for the year before too: it opens by itself the first time the window is shown on one of those days (AUTO_OPEN,
+the year first), and from the "Monthly summary" / "Yearly summary" buttons. While the app runs in the tray, a
+notification says it is ready (notice_due).
 """
 
 from __future__ import annotations
@@ -56,6 +57,34 @@ def available_month() -> tuple[datetime, datetime] | None:
     return previous if listening.summary(*previous)["plays"] else None
 
 
+def available_year() -> tuple[datetime, datetime] | None:
+    """The previous year on the first days of January, if it has plays."""
+    now = datetime.now()
+    if now.month != 1 or now.day not in SHOW_DAYS:
+        return None
+    previous = listening.period_range("year", 1)
+    return previous if listening.summary(*previous)["plays"] else None
+
+
+def available() -> list[tuple[datetime, datetime]]:
+    """The summaries there are today, the year's first."""
+    return [summary for summary in (available_year(), available_month()) if summary]
+
+
+def is_year(start: datetime, end: datetime) -> bool:
+    return start.month == 1 and end.month == 1 and end.year == start.year + 1
+
+
+def _key(summary: tuple[datetime, datetime]) -> str:
+    start = summary[0]
+    return str(start.year) if is_year(*summary) else start.strftime("%Y-%m")
+
+
+def _setting(summary: tuple[datetime, datetime], what: str) -> str:
+    """WRAPPED_SHOWN / WRAPPED_NOTIFIED for a month, WRAPPED_YEAR_... for a year."""
+    return f"WRAPPED_YEAR_{what}" if is_year(*summary) else f"WRAPPED_{what}"
+
+
 def month_to_show() -> tuple[datetime, datetime]:
     """For looking at the summary on any day (app.py --summary): the previous month, or this one while the
     previous has no plays."""
@@ -64,34 +93,35 @@ def month_to_show() -> tuple[datetime, datetime]:
 
 
 def auto_open_due() -> tuple[datetime, datetime] | None:
-    """The month to open the summary of by itself, once (needs AUTO_OPEN)."""
-    month = available_month() if AUTO_OPEN else None
-    if month is None or load_config().get("WRAPPED_SHOWN") == month[0].strftime("%Y-%m"):
+    """The summary to open by itself, once each (needs AUTO_OPEN): in January the year's, then the month's."""
+    if not AUTO_OPEN:
         return None
-    return month
+    config = load_config()
+    return next((s for s in available() if config.get(_setting(s, "SHOWN")) != _key(s)), None)
 
 
 def notice_due() -> tuple[datetime, datetime] | None:
-    """The month to tell about with a notification, once: its summary is there and was not seen yet."""
+    """The summary to tell about with a notification, once: it is there and was not seen yet."""
     now = datetime.now()
     if now.day == SHOW_DAYS[0] and now.hour < NOTICE_HOUR:
         return None
-    month = auto_open_due()
-    if month is None or load_config().get("WRAPPED_NOTIFIED") == month[0].strftime("%Y-%m"):
-        return None
-    return month
-
-
-def mark_notified(start: datetime) -> None:
     config = load_config()
-    config["WRAPPED_NOTIFIED"] = start.strftime("%Y-%m")
+    return next((s for s in available() if _key(s) not in (config.get(_setting(s, "SHOWN")),
+                                                            config.get(_setting(s, "NOTIFIED")))), None)
+
+
+def _mark(summary: tuple[datetime, datetime], what: str) -> None:
+    config = load_config()
+    config[_setting(summary, what)] = _key(summary)
     save_config(config)
 
 
-def mark_shown(start: datetime) -> None:
-    config = load_config()
-    config["WRAPPED_SHOWN"] = start.strftime("%Y-%m")
-    save_config(config)
+def mark_notified(summary: tuple[datetime, datetime]) -> None:
+    _mark(summary, "NOTIFIED")
+
+
+def mark_shown(summary: tuple[datetime, datetime]) -> None:
+    _mark(summary, "SHOWN")
 
 
 class WrappedView(ttk.Frame):
@@ -128,7 +158,8 @@ class WrappedView(ttk.Frame):
 
     def show(self, start: datetime, end: datetime):
         self.data = self._collect(start, end)
-        self.title_label.configure(text=t("wrapped.title", month=period_title("month", start, end)))
+        self.year = is_year(start, end)
+        self.title_label.configure(text=t("wrapped.title", month=self._period_title()))
         self.slides = [slide for slide, wanted in (
             (self._intro, True),
             (self._top_track, bool(self.data["tracks"])),
@@ -168,6 +199,13 @@ class WrappedView(ttk.Frame):
             "genres": sorted(((name, plays * 100 / total) for name, plays in genres.items()),
                              key=lambda item: -item[1])[:3] if total else [],
         }
+
+    def _period_title(self) -> str:
+        return period_title("year" if self.year else "month", self.data["start"], self.data["end"])
+
+    def _of_period(self, key: str) -> str:
+        """The year's wording of a text for a yearly summary: "Song of the year" for "Song of the month"."""
+        return f"{key}.year" if self.year else key
 
     # Navigation and transitions
 
@@ -320,7 +358,11 @@ class WrappedView(ttk.Frame):
 
     def _intro(self, slide):
         summary = self.data["summary"]
-        self._caption(slide, "wrapped.intro.caption", month=month_name(self.data["start"].month))
+        start = self.data["start"]
+        if self.year:
+            self._caption(slide, "wrapped.intro.caption.year", year=start.year)
+        else:
+            self._caption(slide, "wrapped.intro.caption", month=month_name(start.month))
         if summary["minutes"]:
             self._big(slide, summary["minutes"], lambda m: t("wrapped.minutes", minutes=number(m)))
             self._body(slide, t("wrapped.intro.listened"), muted=False)
@@ -331,7 +373,7 @@ class WrappedView(ttk.Frame):
 
     def _top_track(self, slide):
         track = self.data["tracks"][0]
-        self._caption(slide, "wrapped.track.caption")
+        self._caption(slide, self._of_period("wrapped.track.caption"))
         path = self.pictures.cover_path(track["artist"], track["album"], track["name"])
         self._picture(slide, path, radius=px(12))
         self._heading(slide, track["name"])
@@ -340,7 +382,7 @@ class WrappedView(ttk.Frame):
 
     def _top_artist(self, slide):
         artist = self.data["artists"][0]
-        self._caption(slide, "wrapped.artist.caption")
+        self._caption(slide, self._of_period("wrapped.artist.caption"))
         self._picture(slide, self.pictures.artist_path(artist["name"]), round_=True)
         self._heading(slide, artist["name"])
         detail = plays_text(artist["plays"])
@@ -413,7 +455,7 @@ class WrappedView(ttk.Frame):
 
     def _closing(self, slide):
         data, summary = self.data, self.data["summary"]
-        self._caption(slide, "wrapped.closing.caption", month=period_title("month", data["start"], data["end"]))
+        self._caption(slide, "wrapped.closing.caption", month=self._period_title())
         grid = ttk.Frame(slide, style="Card.TFrame")
         grid.pack()
         tiles = [(t("stats.tile.time"), duration_text(summary["minutes"]) if summary["minutes"] else "—"),
@@ -421,12 +463,12 @@ class WrappedView(ttk.Frame):
                  (t("stats.tile.tracks"), number(summary["tracks"])),
                  (t("stats.tile.artists"), number(summary["artists"]))]
         if data["tracks"]:
-            tiles.append((t("wrapped.track.caption"), data["tracks"][0]["name"]))
+            tiles.append((t(self._of_period("wrapped.track.caption")), data["tracks"][0]["name"]))
         if data["artists"]:
-            tiles.append((t("wrapped.artist.caption"), data["artists"][0]["name"]))
+            tiles.append((t(self._of_period("wrapped.artist.caption")), data["artists"][0]["name"]))
         if data["genres"]:
             name = data["genres"][0][0]
-            tiles.append((t("wrapped.genre"), name[:1].upper() + name[1:]))
+            tiles.append((t(self._of_period("wrapped.genre")), name[:1].upper() + name[1:]))
         if data["new_artists"] and not data["first_month"]:
             tiles.append((t("stats.new_artists"), number(len(data["new_artists"]))))
         grid.columnconfigure((0, 1), uniform="tile", minsize=px(300))

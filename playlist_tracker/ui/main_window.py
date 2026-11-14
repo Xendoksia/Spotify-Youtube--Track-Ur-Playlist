@@ -224,26 +224,27 @@ class App(tk.Tk):
         self.show_section(section if section in self.sections else "listening")
 
     def _open_monthly_summary(self, force: bool = False):
-        """On the first days of a month, show the summary of the month before once (see wrapped.SHOW_DAYS);
-        force shows the last month with plays on any day."""
+        """On the first days of a month, show the summary of the month before once (see wrapped.SHOW_DAYS), in
+        January the year's first; force shows the last month with plays on any day."""
         from playlist_tracker.ui.stats import wrapped
         due = wrapped.month_to_show() if force else wrapped.auto_open_due()
         if due:
             if not force:
-                wrapped.mark_shown(due[0])
+                wrapped.mark_shown(due)
             self.show_section("listening")
             self.listening.tabs.select(self.listening.stats)
             self.listening.stats.open_wrapped(due)
 
     def _notify_monthly_summary(self):
-        """On the first days of a month, say once that the summary of the month before is ready; it opens when
-        the window is shown from the tray. Checked every 10 minutes, so it comes also when the month turns."""
+        """On the first days of a month, say once that the summary of the month before (and in January, of the
+        year before) is ready; it opens when the window is shown from the tray. Checked every 10 minutes, so it
+        comes also when the month turns."""
         from playlist_tracker.ui.stats import wrapped
         from playlist_tracker.ui.stats.text import month_name
-        due = wrapped.notice_due()
-        if due:
-            wrapped.mark_notified(due[0])
-            self.tray.notify(t("wrapped.notice", month=month_name(due[0].month)))
+        while due := wrapped.notice_due():
+            wrapped.mark_notified(due)
+            self.tray.notify(t("wrapped.year.notice", year=due[0].year) if wrapped.is_year(*due)
+                             else t("wrapped.notice", month=month_name(due[0].month)))
         self.after(600_000, self._notify_monthly_summary)
 
     def open_track_page(self, track_key: str):

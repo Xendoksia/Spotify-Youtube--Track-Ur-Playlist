@@ -35,7 +35,7 @@ class StatsTab(ttk.Frame):
         self.detail.open(column, key)
 
     def open_wrapped(self, month: tuple[datetime, datetime] | None = None):
-        """Show the monthly summary of the given month, by default the one available today."""
+        """Show the summary of the given month or year, by default the month's available today."""
         month = month or wrapped.available_month()
         if month is None:
             return

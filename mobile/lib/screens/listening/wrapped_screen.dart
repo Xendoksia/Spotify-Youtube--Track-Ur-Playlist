@@ -77,54 +77,73 @@ class WrappedData {
   }
 }
 
-/// The month to open the summary of by itself: on the first days of a month, the month before when it has plays
-/// and its summary was not shown yet
+/// The summary to open by itself: on the first days of a month, the month before when it has plays and its summary
+/// was not shown yet; in January the year before first
 Future<DateRange?> wrappedDue(List<Play> all, DateTime now) async {
   if (!wrappedDays.contains(now.day)) return null;
-  final month = periodRange(Period.month, 1, now);
-  if (!all.any((p) => month.contains(p.playedAt))) return null;
   final prefs = await SharedPreferences.getInstance();
-  final key = _monthKey(month.start);
-  if (prefs.getString('WRAPPED_SHOWN') == key) return null;
-  await prefs.setString('WRAPPED_SHOWN', key);
-  return month;
+  for (final range in [
+    if (now.month == DateTime.january) periodRange(Period.year, 1, now),
+    periodRange(Period.month, 1, now),
+  ]) {
+    if (!all.any((p) => range.contains(p.playedAt))) continue;
+    final setting = _shownSetting(range);
+    if (prefs.getString(setting) == _key(range)) continue;
+    await prefs.setString(setting, _key(range));
+    return range;
+  }
+  return null;
 }
+
+/// A whole calendar year rather than a month
+bool isYear(DateRange range) =>
+    range.start.month == 1 && range.end.month == 1 && range.end.year == range.start.year + 1;
 
 String _monthKey(DateTime month) => '${month.year}-${month.month.toString().padLeft(2, '0')}';
 
+/// "2026" for a year, "2026-10" for a month, as WrappedNotice.kt
+String _key(DateRange range) => isYear(range) ? '${range.start.year}' : _monthKey(range.start);
+
+String _shownSetting(DateRange range) => isYear(range) ? 'WRAPPED_YEAR_SHOWN' : 'WRAPPED_SHOWN';
+
 /// The phone's "your month in review is ready" notification (WrappedNotice.kt), sent on the first days of a month
-/// while the app is closed. It is told here which months have plays; tapping it opens the summary
+/// while the app is closed, and in January one for the year. It is told here which months have plays; tapping it
+/// opens the summary
 class WrappedNotice {
   static const _channel = MethodChannel('playlist_tracker/wrapped');
 
-  /// The month of a notification tapped while the app was open
+  /// The month or year of a notification tapped while the app was open
   static final tapped = ValueNotifier<DateRange?>(null);
 
-  static DateRange? _month(Object? key) {
-    final parts = key is String ? key.split('-') : const <String>[];
-    if (parts.length != 2) return null;
-    final start = DateTime(int.parse(parts[0]), int.parse(parts[1]));
-    return DateRange(start, DateTime(start.year, start.month + 1));
+  /// The month ("2026-10") or year ("2026") of a notification
+  static DateRange? range(Object? key) {
+    final parts = key is String ? key.split('-').map(int.tryParse).toList() : const <int?>[];
+    if (parts.isEmpty || parts.length > 2 || parts.contains(null)) return null;
+    final start = DateTime(parts[0]!, parts.length == 2 ? parts[1]! : 1);
+    return DateRange(start, parts.length == 2 ? DateTime(start.year, start.month + 1) : DateTime(start.year + 1));
   }
 
   static void listen() => _channel.setMethodCallHandler((call) async {
-        if (call.method == 'tapped') tapped.value = _month(call.arguments);
+        if (call.method == 'tapped') tapped.value = range(call.arguments);
       });
 
-  /// The month of the notification the app was opened from, marked as seen
+  /// The summary of the notification the app was opened from, marked as seen
   static Future<DateRange?> takeTapped() async {
     try {
-      final month = _month(await _channel.invokeMethod<String>('takeTapped'));
-      if (month != null) await (await SharedPreferences.getInstance()).setString('WRAPPED_SHOWN', _monthKey(month.start));
-      return month;
+      final summary = range(await _channel.invokeMethod<String>('takeTapped'));
+      if (summary != null) {
+        await (await SharedPreferences.getInstance()).setString(_shownSetting(summary), _key(summary));
+      }
+      return summary;
     } on MissingPluginException {
       return null;
     }
   }
 
-  /// The months with plays (the last and this one), for the notification to know whether there is a summary
+  /// The months with plays since the start of the year before, for the notification to know whether there is a
+  /// summary of last month or last year
   static Future<void> remember(List<Play> all, DateTime now) async {
-    final since = periodRange(Period.month, 1, now).start;
+    final since = periodRange(Period.year, 1, now).start;
     final months = {for (final play in all) if (!play.playedAt.isBefore(since)) _monthKey(play.playedAt)};
     await (await SharedPreferences.getInstance()).setString('PLAY_MONTHS', months.join(','));
   }
@@ -164,6 +183,11 @@ class _WrappedScreenState extends State<WrappedScreen> {
   /// Worked out once: going over every play again at each page turn made the swipes stutter
   late final _data = WrappedData.of(widget.store.plays, widget.month);
 
+  late final _year = isYear(widget.month);
+
+  /// The year's wording of a text in a yearly summary: "Song of the year" for "Song of the month"
+  String _of(String key) => _year ? '$key.year' : key;
+
   @override
   void dispose() {
     _pages.dispose();
@@ -174,7 +198,7 @@ class _WrappedScreenState extends State<WrappedScreen> {
   @override
   Widget build(BuildContext context) {
     final data = _data;
-    final month = context.dateFormat('MMMM y').format(widget.month.start);
+    final month = _year ? '${widget.month.start.year}' : context.dateFormat('MMMM y').format(widget.month.start);
     // Each slide comes in its own way
     final slides = <(_Entrance, List<Widget> Function())>[
       (_Entrance.zoom, () => _intro(context, data)),
@@ -306,7 +330,9 @@ class _WrappedScreenState extends State<WrappedScreen> {
   List<Widget> _intro(BuildContext context, WrappedData data) {
     final summary = data.summary;
     return [
-      _caption(context, 'wrapped.intro.caption', {'month': context.dateFormat('MMMM').format(data.range.start)}),
+      _year
+          ? _caption(context, 'wrapped.intro.caption.year', {'year': '${data.range.start.year}'})
+          : _caption(context, 'wrapped.intro.caption', {'month': context.dateFormat('MMMM').format(data.range.start)}),
       if (summary.minutes > 0) ...[
         _big(context, summary.minutes, (m) => context.t('wrapped.minutes', {'minutes': context.number(m)})),
         _body(context, context.t('wrapped.intro.listened'), muted: false),
@@ -326,7 +352,7 @@ class _WrappedScreenState extends State<WrappedScreen> {
   List<Widget> _topTrack(BuildContext context, WrappedData data) {
     final track = data.tracks.first;
     return [
-      _caption(context, 'wrapped.track.caption'),
+      _caption(context, _of('wrapped.track.caption')),
       Center(
         child: GestureDetector(
           onTap: () => _open(DetailTarget.ranked(DetailKind.track, track)),
@@ -343,7 +369,7 @@ class _WrappedScreenState extends State<WrappedScreen> {
   List<Widget> _topArtist(BuildContext context, WrappedData data) {
     final artist = data.artists.first;
     return [
-      _caption(context, 'wrapped.artist.caption'),
+      _caption(context, _of('wrapped.artist.caption')),
       Center(
         child: GestureDetector(
           onTap: () => _open(DetailTarget.ranked(DetailKind.artist, artist)),
@@ -442,7 +468,7 @@ class _WrappedScreenState extends State<WrappedScreen> {
       ];
 
   List<Widget> _closing(BuildContext context, WrappedData data, String month) =>
-      [_Poster(data: data, month: month, open: _open)];
+      [_Poster(data: data, month: month, year: _year, open: _open)];
 }
 
 /// The closing slide: the month on one card, made to be looked at (or screenshotted) on its own
@@ -452,9 +478,14 @@ class _Poster extends StatelessWidget {
 
   final WrappedData data;
   final String month;
+
+  /// A year's card: "Your year at a glance", "Genre of the year"
+  final bool year;
   final void Function(DetailTarget target) open;
 
-  const _Poster({required this.data, required this.month, required this.open});
+  const _Poster({required this.data, required this.month, required this.year, required this.open});
+
+  String _of(String key) => year ? '$key.year' : key;
 
   /// Fades and slides in its child once [order] of the card's rows have come in
   Widget _later(int order, Widget child) {
@@ -568,7 +599,7 @@ class _Poster extends StatelessWidget {
           ),
           _later(
             1,
-            Text(context.t('wrapped.poster.caption'),
+            Text(context.t(_of('wrapped.poster.caption')),
                 textAlign: TextAlign.center, style: label.copyWith(letterSpacing: 1.5)),
           ),
           const SizedBox(height: 18),
@@ -607,7 +638,7 @@ class _Poster extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(context.t('wrapped.genre'), style: label),
+                        Text(context.t(_of('wrapped.genre')), style: label),
                         Text(genre, maxLines: 2, overflow: TextOverflow.ellipsis, style: big?.copyWith(fontSize: 22)),
                       ],
                     ),

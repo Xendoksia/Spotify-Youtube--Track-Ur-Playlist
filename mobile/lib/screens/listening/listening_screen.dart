@@ -139,12 +139,12 @@ class _ListeningScreenState extends State<ListeningScreen> {
           _offset = offset;
         }),
       ),
-      if (_period == Period.month && plays.isNotEmpty)
+      if ((_period == Period.month || _period == Period.year) && plays.isNotEmpty)
         Center(
           child: FilledButton.tonalIcon(
             onPressed: () => openWrapped(context, widget.store, range),
             icon: const Icon(Icons.auto_awesome, size: 18),
-            label: Text(context.t('wrapped.button')),
+            label: Text(context.t(_period == Period.year ? 'wrapped.year.button' : 'wrapped.button')),
           ),
         ),
       gap,

@@ -61,9 +61,11 @@ class Overview(ttk.Frame):
         self.next_button.pack(side="left", padx=(px(4), 0))
         self.title_label = ttk.Label(toolbar, style="Period.TLabel")
         self.title_label.pack(side="left", padx=px(12))
-        # Shown only on the days the monthly summary is there (see wrapped.SHOW_DAYS)
+        # Shown only on the days the monthly / yearly summary is there (see wrapped.SHOW_DAYS)
         self.wrapped_button = ttk.Button(toolbar, text=t("wrapped.button"), style="Accent.TButton",
                                          command=open_wrapped)
+        self.year_button = ttk.Button(toolbar, text=t("wrapped.year.button"), style="Accent.TButton",
+                                      command=lambda: open_wrapped(wrapped.available_year()))
 
         page = ScrollFrame(self)
         page.pack(fill="both", expand=True, pady=(px(12), 0))
@@ -134,6 +136,10 @@ class Overview(ttk.Frame):
             self.wrapped_button.pack(side="right")
         else:
             self.wrapped_button.pack_forget()
+        if wrapped.available_year():
+            self.year_button.pack(side="right", padx=(0, px(8)))
+        else:
+            self.year_button.pack_forget()
         for period, button in self.period_buttons.items():
             button.configure(style="NavSelected.TButton" if period == self.period else "Nav.TButton")
         has_steps = self.period != "all"
