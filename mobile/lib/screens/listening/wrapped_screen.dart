@@ -148,6 +148,15 @@ class WrappedNotice {
     await (await SharedPreferences.getInstance()).setString('PLAY_MONTHS', months.join(','));
   }
 
+  /// The summary was seen in the app: its notification goes
+  static Future<void> cancel(String key) async {
+    try {
+      await _channel.invokeMethod('cancel', key);
+    } on MissingPluginException {
+      // Not on Android
+    }
+  }
+
   /// Asked once, on Android 13 and later
   static Future<void> askPermission() async {
     final prefs = await SharedPreferences.getInstance();
@@ -161,8 +170,114 @@ class WrappedNotice {
   }
 }
 
-void openWrapped(BuildContext context, DataStore store, DateRange month) => Navigator.of(context)
-    .push(MaterialPageRoute(builder: (_) => WrappedScreen(store: store, month: month), fullscreenDialog: true));
+/// The summaries ready and not seen yet, behind the bell on the listening page: last month's all through this
+/// month and in January last year's too, so one whose notification was missed or swiped away is still there.
+/// Opening one takes it out: besides opening by itself, this is the only way to a summary, to keep it special
+class WrappedInbox extends ChangeNotifier {
+  static final instance = WrappedInbox._();
+
+  WrappedInbox._();
+
+  var items = const <DateRange>[];
+
+  Future<void> update(List<Play> all, DateTime now) async {
+    final prefs = await SharedPreferences.getInstance();
+    items = [
+      for (final range in [
+        if (now.month == DateTime.january) periodRange(Period.year, 1, now),
+        periodRange(Period.month, 1, now),
+      ])
+        if (all.any((p) => range.contains(p.playedAt)) && prefs.getString(_shownSetting(range)) != _key(range)) range,
+    ];
+    notifyListeners();
+  }
+
+  /// Opened: out of the box, and its notification off the phone's
+  Future<void> seen(DateRange range) async {
+    final key = _key(range);
+    if (!items.any((item) => _key(item) == key)) return;
+    items = [for (final item in items) if (_key(item) != key) item];
+    notifyListeners();
+    await (await SharedPreferences.getInstance()).setString(_shownSetting(range), key);
+    await WrappedNotice.cancel(key);
+  }
+}
+
+/// The bell on the listening page, with the number of summaries waiting
+class WrappedInboxButton extends StatelessWidget {
+  final DataStore store;
+
+  const WrappedInboxButton({super.key, required this.store});
+
+  String _name(BuildContext context, DateRange range) =>
+      isYear(range) ? '${range.start.year}' : context.dateFormat('MMMM y').format(range.start);
+
+  void _show(BuildContext context) => showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheet) => SafeArea(
+          child: ListenableBuilder(
+            listenable: WrappedInbox.instance,
+            builder: (sheet, _) {
+              final items = WrappedInbox.instance.items;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                    child: Text(context.t('inbox.title'), style: Theme.of(context).textTheme.titleLarge),
+                  ),
+                  if (items.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                      child: Text(context.t('inbox.empty'), style: TextStyle(color: Palette.of(context).muted)),
+                    ),
+                  for (final range in items)
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                      leading: Icon(Icons.auto_awesome, color: Palette.of(context).chart),
+                      title: Text(context.t('wrapped.inbox.item', {'name': _name(context, range)})),
+                      subtitle: Text(context.t(isYear(range) ? 'wrapped.inbox.detail.year' : 'wrapped.inbox.detail')),
+                      onTap: () {
+                        Navigator.of(sheet).pop();
+                        openWrapped(context, store, range);
+                      },
+                    ),
+                  const SizedBox(height: 8),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: WrappedInbox.instance,
+        builder: (context, _) {
+          final count = WrappedInbox.instance.items.length;
+          return IconButton(
+            tooltip: context.t('inbox.title'),
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _show(context),
+            icon: Badge.count(
+              count: count,
+              isLabelVisible: count > 0,
+              backgroundColor: Palette.of(context).chart,
+              child: Icon(count > 0 ? Icons.notifications : Icons.notifications_none),
+            ),
+          );
+        },
+      );
+}
+
+/// Opening a summary waiting in the box takes it out
+void openWrapped(BuildContext context, DataStore store, DateRange month) {
+  WrappedInbox.instance.seen(month);
+  Navigator.of(context)
+      .push(MaterialPageRoute(builder: (_) => WrappedScreen(store: store, month: month), fullscreenDialog: true));
+}
 
 class WrappedScreen extends StatefulWidget {
   final DataStore store;

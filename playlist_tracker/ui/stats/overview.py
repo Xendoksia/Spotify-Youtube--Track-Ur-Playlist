@@ -7,6 +7,7 @@ sections.py. Everything is counted from the plays recorded in listening.db.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import tkinter as tk
 from tkinter import ttk
 
 from playlist_tracker.core.i18n import number, t
@@ -30,8 +31,8 @@ def change_tip(change, key, rank) -> str:
 
 class Overview(ttk.Frame):
     def __init__(self, parent, open_detail, open_wrapped):
-        """open_detail(column, key) shows the page of a track, artist or album; open_wrapped() the monthly
-        summary."""
+        """open_detail(column, key) shows the page of a track, artist or album; open_wrapped(summary) a
+        monthly or yearly summary from the bell."""
         super().__init__(parent, style="Card.TFrame")
         self.open_detail = open_detail
         self.period = "week"
@@ -61,11 +62,12 @@ class Overview(ttk.Frame):
         self.next_button.pack(side="left", padx=(px(4), 0))
         self.title_label = ttk.Label(toolbar, style="Period.TLabel")
         self.title_label.pack(side="left", padx=px(12))
-        # Shown only on the days the monthly / yearly summary is there (see wrapped.SHOW_DAYS)
-        self.wrapped_button = ttk.Button(toolbar, text=t("wrapped.button"), style="Accent.TButton",
-                                         command=open_wrapped)
-        self.year_button = ttk.Button(toolbar, text=t("wrapped.year.button"), style="Accent.TButton",
-                                      command=lambda: open_wrapped(wrapped.available_year()))
+        # The summaries waiting to be seen (wrapped.inbox), with their number beside the bell: the only way to
+        # them besides their opening by itself, so that they stay something to look forward to
+        self.open_wrapped = open_wrapped
+        self.inbox_button = ttk.Button(toolbar, text=icon("bell"), style="Icon.TButton", command=self._show_inbox)
+        self.inbox_button.pack(side="right")
+        self.inbox_count = ttk.Label(toolbar, style="Card.TLabel", foreground=P.chart, font=TYPE["heading"])
 
         page = ScrollFrame(self)
         page.pack(fill="both", expand=True, pady=(px(12), 0))
@@ -124,6 +126,28 @@ class Overview(ttk.Frame):
         self.period, self.offset = period, 0
         self.refresh()
 
+    def update_inbox(self):
+        self.inbox = wrapped.inbox()
+        if self.inbox:
+            self.inbox_count.configure(text=number(len(self.inbox)))
+            self.inbox_count.pack(side="right", after=self.inbox_button, padx=(0, px(4)))
+        else:
+            self.inbox_count.pack_forget()
+
+    def _show_inbox(self):
+        menu = tk.Menu(self, tearoff=0, background=P.surface, foreground=P.text, activebackground=P.hover,
+                       activeforeground=P.text, disabledforeground=P.muted, font=TYPE["body"])
+        menu.add_command(label=t("inbox.title"), state="disabled")
+        menu.add_separator()
+        for summary in self.inbox:
+            name = period_title("year" if wrapped.is_year(*summary) else "month", *summary)
+            menu.add_command(label=t("wrapped.inbox.item", name=name),
+                             command=lambda summary=summary: self.open_wrapped(summary))
+        if not self.inbox:
+            menu.add_command(label=t("inbox.empty"), state="disabled")
+        button = self.inbox_button
+        menu.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height())
+
     def move(self, step: int):
         self.offset = max(0, self.offset + step)
         self.refresh()
@@ -132,14 +156,7 @@ class Overview(ttk.Frame):
 
     def refresh(self):
         self.pictures.clear()
-        if wrapped.available_month():
-            self.wrapped_button.pack(side="right")
-        else:
-            self.wrapped_button.pack_forget()
-        if wrapped.available_year():
-            self.year_button.pack(side="right", padx=(0, px(8)))
-        else:
-            self.year_button.pack_forget()
+        self.update_inbox()
         for period, button in self.period_buttons.items():
             button.configure(style="NavSelected.TButton" if period == self.period else "Nav.TButton")
         has_steps = self.period != "all"

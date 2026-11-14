@@ -44,6 +44,8 @@ class StatsTab(ttk.Frame):
             self._bind_keys()
         self._show_layer(self.wrapped)
         self.wrapped.show(*month)
+        wrapped.seen(month)
+        self.overview.update_inbox()
 
     def show_overview(self):
         self._show_layer(self.overview)

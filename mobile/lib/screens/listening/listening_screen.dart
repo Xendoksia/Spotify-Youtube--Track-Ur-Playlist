@@ -34,6 +34,9 @@ class _ListeningScreenState extends State<ListeningScreen> {
   var _recentShown = recentStep;
   var _wrappedChecked = false;
 
+  /// The plays the summaries waiting behind the bell were last looked for in
+  List<Play>? _inboxOf;
+
   /// Where the next period's content comes from: -1 from the left (an earlier period), 1 from the right, 0 rising
   /// (another kind of period)
   var _direction = 0;
@@ -71,6 +74,9 @@ class _ListeningScreenState extends State<ListeningScreen> {
       final tapped = WrappedNotice.tapped.value;
       WrappedNotice.tapped.value = null;
       final month = tapped ?? await WrappedNotice.takeTapped() ?? await wrappedDue(plays, now);
+      // After the summary opened by itself was marked as seen
+      await WrappedInbox.instance.update(plays, now);
+      _inboxOf = plays;
       if (!mounted) return;
       if (month != null) {
         openWrapped(context, widget.store, month);
@@ -100,6 +106,11 @@ class _ListeningScreenState extends State<ListeningScreen> {
           );
         }
         if (store.plays.isNotEmpty) _checkWrapped();
+        // New plays (a month's first, after a refresh) can bring a summary
+        if (_inboxOf != null && !identical(_inboxOf, store.plays)) {
+          _inboxOf = store.plays;
+          WrappedInbox.instance.update(store.plays, DateTime.now());
+        }
         return RefreshIndicator(
           onRefresh: widget.onRefresh,
           child: ListView(
@@ -129,6 +140,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
         period: _period,
         offset: _offset,
         range: range,
+        trailing: WrappedInboxButton(store: widget.store),
         onPeriod: (period) => setState(() {
           _direction = 0;
           _period = period;
@@ -139,14 +151,6 @@ class _ListeningScreenState extends State<ListeningScreen> {
           _offset = offset;
         }),
       ),
-      if ((_period == Period.month || _period == Period.year) && plays.isNotEmpty)
-        Center(
-          child: FilledButton.tonalIcon(
-            onPressed: () => openWrapped(context, widget.store, range),
-            icon: const Icon(Icons.auto_awesome, size: 18),
-            label: Text(context.t(_period == Period.year ? 'wrapped.year.button' : 'wrapped.button')),
-          ),
-        ),
       gap,
       // Rows rather than a grid with a fixed aspect ratio, so the tiles grow with the phone's font size
       Row(children: [

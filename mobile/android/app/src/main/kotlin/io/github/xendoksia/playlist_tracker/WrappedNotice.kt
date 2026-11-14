@@ -116,6 +116,11 @@ object WrappedNotice {
         prefs.edit().putString("flutter.${summary.setting}_NOTIFIED", key).apply()
     }
 
+    /** The summary of key ("2026-10" or "2026") was seen in the app */
+    fun cancel(context: Context, key: String) {
+        context.getSystemService(NotificationManager::class.java).cancel(if ('-' in key) 2 else 3)
+    }
+
     fun allowed(context: Context) = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 }

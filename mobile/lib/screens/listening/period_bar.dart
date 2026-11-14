@@ -12,6 +12,9 @@ class PeriodBar extends StatelessWidget {
   final ValueChanged<Period> onPeriod;
   final ValueChanged<int> onOffset;
 
+  /// Beside the period buttons (the notifications' bell)
+  final Widget? trailing;
+
   const PeriodBar({
     super.key,
     required this.period,
@@ -19,6 +22,7 @@ class PeriodBar extends StatelessWidget {
     required this.range,
     required this.onPeriod,
     required this.onOffset,
+    this.trailing,
   });
 
   String _title(BuildContext context) {
@@ -40,13 +44,25 @@ class PeriodBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        SegmentedButton<Period>(
-          showSelectedIcon: false,
-          segments: [
-            for (final p in Period.values) ButtonSegment(value: p, label: Text(context.t('period.${p.name}'))),
+        Row(
+          children: [
+            Expanded(
+              child: SegmentedButton<Period>(
+                showSelectedIcon: false,
+                // Tighter than by default, so "All time" stays on one line beside the bell
+                style: const ButtonStyle(
+                  padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 4)),
+                  visualDensity: VisualDensity.compact,
+                ),
+                segments: [
+                  for (final p in Period.values) ButtonSegment(value: p, label: Text(context.t('period.${p.name}'))),
+                ],
+                selected: {period},
+                onSelectionChanged: (selected) => onPeriod(selected.first),
+              ),
+            ),
+            ?trailing,
           ],
-          selected: {period},
-          onSelectionChanged: (selected) => onPeriod(selected.first),
         ),
         if (period != Period.all)
           Row(

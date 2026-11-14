@@ -4,8 +4,8 @@ of the month, the top five of each, discoveries, the busiest day and hour, genre
 
 It is there only on the first days of a month (SHOW_DAYS), for the month before, and on the first days of January
 for the year before too: it opens by itself the first time the window is shown on one of those days (AUTO_OPEN,
-the year first), and from the "Monthly summary" / "Yearly summary" buttons. While the app runs in the tray, a
-notification says it is ready (notice_due).
+the year first). While the app runs in the tray, a notification says it is ready (notice_due). Until seen it waits
+behind the bell (inbox); once seen it is gone, to keep it special.
 """
 
 from __future__ import annotations
@@ -83,6 +83,23 @@ def _key(summary: tuple[datetime, datetime]) -> str:
 def _setting(summary: tuple[datetime, datetime], what: str) -> str:
     """WRAPPED_SHOWN / WRAPPED_NOTIFIED for a month, WRAPPED_YEAR_... for a year."""
     return f"WRAPPED_YEAR_{what}" if is_year(*summary) else f"WRAPPED_{what}"
+
+
+def inbox() -> list[tuple[datetime, datetime]]:
+    """The summaries ready and not seen yet, behind the bell: last month's all through this month and in January
+    last year's too, so one whose notification was missed is still there. Opening one takes it out (seen)."""
+    candidates = [listening.period_range("month", 1)]
+    if datetime.now().month == 1:
+        candidates.insert(0, listening.period_range("year", 1))
+    config = load_config()
+    return [summary for summary in candidates
+            if config.get(_setting(summary, "SHOWN")) != _key(summary) and listening.summary(*summary)["plays"]]
+
+
+def seen(summary: tuple[datetime, datetime]) -> None:
+    """Opened: out of the box, when it was there (another month's summary leaves it as it is)."""
+    if _key(summary) in {_key(waiting) for waiting in inbox()}:
+        mark_shown(summary)
 
 
 def month_to_show() -> tuple[datetime, datetime]:

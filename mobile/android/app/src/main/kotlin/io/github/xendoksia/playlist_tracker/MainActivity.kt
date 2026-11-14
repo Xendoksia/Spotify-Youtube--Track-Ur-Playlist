@@ -39,6 +39,10 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success(null)
                     }
+                    "cancel" -> {
+                        WrappedNotice.cancel(context, call.arguments as String)
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }

@@ -60,10 +60,10 @@ ICON_GLYPHS = {"back": "\ue76b", "forward": "\ue76c", "close": "\ue711",
                # Section headings of the statistics
                "tracks": "\ue8d6", "artists": "\ue77b", "calendar": "\ue787", "clock": "\ue823",
                "star": "\ue734", "tag": "\ue8ec", "history": "\ue81c", "disc": "\ue93c",
-               "layers": "\ue81e", "area": "\ue9d2", "flag": "\ue7c1",
+               "layers": "\ue81e", "area": "\ue9d2", "flag": "\ue7c1", "bell": "\ue7ed",
                # Sections in the sidebar
                "list": "\ue8fd", "account": "\ue77b", "sync": "\ue895", "device": "\ue7f8", "help": "\ue897", "settings": "\ue713"}
-TEXT_GLYPHS = {"back": "‹", "forward": "›", "close": "✕", "help": "?"}
+TEXT_GLYPHS = {"back": "‹", "forward": "›", "close": "✕", "help": "?", "bell": "🔔"}
 _icon_font: str | None = None
 
 P = SimpleNamespace(**LIGHT, dark=False)

@@ -15,6 +15,8 @@ Play play(String artist, String name, DateTime at) => Play(
     );
 
 void main() {
+  // The box turns the phone's notification off through a platform channel
+  TestWidgetsFlutterBinding.ensureInitialized();
   final october = [
     play('Old', 'Song', DateTime(2026, 10, 3, 20)),
   ];
@@ -65,6 +67,27 @@ void main() {
     expect(await wrappedDue(all, DateTime(2027, 1, 2)), isNull);
     // It covers the whole year
     expect(WrappedData.of(all, year).summary.plays, 6);
+  });
+
+  test('the box keeps a summary not seen yet all month, until it is opened', () async {
+    SharedPreferences.setMockInitialValues({});
+    final inbox = WrappedInbox.instance;
+    final december = [play('Band', 'One', DateTime(2026, 12, 20, 21))];
+    final all = [...october, ...november, ...december];
+    await inbox.update(all, DateTime(2026, 12, 20));
+    expect(inbox.items.map((r) => r.start), [DateTime(2026, 11)]);
+    await inbox.update(all, DateTime(2027, 1, 25));
+    expect(inbox.items.map((r) => (r.start, isYear(r))), [(DateTime(2026), true), (DateTime(2026, 12), false)]);
+    await inbox.seen(inbox.items.first);
+    expect(inbox.items.map((r) => r.start), [DateTime(2026, 12)]);
+    await inbox.update(all, DateTime(2027, 1, 26));
+    expect(inbox.items.map((r) => r.start), [DateTime(2026, 12)]);
+    // Opening another month's summary leaves the box as it is
+    await inbox.seen(periodRange(Period.month, 0, DateTime(2026, 11, 3)));
+    expect(inbox.items.length, 1);
+    // A month without plays has none
+    await inbox.update(all, DateTime(2027, 2, 3));
+    expect(inbox.items, isEmpty);
   });
 
   test('a notification names a month or a year', () {
