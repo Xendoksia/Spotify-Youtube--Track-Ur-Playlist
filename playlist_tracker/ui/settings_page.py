@@ -44,7 +44,7 @@ class SettingsPage(ttk.Frame):
         self._build_general()
         footer = ttk.Frame(self)
         footer.pack(fill="x", pady=(px(12), 0))
-        ttk.Button(footer, text=t("settings.save"), command=self.save, style="Accent.TButton").pack(side="right")
+        ttk.Button(footer, text=t("settings.save"), command=self.save, style="Page.Accent.TButton").pack(side="right")
         self.tabs.select(self.youtube_tab if service is YOUTUBE else self.spotify_tab if service is SPOTIFY
                          else self.general_tab)
 

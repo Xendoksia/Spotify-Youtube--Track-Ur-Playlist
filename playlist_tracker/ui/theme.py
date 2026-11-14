@@ -307,6 +307,10 @@ def apply_theme(root: tk.Tk, setting: str | None, accents: dict[str, tuple[str, 
     style.map("Vertical.TScrollbar", background=[("active", P.scrollbar_active)],
               lightcolor=[("active", P.scrollbar_active)], darkcolor=[("active", P.scrollbar_active)])
 
+    # Rounded buttons, fields, switches and scrollbars over the flat styles above
+    from playlist_tracker.ui import skin
+    skin.apply(root, style, accents)
+
     style_title_bar(root)
 
 
