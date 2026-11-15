@@ -72,6 +72,18 @@ function Covers({ covers, name, tracked }: { covers: string[]; name: string; tra
   );
 }
 
+/** Three playlist cards fanned out with a note on the front one, for a service with no playlists yet. */
+function EmptyPicture() {
+  return (
+    <svg className="empty-picture" viewBox="0 0 160 110" aria-hidden>
+      <rect className="back" x="22" y="22" width="62" height="62" rx="10" transform="rotate(-12 53 53)" />
+      <rect className="middle" x="76" y="20" width="62" height="62" rx="10" transform="rotate(10 107 51)" />
+      <rect className="front" x="47" y="26" width="66" height="66" rx="12" />
+      <path className="note" d="M86 44v26.5a7 7 0 1 1-4-6.3V48l-12 3v22a7 7 0 1 1-4-6.3V47.5z" />
+    </svg>
+  );
+}
+
 interface Result {
   playlists: { name: string; meta: string; note: string; error: boolean;
                rows: (EventText & { track: string; date: string })[] }[];
@@ -101,7 +113,9 @@ interface Services {
   status: string;
 }
 
-function ServicePanel({ name, busy, hidden }: { name: string; busy: boolean; hidden: boolean }) {
+function ServicePanel({ name, busy, checking, hidden }: {
+  name: string; busy: boolean; checking: string | null; hidden: boolean;
+}) {
   const { t } = useTexts();
   const dialogs = useDialogs();
   const openSettings = useOpenSettings();
@@ -166,11 +180,19 @@ function ServicePanel({ name, busy, hidden }: { name: string; busy: boolean; hid
         </section>
         <p className="muted">{t("panel.hint")}</p>
 
-        {page.playlists.length === 0 && <p className="empty">{t("panel.empty", { service: name })}</p>}
+        {page.playlists.length === 0 && (
+          <div className="empty-state">
+            <EmptyPicture />
+            <p>{t("panel.empty", { service: name })}</p>
+            <button className={`button accent ${page.key}`} disabled={busy} onClick={() => start("load")}>
+              <Icon name="download" />{t("panel.load_playlists", { service: name })}
+            </button>
+          </div>
+        )}
         <div className="playlist-grid">
           {page.playlists.map((card) => (
             <div key={card.id} role="checkbox" aria-checked={card.tracked} tabIndex={0}
-                 className={`playlist-card${card.tracked ? ` tracked ${page.key}` : ""}`}
+                 className={`playlist-card${card.tracked ? ` tracked ${page.key}` : ""}${busy && checking === card.id ? " checking" : ""}`}
                  onClick={() => change(post<Page>("/api/playlists/toggle", { service: name, id: card.id }))}
                  onKeyDown={(event) => {
                    if (event.key === " " || event.key === "Enter") {
@@ -251,6 +273,8 @@ export default function Playlists() {
   const [tab, setTab] = useState("Spotify");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  // The playlist a check is comparing now, which its card shows
+  const [checking, setChecking] = useState<string | null>(null);
 
   useEffect(() => {
     get<Services>("/api/services").then((result) => {
@@ -263,6 +287,7 @@ export default function Playlists() {
     if (message.event !== "task") return;
     if (typeof message.status === "string") setStatus(message.status);
     setBusy(Boolean(message.busy));
+    setChecking(typeof message.checking === "string" ? message.checking : null);
   }), []);
   // The pointer waits while a task runs, as in the Tk window
   useEffect(() => {
@@ -283,7 +308,8 @@ export default function Playlists() {
         <span className="status-line" title={status}>{status}</span>
       </nav>
       {services.services.map((service) => (
-        <ServicePanel key={service.name} name={service.name} busy={busy} hidden={tab !== service.name} />
+        <ServicePanel key={service.name} name={service.name} busy={busy} checking={checking}
+                      hidden={tab !== service.name} />
       ))}
       <History hidden={tab !== "history"} services={services.services} />
     </>

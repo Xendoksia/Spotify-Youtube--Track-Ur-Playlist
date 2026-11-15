@@ -177,9 +177,10 @@ class Playlists:
 
     # Work over the network
 
-    def _set_status(self, text: str) -> None:
+    def _set_status(self, text: str, checking: str | None = None) -> None:
+        """Tell the window the progress; checking is the id of the playlist being checked now."""
         self.status = text
-        self.emit("task", status=text, busy=self.busy)
+        self.emit("task", status=text, busy=self.busy, checking=checking)
 
     def _run(self, name: str, task: Callable[[], object], on_success: Callable[[object], None],
              status: str = "") -> dict:
@@ -270,7 +271,8 @@ class Playlists:
             client = service.connect()
             results = []
             for index, (playlist_id, playlist_name) in enumerate(selected, 1):
-                self._set_status(t("status.checking", index=index, count=len(selected), name=playlist_name))
+                self._set_status(t("status.checking", index=index, count=len(selected), name=playlist_name),
+                                 checking=playlist_id)
                 try:
                     results.append(history.check_playlist(client, playlist_id, service.db_path))
                 except service.login_required:

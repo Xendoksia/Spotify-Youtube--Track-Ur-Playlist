@@ -2013,6 +2013,96 @@ select.field {
   background: var(--removed);
 }
 
+/* The card being checked: a light sweeps over it and its mark turns */
+
+.playlist-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.playlist-card.checking::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.09) 50%, transparent 70%);
+  animation: sweep 1.3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.playlist-card.checking .check-mark {
+  border: 2.5px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-top-color: var(--text);
+  background: var(--surface);
+  animation: turn 800ms linear infinite;
+}
+
+.playlist-card.checking.spotify .check-mark {
+  border-top-color: #1aa34a;
+}
+
+.playlist-card.checking.youtube .check-mark {
+  border-top-color: #e62117;
+}
+
+.playlist-card.checking .check-mark .icon {
+  visibility: hidden;
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* No playlists yet */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 48px 16px 40px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-state p {
+  max-width: 420px;
+  margin: 0;
+}
+
+.empty-picture {
+  width: 180px;
+  animation: drop-in 500ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.empty-picture rect {
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+
+.empty-picture .back,
+.empty-picture .middle {
+  fill: var(--raised);
+}
+
+.empty-picture .front {
+  fill: var(--surface);
+}
+
+.empty-picture .note {
+  fill: var(--muted);
+}
+
 .playlist-latest {
   overflow: hidden;
   color: var(--muted);
