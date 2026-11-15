@@ -92,6 +92,8 @@ export default function App() {
       <DialogProvider>
       <AccountContext.Provider value={account}>
       <OpenSettingsContext.Provider value={openSettings}>
+      {/* Moves the window, along the top where Windows' title bar was; its buttons sit on the right */}
+      <div className="title-bar" />
       <div className="shell">
         <nav className="sidebar">
           <div className="brand">

@@ -29,6 +29,17 @@ const SUMMARY = process.argv.includes("--summary");
 const ICON = path.join(__dirname, "..", "assets", "icon.ico");
 // The window's background before the page draws, as the theme's (ui/theme.py "bg")
 const BACKGROUND = { light: "#d3d8e0", dark: "#16181d" };
+// The page draws the title bar itself in the theme's colors (Windows would paint it in the accent color); only the
+// minimize, maximize and close buttons are Windows', on the page's background with the theme's text color.
+// The page leaves this much room at the top (styles.css --title-bar)
+const TITLE_BAR_HEIGHT = 36;
+const SYMBOL = { light: "#1f2328", dark: "#e6e8eb" };
+
+function titleBarOverlay(): Electron.TitleBarOverlayOptions {
+  const dark = nativeTheme.shouldUseDarkColors;
+  return { color: dark ? BACKGROUND.dark : BACKGROUND.light, symbolColor: dark ? SYMBOL.dark : SYMBOL.light,
+           height: TITLE_BAR_HEIGHT };
+}
 
 const backend = new Backend();
 let window: BrowserWindow | null = null;
@@ -50,6 +61,10 @@ function createWindow(): BrowserWindow {
     title: t("app.title"),
     icon: ICON,
     autoHideMenuBar: true,
+    titleBarStyle: "hidden",
+    titleBarOverlay: titleBarOverlay(),
+    // Nor is the window's border in the Windows accent color
+    accentColor: false,
     backgroundColor: nativeTheme.shouldUseDarkColors ? BACKGROUND.dark : BACKGROUND.light,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -204,6 +219,11 @@ async function start(): Promise<void> {
     recording = (await backend.request<{ enabled: boolean }>("/api/recording")).enabled;
   }
 
+  // A theme chosen in the settings or Windows switching between light and dark
+  nativeTheme.on("updated", () => {
+    window?.setTitleBarOverlay(titleBarOverlay());
+    window?.setBackgroundColor(nativeTheme.shouldUseDarkColors ? BACKGROUND.dark : BACKGROUND.light);
+  });
   ipcMain.handle("backend", () => backend.connection);
   // Where to save a file (the history as CSV): the chosen path, or null when cancelled
   ipcMain.handle("save-path", async (_event, name: string, filter: string) => {

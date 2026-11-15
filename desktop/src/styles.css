@@ -29,6 +29,7 @@
   --series-other: #b6bbc3;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 4px 16px rgb(0 0 0 / 0.05);
   --radius: 16px;
+  --title-bar: 36px;
   --change: 450ms cubic-bezier(0.33, 1, 0.68, 1);
   color-scheme: light;
 }
@@ -133,6 +134,23 @@ button {
 }
 
 /* Window layout */
+
+/* The window's own title bar (electron/main.ts TITLE_BAR_HEIGHT): the window is dragged by it, and nothing that
+   can be clicked sits under it */
+.title-bar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 30;
+  height: var(--title-bar);
+  -webkit-app-region: drag;
+}
+
+/* The sidebar's name of the app sits in the title bar; the pages start under it */
+.main {
+  padding-top: var(--title-bar);
+}
 
 .shell {
   display: grid;
@@ -1917,7 +1935,7 @@ select.field {
 
 .login-screen {
   position: fixed;
-  inset: 0;
+  inset: var(--title-bar) 0 0;
   z-index: 10;
   display: grid;
   place-items: center;
