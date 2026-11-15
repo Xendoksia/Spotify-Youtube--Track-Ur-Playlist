@@ -47,9 +47,8 @@ class AccountScreen extends StatelessWidget {
                       if (name.isNotEmpty) Text(name, style: Theme.of(context).textTheme.titleMedium),
                       Text(user.email ?? '', style: TextStyle(color: muted)),
                       Text(
-                        context.t('account.member_since', {
-                          'date': context.dateFormat('yMMMd').format(DateTime.parse(user.createdAt).toLocal()),
-                        }),
+                        context.t('account.member_since',
+                            {'date': context.dateFormat('yMMMd').format(DateTime.parse(user.createdAt).toLocal())}),
                         style: TextStyle(color: muted, fontSize: 13),
                       ),
                     ],
@@ -83,37 +82,35 @@ class AccountScreen extends StatelessWidget {
             );
           },
         ),
-        if (NowPlaying.supported) ...[
-          gap,
-          ListenableBuilder(
-            listenable: nowPlaying,
-            builder: (context, _) => SectionCard(
-              title: context.t('phone.title'),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(context.t('phone.lead'), style: TextStyle(color: muted, fontSize: 13)),
-                  if (nowPlaying.hasAccess) ...[
-                    const SizedBox(height: 6),
-                    Text(context.t('phone.battery'), style: TextStyle(color: muted, fontSize: 13)),
-                  ],
-                  const SizedBox(height: 8),
-                  nowPlaying.hasAccess
-                      ? TextButton.icon(
-                          onPressed: nowPlaying.openSettings,
-                          icon: Icon(Icons.check_circle, color: Palette.of(context).added),
-                          label: Text(context.t('phone.allowed')),
-                        )
-                      : FilledButton.icon(
-                          onPressed: nowPlaying.openSettings,
-                          icon: const Icon(Icons.notifications_active_outlined),
-                          label: Text(context.t('phone.allow')),
-                        ),
+        gap,
+        ListenableBuilder(
+          listenable: nowPlaying,
+          builder: (context, _) => SectionCard(
+            title: context.t('phone.title'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(context.t('phone.lead'), style: TextStyle(color: muted, fontSize: 13)),
+                if (nowPlaying.hasAccess) ...[
+                  const SizedBox(height: 6),
+                  Text(context.t('phone.battery'), style: TextStyle(color: muted, fontSize: 13)),
                 ],
-              ),
+                const SizedBox(height: 8),
+                nowPlaying.hasAccess
+                    ? TextButton.icon(
+                        onPressed: nowPlaying.openSettings,
+                        icon: Icon(Icons.check_circle, color: Palette.of(context).added),
+                        label: Text(context.t('phone.allowed')),
+                      )
+                    : FilledButton.icon(
+                        onPressed: nowPlaying.openSettings,
+                        icon: const Icon(Icons.notifications_active_outlined),
+                        label: Text(context.t('phone.allow')),
+                      ),
+              ],
             ),
           ),
-        ],
+        ),
         gap,
         SectionCard(
           title: context.t('account.appearance'),

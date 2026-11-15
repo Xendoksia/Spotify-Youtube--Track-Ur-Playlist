@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -69,15 +68,11 @@ class NowPlaying extends ChangeNotifier with WidgetsBindingObserver {
   static const _methods = MethodChannel('playlist_tracker/now_playing');
   static const _events = EventChannel('playlist_tracker/now_playing/events');
 
-  /// Only the Android app reads and records what plays; on a computer the desktop app does
-  static bool get supported => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-
   bool hasAccess = false;
   Song? song;
   StreamSubscription<dynamic>? _subscription;
 
   NowPlaying() {
-    if (!supported) return;
     WidgetsBinding.instance.addObserver(this);
     _subscription = _events.receiveBroadcastStream().listen((event) {
       song = event == null ? null : Song.fromMap(event as Map<Object?, Object?>);
@@ -103,7 +98,6 @@ class NowPlaying extends ChangeNotifier with WidgetsBindingObserver {
   /// Send the plays recorded on the phone (PlayRecorder.kt) to Supabase, as the desktop app sends its own;
   /// return how many. A play whose listening time grew since it was sent is sent again with the new time.
   Future<int> sendPlays() async {
-    if (!supported) return 0;
     final client = Supabase.instance.client;
     final user = client.auth.currentUser;
     if (user == null) return 0;
