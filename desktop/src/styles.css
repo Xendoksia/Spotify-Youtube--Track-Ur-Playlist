@@ -2088,3 +2088,118 @@ select.field {
 .help .card p:last-child {
   margin-bottom: 0;
 }
+
+/* Longer track lists on detail pages */
+
+.track-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 1100px) {
+  .track-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.track-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 7px 10px 9px;
+  border-radius: 10px;
+}
+
+.track-item.clickable:hover {
+  background: var(--hover);
+}
+
+.track-number {
+  flex: none;
+  width: 20px;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.track-picture {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+}
+
+.track-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.track-title,
+.track-subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-title {
+  font-weight: 600;
+}
+
+.track-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.track-value {
+  flex: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.track-item:not(.unheard) .track-value {
+  color: var(--text);
+}
+
+.track-item.unheard .track-title {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* How much of the most played this one was, as a thin line along the bottom of the row */
+.track-share {
+  position: absolute;
+  bottom: 2px;
+  left: 42px;
+  max-width: calc(100% - 52px);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--chart);
+  opacity: 0.7;
+  transition: width var(--change);
+}
+
+/* Under the name, past the cover */
+.with-pictures .track-share {
+  left: 94px;
+  max-width: calc(100% - 104px);
+}
+
+/* Few columns on a wide card stay slim instead of turning into blocks */
+.column-space:not(.stacked) {
+  justify-content: center;
+}
+
+.column-space:not(.stacked) .column-fill {
+  max-width: 36px;
+}

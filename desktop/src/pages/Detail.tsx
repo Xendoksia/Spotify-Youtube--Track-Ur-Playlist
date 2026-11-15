@@ -3,13 +3,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { get } from "../api";
-import BarList, { BarRow } from "../components/BarList";
+import { BarRow } from "../components/BarList";
 import Card from "../components/Card";
 import ColumnChart, { Bucket } from "../components/ColumnChart";
 import Hero, { HeroData } from "../components/Hero";
 import Icon from "../components/Icon";
 import Picture from "../components/Picture";
 import Tile, { TileData } from "../components/Tile";
+import TrackGrid from "../components/TrackGrid";
 import { useTexts } from "../i18n";
 import { Column, useOpenDetail } from "../navigation";
 
@@ -90,7 +91,7 @@ export default function Detail({ visit, onTitle }: { visit: Visit; onTitle: (tit
   const link = data.hero.subtitle_link;
   const tracks = data.tracks && (
     <Card icon="tracks" title={data.tracks.title}>
-      <BarList rows={data.tracks.rows} empty={empty} />
+      <TrackGrid rows={data.tracks.rows} empty={empty} />
     </Card>
   );
   const timeline = (
