@@ -644,26 +644,59 @@ img.picture.loaded {
 /* Rank changes */
 
 .change {
-  font-size: 12px;
-  font-weight: 600;
+  --change-color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 26px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--change-color) 16%, transparent);
+  color: var(--change-color);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
   white-space: nowrap;
 }
 
+.change svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .change-up {
-  color: var(--added);
+  --change-color: var(--added);
 }
 
 .change-down {
-  color: var(--removed);
-}
-
-.change-same,
-.change-back {
-  color: var(--muted);
+  --change-color: var(--removed);
 }
 
 .change-new {
-  color: var(--playable);
+  --change-color: var(--playable);
+}
+
+.change-same {
+  min-width: 22px;
+  padding: 0 6px;
+}
+
+.change-long {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* Top lists */
@@ -753,7 +786,8 @@ img.picture.loaded {
 }
 
 .bar-change {
-  text-align: left;
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* Column charts */

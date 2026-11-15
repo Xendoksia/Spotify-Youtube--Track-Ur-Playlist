@@ -27,7 +27,7 @@ export default function BarList({ rows, empty, round = false, column }: {
   const ranked = rows.some((row) => row.rank !== undefined);
   const pictures = rows.some((row) => row.image);
   const changes = rows.some((row) => row.change !== undefined);
-  const columns = [ranked && "24px", pictures && "40px", "1fr", "44px", changes && "36px"].filter(Boolean).join(" ");
+  const columns = [ranked && "24px", pictures && "40px", "1fr", "44px", changes && "46px"].filter(Boolean).join(" ");
   return (
     <ol className={`bar-list${pictures ? "" : " compact"}`}>
       {rows.map((row) => {
