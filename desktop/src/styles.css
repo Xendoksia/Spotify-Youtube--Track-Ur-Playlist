@@ -265,27 +265,14 @@ button {
   padding: 20px 28px 32px;
 }
 
-/* The statistics take their accent from the number one track's cover (api/overview.py period_mood); a
- * registered property so the color glides when the period changes */
-
-@property --mood {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: transparent;
-}
-
-/* The wash fades in with the color, so a page getting its color does not flash the blue it starts from */
-@property --mood-tint {
-  syntax: "<percentage>";
-  inherits: true;
-  initial-value: 0%;
-}
+/* The statistics take their accent from the number one track's cover (api/overview.py period_mood). The
+ * color itself is not animated: every element below inherits it, so gliding it restyled and repainted the
+ * whole page each frame and made the period change stutter. A few small parts fade to it instead. */
 
 .stats-page {
   --mood: var(--focus);
   --tint: color-mix(in oklch, var(--mood) var(--mood-tint), var(--bg));
   background: linear-gradient(var(--tint), var(--bg) 520px);
-  transition: --mood 800ms ease, --mood-tint 800ms ease;
 }
 
 /* Any element given a picture's hue and chroma (mood.ts) takes it as its accent */
@@ -295,6 +282,7 @@ button {
 
 .stats-page .toolbar {
   background: var(--tint);
+  transition: background-color 500ms ease;
 }
 
 .stats-page .segmented button.selected {
@@ -304,6 +292,10 @@ button {
 /* Without a picture's color the page stays plain rather than taking the blue */
 .stats-page:not(.has-mood) {
   --mood-tint: 0%;
+}
+
+.stats-page .hero {
+  transition: border-color 500ms ease;
 }
 
 .stats-page.has-mood .hero {
@@ -1398,7 +1390,6 @@ img.picture.loaded {
   border-top: 1px solid var(--border);
   background: linear-gradient(90deg, color-mix(in srgb, var(--mood) 22%, var(--surface)), var(--surface) 55%);
   cursor: pointer;
-  transition: --mood 800ms ease;
 }
 
 .mini-player:hover .mini-title {
