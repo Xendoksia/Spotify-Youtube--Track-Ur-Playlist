@@ -128,6 +128,39 @@ def _find_artist_photo(artist: str) -> str | None:
     return None
 
 
+_fetch_locks: dict[Path, threading.Lock] = {}
+_fetch_locks_lock = threading.Lock()
+
+
+def _fetch_now(path: Path, find: Callable[[], str | None]) -> Path | None:
+    """The cached image, or downloaded now on the calling thread; None when there is none (also recently)."""
+    with _fetch_locks_lock:
+        lock = _fetch_locks.setdefault(path, threading.Lock())
+    # One download per image when several requests ask for it at once
+    with lock:
+        if path.exists():
+            return path
+        if not available or _recently_missed(path):
+            return None
+        try:
+            url = find()
+            if url and save_image(_get(url, as_json=False), path):
+                return path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            _missing_marker(path).touch()
+        except Exception:  # offline or Deezer unavailable: try again next time
+            pass
+        return None
+
+
+def fetch_cover(artist: str, album: str, name: str) -> Path | None:
+    return _fetch_now(cover_path(artist, album, name), lambda: _find_cover(artist, name))
+
+
+def fetch_artist(artist: str) -> Path | None:
+    return _fetch_now(artist_path(artist), lambda: _find_artist_photo(artist))
+
+
 TRACKLISTS_PATH = ART_DIR / "tracklists.json"
 _tracklists: dict | None = None
 _tracklists_lock = threading.Lock()

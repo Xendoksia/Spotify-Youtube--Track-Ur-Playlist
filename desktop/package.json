@@ -1,0 +1,28 @@
+{
+  "name": "playlist-tracker-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The Playlist Tracker window: Electron and React over the Python backend (playlist_tracker/backend.py)",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "tsc -p electron && concurrently -k -n vite,app \"vite\" \"wait-on tcp:127.0.0.1:5173 && electron . --dev\"",
+    "build": "tsc -p electron && tsc --noEmit && vite build",
+    "start": "npm run build && electron ."
+  },
+  "license": "MIT",
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "concurrently": "^10.0.7",
+    "electron": "^45.3.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "wait-on": "^9.5.1"
+  }
+}
