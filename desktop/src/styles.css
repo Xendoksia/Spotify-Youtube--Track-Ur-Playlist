@@ -232,6 +232,10 @@ button {
   flex: 1;
   overflow-y: auto;
   scrollbar-gutter: stable;
+  /* Scrolled by the graphics card: at 100% display scaling Chromium otherwise keeps a see-through scroller on
+   * the main thread for sharper text and repaints the whole page each step (about 25 ms a frame, 7 ms so) */
+  will-change: scroll-position;
+  background: var(--bg);
 }
 
 .content::-webkit-scrollbar {
