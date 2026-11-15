@@ -3,6 +3,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { get } from "./api";
+import type { Mood } from "./mood";
 
 export interface NowPlaying {
   available: boolean;
@@ -19,6 +20,7 @@ export interface NowPlaying {
     duration: number | null;
     listened: string;
     image: string;
+    mood: Mood | null;
   } | null;
 }
 

@@ -272,7 +272,8 @@ button {
   transition: --mood 800ms ease;
 }
 
-.stats-page.has-mood {
+/* Any element given a picture's hue and chroma (mood.ts) takes it as its accent */
+.has-mood.has-mood {
   --mood: oklch(var(--mood-l) var(--mood-c) var(--mood-h));
 }
 
@@ -1323,12 +1324,15 @@ img.picture.loaded {
 /* Mini player */
 
 .mini-player {
+  --mood: var(--chart);
   flex: none;
   border-top: 1px solid var(--border);
-  background: var(--surface);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--mood) 22%, var(--surface)), var(--surface) 55%);
+  cursor: pointer;
+  transition: --mood 800ms ease;
 }
 
-.mini-player.clickable:hover .mini-title {
+.mini-player:hover .mini-title {
   text-decoration: underline;
 }
 
@@ -1339,7 +1343,8 @@ img.picture.loaded {
 
 .mini-progress-fill {
   height: 100%;
-  background: var(--chart);
+  border-radius: 0 2px 2px 0;
+  background: var(--mood, var(--chart));
 }
 
 /* Moves on smoothly between two asks for the position (every half second) */
@@ -1350,16 +1355,26 @@ img.picture.loaded {
 .mini-body {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
+  gap: 14px;
+  padding: 9px 18px;
 }
 
 .mini-cover {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   flex: none;
-  border-radius: 6px;
-  font-size: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.3);
+  font-size: 18px;
+  animation: song-in 400ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+/* A new song slides in from the right */
+@keyframes song-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
 }
 
 .mini-text {
@@ -1367,6 +1382,7 @@ img.picture.loaded {
   flex: 1;
   flex-direction: column;
   min-width: 0;
+  animation: song-in 400ms 60ms cubic-bezier(0.33, 1, 0.68, 1) both;
 }
 
 .mini-text > span {
@@ -1384,13 +1400,179 @@ img.picture.loaded {
 }
 
 .mini-time {
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
 .mini-state {
-  min-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 130px;
   color: var(--muted);
   white-space: pre;
+}
+
+.equalizer {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+
+.equalizer span {
+  width: 3px;
+  height: 4px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.equalizer.playing span {
+  animation: bounce 900ms ease-in-out infinite alternate;
+}
+
+.equalizer.playing span:nth-child(2) {
+  animation-delay: -300ms;
+  animation-duration: 700ms;
+}
+
+.equalizer.playing span:nth-child(3) {
+  animation-delay: -600ms;
+  animation-duration: 1100ms;
+}
+
+@keyframes bounce {
+  from {
+    height: 3px;
+  }
+  to {
+    height: 12px;
+  }
+}
+
+/* The song large over the window */
+
+.now-view {
+  --mood: var(--chart);
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--mood) 18%, var(--bg));
+  animation: fade-in 200ms ease-out;
+}
+
+.now-view-backdrop {
+  position: absolute;
+  inset: -80px;
+  background-position: center;
+  background-size: cover;
+  filter: blur(70px) saturate(1.3);
+  opacity: 0.4;
+}
+
+.now-view-close {
+  position: absolute;
+  top: calc(var(--title-bar) + 8px);
+  right: 20px;
+}
+
+.now-view-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(420px, calc(100vw - 48px));
+  text-align: center;
+  animation: rise 350ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+
+.now-view-caption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.now-view-cover {
+  width: min(340px, 42vh);
+  height: min(340px, 42vh);
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.45);
+  font-size: 80px;
+  animation: song-in 450ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.now-view-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+  animation: song-in 450ms 60ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.now-view-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.now-view-title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.now-view-artist {
+  font-size: 16px;
+}
+
+.now-view-album {
+  color: var(--muted);
+}
+
+.now-view-progress {
+  width: 100%;
+}
+
+.now-view-progress .mini-progress {
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.now-view-times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.now-view-state {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: pre;
+}
+
+.now-view .button.accent {
+  border-color: transparent;
+  background: var(--mood);
+  color: white;
 }
 
 /* Bell and notifications card */

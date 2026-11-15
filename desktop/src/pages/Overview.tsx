@@ -8,6 +8,7 @@ import Icon from "../components/Icon";
 import Inbox from "../components/Inbox";
 import Tile, { TileData } from "../components/Tile";
 import { useTexts } from "../i18n";
+import { Mood, moodStyle } from "../mood";
 import { useOpenDetail } from "../navigation";
 import { Collage, Discoveries, Diversity, Genres, GenresData, GenreShift, Milestones, SectionsData } from "./Sections";
 
@@ -30,7 +31,7 @@ interface OverviewData {
   timeline: { title: string; buckets: Bucket[] };
   hours: { title: string; buckets: Bucket[] };
   /** The number one's color as OKLCH hue and chroma; the page sets the lightness for the theme */
-  mood: { hue: number; chroma: number } | null;
+  mood: Mood | null;
 }
 
 /** The route's answer for the period; an answer for a period clicked past meanwhile is dropped. */
@@ -89,7 +90,7 @@ export default function Overview({ hidden, openSummary, inboxVersion }: {
     // Kept while a detail page is open, so the statistics come back as they were left
     <div
       className={`page stats-page${mood ? " has-mood" : ""}`}
-      style={mood ? { "--mood-h": mood.hue, "--mood-c": mood.chroma } as React.CSSProperties : undefined}
+      style={moodStyle(mood)}
       hidden={hidden}
     >
       <header className="toolbar">

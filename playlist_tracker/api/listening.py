@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from playlist_tracker.api.overview import cover_url
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import format_length
-from playlist_tracker.music import listening, nowplaying
+from playlist_tracker.music import artwork, listening, nowplaying
 from playlist_tracker.music.text import duration_text, month_name, plays_text
 
 RECENT_COUNT = 200
@@ -37,7 +37,9 @@ def now_playing(tracker: nowplaying.LocalTracker | None) -> dict:
         shown = {"key": play["key"], "name": play["name"], "artist": play["artist"], "album": play["album"] or "",
                  "recorded": play["id"] is not None, "position": position, "duration": duration,
                  "listened": format_length(play["ms"]) or "0:00",
-                 "image": cover_url(play["artist"], play["album"], play["name"])}
+                 "image": cover_url(play["artist"], play["album"], play["name"]),
+                 # Only from a cover already saved: the window asks every half second, the cover route fetches it
+                 "mood": artwork.mood(artwork.cover_path(play["artist"], play["album"] or "", play["name"]))}
     return {"available": True, "enabled": tracker.enabled, "state": state, "error": status["error"], "play": shown}
 
 
