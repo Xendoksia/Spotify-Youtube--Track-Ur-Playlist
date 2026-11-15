@@ -2,11 +2,13 @@
  * artists and albums opened from either, with back / forward between the pages visited. */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { get } from "../api";
 import { useTexts } from "../i18n";
 import { Column, OpenDetailContext } from "../navigation";
 import Detail, { DetailToolbar, Visit } from "./Detail";
 import Overview from "./Overview";
 import Recent from "./Recent";
+import Wrapped from "./Wrapped";
 
 type Tab = "stats" | "recent";
 
@@ -23,6 +25,39 @@ export default function Listening({ request }: { request: OpenRequest | null }) 
   const [index, setIndex] = useState(-1);
   const [detailTitle, setDetailTitle] = useState("");
   const tabScroll = useRef(0);
+  // The summary on display, over the tabs; opening one takes it out of the bell's box
+  const [summary, setSummary] = useState<string | null>(null);
+  const [inboxVersion, setInboxVersion] = useState(0);
+  const openSummary = useCallback((id: string) => {
+    setVisits([]);
+    setIndex(-1);
+    setTab("stats");
+    setSummary(id);
+    scroller()?.scrollTo(0, 0);
+  }, []);
+  const closeSummary = useCallback(() => setSummary(null), []);
+  // Opened: the backend took it out of the box, so the bell counts again
+  const summarySeen = useCallback(() => setInboxVersion((version) => version + 1), []);
+
+  // On the first days of a month the summary of the month before opens by itself the first time the window is
+  // seen (in January the year's first), as in the Tk window; "?summary" opens the last month's on any day
+  useEffect(() => {
+    let forced = new URLSearchParams(location.search).has("summary");
+    const look = async () => {
+      if (document.hidden) return;
+      const force = forced;
+      forced = false;
+      try {
+        const due = await get<{ id: string | null }>("/api/wrapped/due", force ? { force: 1 } : {});
+        if (due.id) openSummary(due.id);
+      } catch {
+        // The backend is starting: looked at again when the window is shown next
+      }
+    };
+    look();
+    document.addEventListener("visibilitychange", look);
+    return () => document.removeEventListener("visibilitychange", look);
+  }, [openSummary]);
 
   const scroller = () => document.querySelector(".content");
   const openDetail = useCallback((column: Column, key: string) => {
@@ -65,9 +100,10 @@ export default function Listening({ request }: { request: OpenRequest | null }) 
   }, [index, step, closeDetail]);
 
   const visit = index >= 0 ? visits[index] : null;
+  const layer = visit !== null || summary !== null;
   return (
     <OpenDetailContext.Provider value={openDetail}>
-      {!visit && (
+      {!layer && (
         <nav className="tabs">
           {(["stats", "recent"] as Tab[]).map((name) => (
             <button key={name} className={tab === name ? "selected" : ""} onClick={() => setTab(name)}>
@@ -83,9 +119,11 @@ export default function Listening({ request }: { request: OpenRequest | null }) 
           <Detail key={`${visit.column}:${visit.key}`} visit={visit} onTitle={setDetailTitle} />
         </div>
       )}
+      {/* A page opened from the summary shows over it, and closing the page returns to the summary */}
+      {summary !== null && <div hidden={visit !== null}><Wrapped id={summary} active={visit === null} onClose={closeSummary} onSeen={summarySeen} /></div>}
       {/* Both tabs are kept while hidden, so they come back as they were left */}
-      <Overview hidden={visit !== null || tab !== "stats"} />
-      <Recent hidden={visit !== null || tab !== "recent"} />
+      <Overview hidden={layer || tab !== "stats"} openSummary={openSummary} inboxVersion={inboxVersion} />
+      <Recent hidden={layer || tab !== "recent"} />
     </OpenDetailContext.Provider>
   );
 }

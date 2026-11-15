@@ -18,7 +18,7 @@ import threading
 import time
 
 from playlist_tracker import background
-from playlist_tracker.api import server
+from playlist_tracker.api import server, wrapped as api_wrapped
 from playlist_tracker.core import account, i18n, sync
 from playlist_tracker.core.config import load_config, save_config
 from playlist_tracker.music import nowplaying
@@ -27,6 +27,8 @@ from playlist_tracker.playlists.auto_check import AutoChecker
 _emit_lock = threading.Lock()
 # How often the recorder is looked at for new plays
 PLAYS_LOOK_SECONDS = 2
+SUMMARY_FIRST_SECONDS = 60
+SUMMARY_LOOK_SECONDS = 600
 
 
 def emit(event: str, **values) -> None:
@@ -72,6 +74,22 @@ def watch_plays(tracker: nowplaying.LocalTracker) -> None:
             emit("plays")
 
 
+def notify_summaries() -> None:
+    """On the first days of a month, say once that the summary of the month before (and in January, of the year
+    before) is ready, as the Tk window did; looked at every 10 minutes, so it also comes when the month turns."""
+    time.sleep(SUMMARY_FIRST_SECONDS)
+    while True:
+        try:
+            messages = api_wrapped.notices()
+        except Exception:  # never a reason to stop looking
+            messages = []
+        for message in messages:
+            emit("notify", message=message, open="summary")
+        if messages:
+            emit("inbox")
+        time.sleep(SUMMARY_LOOK_SECONDS)
+
+
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     token = os.environ.get("PLAYLIST_TRACKER_TOKEN")
@@ -87,6 +105,7 @@ def main() -> None:
         if tracking_enabled():
             tracker.start()
         threading.Thread(target=watch_plays, args=(tracker,), name="plays", daemon=True).start()
+        threading.Thread(target=notify_summaries, name="summaries", daemon=True).start()
         commands = instance.requests
         checker = AutoChecker(lambda message: emit("notify", message=message),
                               lambda service, results: commands.put(("checked", service, results)))

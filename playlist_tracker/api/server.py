@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
-from playlist_tracker.api import detail, listening, overview, sections
+from playlist_tracker.api import detail, listening, overview, sections, wrapped
 from playlist_tracker.core import i18n
 from playlist_tracker.core.config import load_config
 from playlist_tracker.music import artwork
@@ -39,6 +39,9 @@ class Api:
             ("GET", "/api/sections"): self.sections,
             ("GET", "/api/genres"): self.genres,
             ("GET", "/api/detail"): self.detail,
+            ("GET", "/api/inbox"): lambda query, body: wrapped.inbox(),
+            ("GET", "/api/wrapped"): lambda query, body: wrapped.summary(query["id"]),
+            ("GET", "/api/wrapped/due"): lambda query, body: wrapped.due(query.get("force") == "1"),
             ("GET", "/api/now"): self.now,
             ("GET", "/api/recent"): self.recent,
             ("GET", "/api/recording"): self.get_recording,

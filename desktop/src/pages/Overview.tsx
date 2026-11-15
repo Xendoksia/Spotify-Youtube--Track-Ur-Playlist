@@ -5,6 +5,7 @@ import Card from "../components/Card";
 import ColumnChart, { Bucket } from "../components/ColumnChart";
 import Hero, { HeroData } from "../components/Hero";
 import Icon from "../components/Icon";
+import Inbox from "../components/Inbox";
 import Tile, { TileData } from "../components/Tile";
 import { useTexts } from "../i18n";
 import { useOpenDetail } from "../navigation";
@@ -51,7 +52,9 @@ function usePeriodData<T>(route: string, period: Period, offset: number): [T | n
   return [data, error, load];
 }
 
-export default function Overview({ hidden }: { hidden: boolean }) {
+export default function Overview({ hidden, openSummary, inboxVersion }: {
+  hidden: boolean; openSummary: (id: string) => void; inboxVersion: number;
+}) {
   const { t } = useTexts();
   const [period, setPeriod] = useState<Period>("week");
   const [offset, setOffset] = useState(0);
@@ -106,6 +109,8 @@ export default function Overview({ hidden }: { hidden: boolean }) {
           <Icon name="forward" />
         </button>
         <h1 className="period-title">{data?.title}</h1>
+        <span className="spacer" />
+        <Inbox openSummary={openSummary} version={inboxVersion} />
       </header>
 
       {error && <p className="error">{error}</p>}

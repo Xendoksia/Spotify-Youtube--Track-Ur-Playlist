@@ -16,6 +16,8 @@ interface AppInfo {
 
 const DEV = process.argv.includes("--dev");
 const MINIMIZED = process.argv.includes("--minimized");
+// Opens with last month's summary, to look at it on any day (as app.py --summary)
+const SUMMARY = process.argv.includes("--summary");
 const ICON = path.join(__dirname, "..", "assets", "icon.ico");
 // The window's background before the page draws, as the theme's (ui/theme.py "bg")
 const BACKGROUND = { light: "#d3d8e0", dark: "#16181d" };
@@ -80,7 +82,7 @@ function createWindow(): BrowserWindow {
         // PLAYLIST_TRACKER_SCREENSHOT_JS runs in the page first, e.g. to click something
         if (process.env.PLAYLIST_TRACKER_SCREENSHOT_JS) {
           await created.webContents.executeJavaScript(process.env.PLAYLIST_TRACKER_SCREENSHOT_JS);
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+          await new Promise((resolve) => setTimeout(resolve, Number(process.env.PLAYLIST_TRACKER_SCREENSHOT_WAIT ?? 3000)));
         }
         if (process.env.PLAYLIST_TRACKER_SCREENSHOT_SCROLL) {
           await created.webContents.executeJavaScript(
@@ -93,9 +95,9 @@ function createWindow(): BrowserWindow {
     });
   }
   if (DEV) {
-    created.loadURL("http://127.0.0.1:5173");
+    created.loadURL(`http://127.0.0.1:5173${SUMMARY ? "?summary" : ""}`);
   } else {
-    created.loadFile(path.join(__dirname, "..", "dist", "index.html"));
+    created.loadFile(path.join(__dirname, "..", "dist", "index.html"), SUMMARY ? { search: "summary" } : {});
   }
   return created;
 }
@@ -139,7 +141,10 @@ function onBackendEvent(message: BackendEvent): void {
       break;
     case "notify":
       if (Notification.isSupported()) {
-        new Notification({ title: t("app.title"), body: String(message.message), icon: ICON }).show();
+        // A click shows the window, where a summary that is ready opens by itself
+        const notification = new Notification({ title: t("app.title"), body: String(message.message), icon: ICON });
+        notification.on("click", showWindow);
+        notification.show();
       }
       break;
     case "recording":
