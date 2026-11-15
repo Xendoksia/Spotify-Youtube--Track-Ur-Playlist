@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { get } from "../api";
 import { useTexts } from "../i18n";
+import { Mood, moodStyle } from "../mood";
 import { Column, OpenDetailContext } from "../navigation";
 import Detail, { DetailToolbar, Visit } from "./Detail";
 import Overview from "./Overview";
@@ -24,6 +25,11 @@ export default function Listening({ request }: { request: OpenRequest | null }) 
   const [visits, setVisits] = useState<Visit[]>([]);
   const [index, setIndex] = useState(-1);
   const [detailTitle, setDetailTitle] = useState("");
+  const [detailMood, setDetailMood] = useState<Mood | null>(null);
+  const detailLoaded = useCallback((title: string, mood: Mood | null) => {
+    setDetailTitle(title);
+    setDetailMood(mood);
+  }, []);
   const tabScroll = useRef(0);
   // The summary on display, over the tabs; opening one takes it out of the bell's box
   const [summary, setSummary] = useState<string | null>(null);
@@ -113,10 +119,10 @@ export default function Listening({ request }: { request: OpenRequest | null }) 
         </nav>
       )}
       {visit && (
-        <div className="page">
+        <div className={`page stats-page detail-page${detailMood ? " has-mood" : ""}`} style={moodStyle(detailMood)}>
           <DetailToolbar title={detailTitle} canForward={index < visits.length - 1}
                          onBack={() => step(-1)} onForward={() => step(1)} onClose={closeDetail} />
-          <Detail key={`${visit.column}:${visit.key}`} visit={visit} onTitle={setDetailTitle} />
+          <Detail key={`${visit.column}:${visit.key}`} visit={visit} onLoaded={detailLoaded} />
         </div>
       )}
       {/* A page opened from the summary shows over it, and closing the page returns to the summary */}

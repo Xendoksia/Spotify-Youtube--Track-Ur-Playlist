@@ -169,4 +169,7 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
                 "open": t("detail.album_open"),
             }
     page["tiles"] = tiles
+    # The page takes the color of its picture, as the statistics take their number one's
+    picture = artwork.fetch_artist(title) if kind == "artist" else         artwork.fetch_cover(info["artist"], info["album"], info["name"])
+    page["mood"] = artwork.mood(picture)
     return page

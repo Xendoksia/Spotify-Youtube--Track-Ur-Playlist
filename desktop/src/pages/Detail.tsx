@@ -12,6 +12,7 @@ import Picture from "../components/Picture";
 import Tile, { TileData } from "../components/Tile";
 import TrackGrid from "../components/TrackGrid";
 import { useTexts } from "../i18n";
+import type { Mood } from "../mood";
 import { Column, useOpenDetail } from "../navigation";
 
 export interface Visit {
@@ -29,6 +30,7 @@ interface DetailData {
   progress?: { share: number; text: string };
   hours?: { title: string; buckets: Bucket[] };
   album?: { caption: string; key: string; title: string; image: string; heard: string; open: string } | null;
+  mood: Mood | null;
 }
 
 export function DetailToolbar({ title, canForward, onBack, onForward, onClose }: {
@@ -62,7 +64,10 @@ function AlbumProgress({ progress }: { progress: NonNullable<DetailData["progres
   );
 }
 
-export default function Detail({ visit, onTitle }: { visit: Visit; onTitle: (title: string) => void }) {
+/** onLoaded tells the page around it the title for its toolbar and the color of its picture. */
+export default function Detail({ visit, onLoaded }: {
+  visit: Visit; onLoaded: (title: string, mood: Mood | null) => void;
+}) {
   const { t } = useTexts();
   const open = useOpenDetail()!;
   const [data, setData] = useState<DetailData | null>(null);
@@ -75,9 +80,9 @@ export default function Detail({ visit, onTitle }: { visit: Visit; onTitle: (tit
       if (request !== latest.current) return;
       setData(result.page);
       setMissing(result.page === null);
-      onTitle(result.page?.title ?? "");
+      onLoaded(result.page?.title ?? "", result.page?.mood ?? null);
     }, () => request === latest.current && setMissing(true));
-  }, [visit.column, visit.key, onTitle]);
+  }, [visit.column, visit.key, onLoaded]);
 
   useEffect(load, [load]);
   // Artist facts and album track lists are looked up in the background; the backend tells when they arrived
@@ -103,7 +108,7 @@ export default function Detail({ visit, onTitle }: { visit: Visit; onTitle: (tit
   return (
     <div className="overview">
       <Hero data={data.hero} caption={data.hero.caption} empty={empty} round={data.kind === "artist"}
-            large={data.kind === "album"} onSubtitle={link ? () => open(link.column, link.key) : undefined} />
+            large onSubtitle={link ? () => open(link.column, link.key) : undefined} />
       <div className="tiles">
         {data.tiles.map((tile) => <Tile key={tile.name} tile={tile} />)}
       </div>
