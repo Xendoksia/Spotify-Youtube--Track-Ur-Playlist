@@ -1876,6 +1876,70 @@ select.field {
   box-shadow: 0 0 0 2px var(--youtube-tint);
 }
 
+/* A card's last month of changes */
+
+.activity {
+  margin-top: 8px;
+}
+
+.activity-head {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.activity-head span + span {
+  font-weight: 700;
+}
+
+.activity-days {
+  display: grid;
+  gap: 2px;
+  height: 34px;
+}
+
+.activity-day {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  border-radius: 2px;
+}
+
+.activity-day:hover {
+  background: color-mix(in oklch, var(--text) 8%, transparent);
+}
+
+.activity-half {
+  display: flex;
+  position: relative;
+}
+
+.activity-half.up {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--grid);
+}
+
+.activity-half.down {
+  align-items: flex-start;
+}
+
+.activity-added,
+.activity-removed {
+  width: 100%;
+  transition: height var(--change);
+}
+
+.activity-added {
+  border-radius: 2px 2px 0 0;
+  background: var(--added);
+}
+
+.activity-removed {
+  border-radius: 0 0 2px 2px;
+  background: var(--removed);
+}
+
 .playlist-latest {
   overflow: hidden;
   color: var(--muted);

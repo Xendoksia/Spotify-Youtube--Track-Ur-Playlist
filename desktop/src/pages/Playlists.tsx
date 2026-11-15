@@ -27,6 +27,37 @@ interface Card {
   /** The newest tracks' covers (or video thumbnails), one per album, newest first */
   covers: string[];
   latest: string;
+  activity: Activity | null;
+}
+
+interface Activity {
+  days: { added: number; removed: number; tooltip: string }[];
+  label: string;
+  added: string;
+  removed: string;
+}
+
+/** Tracks added (up, green) and removed (down, red) per day over the last month. */
+function ActivityChart({ activity }: { activity: Activity }) {
+  const most = Math.max(...activity.days.map((day) => Math.max(day.added, day.removed)), 1);
+  const height = (count: number) => (count ? `max(2px, ${(count * 100) / most}%)` : "0");
+  return (
+    <div className="activity">
+      <div className="activity-head">
+        <span>{activity.label}</span>
+        <span className="event-added">{activity.added}</span>
+        <span className="event-removed">{activity.removed}</span>
+      </div>
+      <div className="activity-days" style={{ gridTemplateColumns: `repeat(${activity.days.length}, 1fr)` }}>
+        {activity.days.map((day, index) => (
+          <div key={index} className="activity-day" title={day.tooltip}>
+            <span className="activity-half up"><span className="activity-added" style={{ height: height(day.added) }} /></span>
+            <span className="activity-half down"><span className="activity-removed" style={{ height: height(day.removed) }} /></span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 /** A playlist's picture made of its newest covers: four in a square, else the newest alone. */
@@ -166,6 +197,7 @@ function ServicePanel({ name, busy, hidden }: { name: string; busy: boolean; hid
                     ))}
                   </span>
                 )}
+                {card.activity && <ActivityChart activity={card.activity} />}
               </div>
             </div>
           ))}

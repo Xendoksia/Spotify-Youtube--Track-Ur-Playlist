@@ -233,6 +233,20 @@ def playlist_summaries(db_path: Path) -> dict[str, dict]:
     return summaries
 
 
+def daily_changes(since: str, db_path: Path) -> dict[str, dict[str, dict[str, int]]]:
+    """Per playlist and local day ('%Y-%m-%d') since the UTC time `since`: tracks added and removed."""
+    changes: dict[str, dict[str, dict[str, int]]] = {}
+    with open_db(db_path) as db:
+        for row in db.execute(
+            "SELECT playlist_id, strftime('%Y-%m-%d', checked_at, 'localtime') AS day, event, COUNT(*) AS count "
+            "FROM events WHERE checked_at >= ? AND event IN (?, ?) GROUP BY playlist_id, day, event",
+            (since, EVENT_ADDED, EVENT_REMOVED),
+        ):
+            day = changes.setdefault(row["playlist_id"], {}).setdefault(row["day"], {"added": 0, "removed": 0})
+            day["added" if row["event"] == EVENT_ADDED else "removed"] = row["count"]
+    return changes
+
+
 def latest_tracks(db_path: Path, count: int = 4) -> dict[str, list[dict]]:
     """Per playlist: its most recently added tracks, one per album (or per video when there are no albums),
     newest first, for the card's covers."""

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 from urllib.parse import urlencode
 
@@ -44,6 +44,25 @@ def service_of(name: str):
         if service.name == name or service.key == name:
             return service
     raise ValueError(name)
+
+
+ACTIVITY_DAYS = 30
+
+
+def activity(days: dict[str, dict[str, int]] | None, today: datetime) -> dict | None:
+    """A card's tracks added and removed per day over the last 30 days, or None when nothing changed."""
+    if not days:
+        return None
+    result, added, removed = [], 0, 0
+    for back in range(ACTIVITY_DAYS - 1, -1, -1):
+        day = today - timedelta(days=back)
+        counts = days.get(day.strftime("%Y-%m-%d"), {"added": 0, "removed": 0})
+        added += counts["added"]
+        removed += counts["removed"]
+        result.append({**counts, "tooltip": f"{day.day} {month_name(day.month)}\n"
+                                            f"+{counts['added']}  −{counts['removed']}"})
+    return {"days": result, "label": t("panel.last_days", count=ACTIVITY_DAYS),
+            "added": f"+{number(added)}", "removed": f"−{number(removed)}"}
 
 
 def track_image(service, track: dict) -> str:
@@ -85,6 +104,9 @@ class Playlists:
         tracked = {p["playlist_id"]: p for p in history.tracked_playlists(service.db_path)}
         summaries = history.playlist_summaries(service.db_path)
         latest = history.latest_tracks(service.db_path)
+        today = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+        since = (today - timedelta(days=ACTIVITY_DAYS - 1)).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        changes_by_day = history.daily_changes(since, service.db_path)
         cards = {}
         for playlist_id, p in self.loaded[service.name].items():
             cards[playlist_id] = {"name": p["name"], "owner": p.get("owner", ""), "count": p.get("track_count")}
@@ -113,6 +135,7 @@ class Playlists:
                 "covers": [track_image(service, track) for track in latest.get(playlist_id, [])],
                 "latest": t("panel.latest", track=track_label(latest[playlist_id][0]))
                 if latest.get(playlist_id) else "",
+                "activity": activity(changes_by_day.get(playlist_id), today),
             })
         result.sort(key=lambda card: (not card["tracked"], card["name"].lower()))
         return {
