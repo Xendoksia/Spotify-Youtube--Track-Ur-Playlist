@@ -14,31 +14,33 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
-from playlist_tracker.api import detail, overview, sections
+from playlist_tracker.api import detail, listening, overview, sections
 from playlist_tracker.core import i18n
 from playlist_tracker.core.config import load_config
 from playlist_tracker.music import artwork
 
 
 class Api:
-    """The routes; recording is None in a window started while another copy records."""
+    """The routes; tracker is None in a window started while another copy records."""
 
     # What was found in the background (genres, artist facts, track lists) is told to the window at most this often
     FOUND_EVENT_SECONDS = 3
 
-    def __init__(self, token: str, recording: dict | None, emit: Callable[..., None]):
+    def __init__(self, token: str, tracker, set_tracking: Callable[[bool], None], emit: Callable[..., None]):
         self.token = token
         self.emit = emit
         self._found_timers: dict[str, threading.Timer] = {}
         self._found_lock = threading.Lock()
-        # {"enabled": () -> bool, "set": (bool) -> None}
-        self.recording = recording
+        self.tracker = tracker
+        self.set_tracking = set_tracking
         self.routes: dict[tuple[str, str], Callable[[dict, dict], object]] = {
             ("GET", "/api/app"): self.app,
             ("GET", "/api/overview"): self.overview,
             ("GET", "/api/sections"): self.sections,
             ("GET", "/api/genres"): self.genres,
             ("GET", "/api/detail"): self.detail,
+            ("GET", "/api/now"): self.now,
+            ("GET", "/api/recent"): self.recent,
             ("GET", "/api/recording"): self.get_recording,
             ("POST", "/api/recording"): self.set_recording,
         }
@@ -77,14 +79,20 @@ class Api:
                     timer.start()
         return arrived
 
+    def now(self, query, body):
+        return listening.now_playing(self.tracker)
+
+    def recent(self, query, body):
+        return listening.recent()
+
     def get_recording(self, query, body):
-        if self.recording is None:
+        if self.tracker is None:
             return {"available": False, "enabled": False}
-        return {"available": True, "enabled": self.recording["enabled"]()}
+        return {"available": True, "enabled": self.tracker.enabled}
 
     def set_recording(self, query, body):
-        if self.recording is not None:
-            self.recording["set"](bool(body.get("enabled")))
+        if self.tracker is not None:
+            self.set_tracking(bool(body.get("enabled")))
         return self.get_recording(query, body)
 
     def image(self, path: str, query: dict) -> Path | None:

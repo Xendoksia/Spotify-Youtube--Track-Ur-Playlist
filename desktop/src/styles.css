@@ -192,7 +192,15 @@ button {
   cursor: default;
 }
 
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
 .content {
+  flex: 1;
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
@@ -935,4 +943,272 @@ img.picture.loaded {
   margin-top: 6px;
   color: var(--added);
   font-weight: 600;
+}
+
+/* Tabs of a section */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 16px 28px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs button {
+  margin-bottom: -1px;
+  padding: 8px 14px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tabs button:hover {
+  color: var(--text);
+}
+
+.tabs button.selected {
+  border-bottom-color: var(--focus);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Recently played */
+
+.recent-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.switch.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.switch-track {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--border);
+  transition: background 150ms;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 150ms;
+}
+
+.switch input:checked + .switch-track {
+  background: var(--focus);
+}
+
+.switch input:checked + .switch-track .switch-thumb {
+  transform: translateX(16px);
+}
+
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.now-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--muted);
+}
+
+.now-card.error {
+  color: var(--removed);
+}
+
+.now-card.clickable:hover .now-title {
+  text-decoration: underline;
+}
+
+.now-cover {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  font-size: 24px;
+}
+
+.now-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.now-title {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.now-state {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.now-state.playing,
+.mini-state.playing {
+  color: var(--added);
+}
+
+.recent-day-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 6px;
+}
+
+.recent-day-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.recent-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-row {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border-radius: 10px;
+}
+
+.recent-row:hover {
+  background: var(--hover);
+}
+
+.recent-time,
+.recent-length {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.recent-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.recent-text > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-text .muted {
+  font-size: 12px;
+}
+
+.recent-title {
+  font-weight: 600;
+}
+
+/* Mini player */
+
+.mini-player {
+  flex: none;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.mini-player.clickable:hover .mini-title {
+  text-decoration: underline;
+}
+
+.mini-progress {
+  height: 3px;
+  background: var(--grid);
+}
+
+.mini-progress-fill {
+  height: 100%;
+  background: var(--chart);
+}
+
+/* Moves on smoothly between two asks for the position (every half second) */
+.mini-progress-fill.moving {
+  transition: width 500ms linear;
+}
+
+.mini-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+}
+
+.mini-cover {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 6px;
+  font-size: 16px;
+}
+
+.mini-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mini-text > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-text .muted {
+  font-size: 12px;
+}
+
+.mini-title {
+  font-weight: 600;
+}
+
+.mini-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-state {
+  min-width: 120px;
+  color: var(--muted);
+  white-space: pre;
 }

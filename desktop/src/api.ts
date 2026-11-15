@@ -35,6 +35,17 @@ export async function get<T>(route: string, params: Record<string, string | numb
   return (await response.json()) as T;
 }
 
+export async function post<T>(route: string, body: unknown): Promise<T> {
+  const { base, token } = await connect();
+  const response = await fetch(base + route, {
+    method: "POST",
+    headers: { "X-Token": token, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`${route}: ${response.status}`);
+  return (await response.json()) as T;
+}
+
 /** The address of an image route such as /api/cover?..., with the token an <img> cannot send as a header */
 export function imageUrl(route: string): string {
   if (!connection) return "";

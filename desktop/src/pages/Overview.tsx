@@ -7,8 +7,7 @@ import Hero, { HeroData } from "../components/Hero";
 import Icon from "../components/Icon";
 import Tile, { TileData } from "../components/Tile";
 import { useTexts } from "../i18n";
-import { Column, OpenDetailContext } from "../navigation";
-import Detail, { DetailToolbar, Visit } from "./Detail";
+import { useOpenDetail } from "../navigation";
 import { Collage, Discoveries, Diversity, Genres, GenresData, GenreShift, Milestones, SectionsData } from "./Sections";
 
 type Period = "week" | "month" | "year" | "all";
@@ -52,40 +51,14 @@ function usePeriodData<T>(route: string, period: Period, offset: number): [T | n
   return [data, error, load];
 }
 
-export default function Overview() {
+export default function Overview({ hidden }: { hidden: boolean }) {
   const { t } = useTexts();
   const [period, setPeriod] = useState<Period>("week");
   const [offset, setOffset] = useState(0);
   const [data, error, loadOverview] = usePeriodData<OverviewData>("/api/overview", period, offset);
   const [sections, , loadSections] = usePeriodData<SectionsData>("/api/sections", period, offset);
   const [genres, , loadGenres] = usePeriodData<GenresData>("/api/genres", period, offset);
-  // The detail pages visited since the statistics were left, and the one on display (-1: the statistics)
-  const [visits, setVisits] = useState<Visit[]>([]);
-  const [index, setIndex] = useState(-1);
-  const [detailTitle, setDetailTitle] = useState("");
-  const statisticsScroll = useRef(0);
-
-  const scroller = () => document.querySelector(".content");
-  const openDetail = useCallback((column: Column, key: string) => {
-    if (index < 0) statisticsScroll.current = scroller()?.scrollTop ?? 0;
-    // Opening a page drops the pages that were ahead of the current one
-    setVisits((before) => [...before.slice(0, index + 1), { column, key }]);
-    setIndex(index + 1);
-    scroller()?.scrollTo(0, 0);
-  }, [index]);
-  const closeDetail = () => {
-    setVisits([]);
-    setIndex(-1);
-    requestAnimationFrame(() => scroller()?.scrollTo(0, statisticsScroll.current));
-  };
-  const step = (direction: number) => {
-    // Back from the first page returns to the statistics
-    if (index + direction < 0) closeDetail();
-    else if (index + direction < visits.length) {
-      setIndex(index + direction);
-      scroller()?.scrollTo(0, 0);
-    }
-  };
+  const openDetail = useOpenDetail()!;
 
   useEffect(() => {
     const loadAll = () => {
@@ -95,7 +68,7 @@ export default function Overview() {
     };
     // Genres are looked up in the background, and the backend tells when some arrived
     const stop = window.tracker.onEvent((message) => {
-      if (message.event === "synced") loadAll();
+      if (message.event === "synced" || message.event === "plays") loadAll();
       else if (message.event === "genres") loadGenres();
     });
     const timer = offset === 0 ? window.setInterval(loadAll, REFRESH_MS) : 0;
@@ -106,18 +79,9 @@ export default function Overview() {
   }, [loadOverview, loadSections, loadGenres, offset]);
 
   const empty = t("stats.empty");
-  const visit = index >= 0 ? visits[index] : null;
   return (
-    <OpenDetailContext.Provider value={openDetail}>
-    {visit && (
-      <div className="page">
-        <DetailToolbar title={detailTitle} canForward={index < visits.length - 1}
-                       onBack={() => step(-1)} onForward={() => step(1)} onClose={closeDetail} />
-        <Detail key={`${visit.column}:${visit.key}`} visit={visit} onTitle={setDetailTitle} />
-      </div>
-    )}
-    {/* Kept while a detail page is open, so the statistics come back as they were left */}
-    <div className="page" hidden={visit !== null}>
+    // Kept while a detail page is open, so the statistics come back as they were left
+    <div className="page" hidden={hidden}>
       <header className="toolbar">
         <div className="segmented" role="tablist">
           {PERIODS.map((name) => (
@@ -189,6 +153,5 @@ export default function Overview() {
         </div>
       )}
     </div>
-    </OpenDetailContext.Provider>
   );
 }

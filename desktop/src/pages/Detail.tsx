@@ -81,7 +81,7 @@ export default function Detail({ visit, onTitle }: { visit: Visit; onTitle: (tit
   useEffect(load, [load]);
   // Artist facts and album track lists are looked up in the background; the backend tells when they arrived
   useEffect(() => window.tracker.onEvent((message) => {
-    if (message.event === "detail" || message.event === "synced") load();
+    if (message.event === "detail" || message.event === "synced" || message.event === "plays") load();
   }), [load]);
 
   const empty = t("stats.empty");

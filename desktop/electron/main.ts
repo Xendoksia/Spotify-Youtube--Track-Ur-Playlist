@@ -65,11 +65,16 @@ function createWindow(): BrowserWindow {
     }
   });
   created.once("ready-to-show", () => {
-    if (!MINIMIZED) created.show();
+    if (MINIMIZED) return;
+    // Shown without taking the focus while a screenshot is taken
+    if (process.env.PLAYLIST_TRACKER_SCREENSHOT) created.showInactive();
+    else created.show();
   });
   // For checking the interface: PLAYLIST_TRACKER_SCREENSHOT=file.png saves the page a while after it loads, then quits
   const screenshot = process.env.PLAYLIST_TRACKER_SCREENSHOT;
   if (screenshot) {
+    // The window opens under the mouse of whoever uses the computer meanwhile: their clicks must not count
+    created.setIgnoreMouseEvents(true);
     created.webContents.once("did-finish-load", () => {
       setTimeout(async () => {
         // PLAYLIST_TRACKER_SCREENSHOT_JS runs in the page first, e.g. to click something

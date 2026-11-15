@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { get } from "./api";
 import Icon, { IconName } from "./components/Icon";
 import { AppInfo, makeTexts, TextsContext } from "./i18n";
-import Overview from "./pages/Overview";
+import MiniPlayer from "./components/MiniPlayer";
+import { NowPlayingContext, useNowPlayingPoll } from "./nowPlaying";
+import Listening, { OpenRequest } from "./pages/Listening";
 
 type Section = "listening" | "playlists" | "account" | "settings" | "help";
 
@@ -19,6 +21,13 @@ export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [section, setSection] = useState<Section>("listening");
+  const [request, setRequest] = useState<OpenRequest | null>(null);
+  const now = useNowPlayingPoll();
+  // The mini player's song opens in the Listening section, from any section
+  const openTrack = (key: string) => {
+    setSection("listening");
+    setRequest((before) => ({ column: "track_key", key, n: (before?.n ?? 0) + 1 }));
+  };
 
   useEffect(() => {
     get<AppInfo>("/api/app").then(setInfo, (reason) => setError(String(reason)));
@@ -37,6 +46,7 @@ export default function App() {
 
   return (
     <TextsContext.Provider value={texts}>
+      <NowPlayingContext.Provider value={now}>
       <div className="shell">
         <nav className="sidebar">
           <div className="brand">
@@ -55,8 +65,14 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <main className="content">{section === "listening" && <Overview />}</main>
+        <main className="main">
+          <div className="content">
+            <div hidden={section !== "listening"}><Listening request={request} /></div>
+          </div>
+          <MiniPlayer openTrack={openTrack} />
+        </main>
       </div>
+      </NowPlayingContext.Provider>
     </TextsContext.Provider>
   );
 }

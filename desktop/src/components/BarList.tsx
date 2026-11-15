@@ -36,7 +36,7 @@ export default function BarList({ rows, empty, round = false, column }: {
         return (
           <li key={row.key} className={`bar-row${clickable ? " clickable" : ""}`}
               style={{ gridTemplateColumns: columns }}
-              title={`${row.title}\n${row.subtitle}\n${row.detail}`}
+              title={`${row.title}\n${row.subtitle}\n${row.detail}${row.change ? `\n${row.change.long}` : ""}`}
               onClick={clickable ? () => open!(target!, row.key) : undefined}>
             {ranked && <span className="rank">{row.rank}</span>}
             {pictures && <Picture src={row.image ?? ""} alt={row.title} round={round} className="bar-picture" />}

@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import threading
+import time
 
 from playlist_tracker import background
 from playlist_tracker.api import server
@@ -24,6 +25,8 @@ from playlist_tracker.music import nowplaying
 from playlist_tracker.playlists.auto_check import AutoChecker
 
 _emit_lock = threading.Lock()
+# How often the recorder is looked at for new plays
+PLAYS_LOOK_SECONDS = 2
 
 
 def emit(event: str, **values) -> None:
@@ -59,6 +62,16 @@ def forward(commands) -> None:
             emit("synced")
 
 
+def watch_plays(tracker: nowplaying.LocalTracker) -> None:
+    """Tell the window when a play was recorded or its listening time grew, so its pages count again."""
+    version = tracker.version
+    while True:
+        time.sleep(PLAYS_LOOK_SECONDS)
+        if tracker.version != version:
+            version = tracker.version
+            emit("plays")
+
+
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     token = os.environ.get("PLAYLIST_TRACKER_TOKEN")
@@ -68,13 +81,12 @@ def main() -> None:
     instance = background.SingleInstance()
     owner = instance.acquire()
     tracker = checker = None
-    recording = None
     if owner:
         account.end_unremembered_session()
         tracker = nowplaying.LocalTracker()
         if tracking_enabled():
             tracker.start()
-        recording = {"enabled": lambda: tracker.enabled, "set": lambda enabled: set_tracking(tracker, enabled)}
+        threading.Thread(target=watch_plays, args=(tracker,), name="plays", daemon=True).start()
         commands = instance.requests
         checker = AutoChecker(lambda message: emit("notify", message=message),
                               lambda service, results: commands.put(("checked", service, results)))
@@ -83,7 +95,7 @@ def main() -> None:
         sync.syncer.start()
         threading.Thread(target=forward, args=(commands,), name="events", daemon=True).start()
 
-    api = server.start(server.Api(token, recording, emit))
+    api = server.start(server.Api(token, tracker, lambda enabled: set_tracking(tracker, enabled), emit))
     emit("ready", port=api.server_address[1], recording=owner)
     try:
         # Until the window's process ends and closes our stdin
