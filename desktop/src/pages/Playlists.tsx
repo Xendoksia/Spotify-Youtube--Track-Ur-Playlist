@@ -145,22 +145,25 @@ function ServicePanel({ name, busy, hidden }: { name: string; busy: boolean; hid
   return (
     <div className="page" hidden={hidden}>
       <div className="overview">
-        <div className="panel-top">
+        <section className="panel-top">
           <button className="button" disabled={busy} onClick={() => start("load")}>
-            {t("panel.load_playlists", { service: name })}
+            <Icon name="download" />{t("panel.load_playlists", { service: name })}
           </button>
-          <span className="spacer" />
-          {page.login.text && <span className="login-text">{page.login.text}</span>}
-          <button className="button" disabled={busy} onClick={() => start("login")}>{page.login.button}</button>
-        </div>
-        <form className="link-row" onSubmit={async (event) => {
-          event.preventDefault();
-          if (link.trim() && await start("add", { link })) setLink("");
-        }}>
-          <label htmlFor={`link-${name}`}>{t("panel.or_link")}</label>
-          <input id={`link-${name}`} className="field" value={link} onChange={(event) => setLink(event.target.value)} />
-          <button className="button" disabled={busy}>{t("panel.add")}</button>
-        </form>
+          <form className="link-field" onSubmit={async (event) => {
+            event.preventDefault();
+            if (link.trim() && await start("add", { link })) setLink("");
+          }}>
+            <Icon name="link" />
+            <input id={`link-${name}`} aria-label={t("panel.or_link")} value={link}
+                   placeholder={t("panel.link_placeholder", { service: name })}
+                   onChange={(event) => setLink(event.target.value)} />
+            <button className="button" disabled={busy || !link.trim()}><Icon name="add" />{t("panel.add")}</button>
+          </form>
+          <div className="login-box">
+            {page.login.text && <span className="login-text">{page.login.text}</span>}
+            <button className="button" disabled={busy} onClick={() => start("login")}>{page.login.button}</button>
+          </div>
+        </section>
         <p className="muted">{t("panel.hint")}</p>
 
         {page.playlists.length === 0 && <p className="empty">{t("panel.empty", { service: name })}</p>}
@@ -212,7 +215,7 @@ function ServicePanel({ name, busy, hidden }: { name: string; busy: boolean; hid
           </button>
           <span className="spacer" />
           <button className={`button accent ${page.key}`} disabled={busy} onClick={() => start("check")}>
-            {t("panel.check", { count: page.tracked_count })}
+            <Icon name="play" />{t("panel.check", { count: page.tracked_count })}
           </button>
         </div>
 

@@ -653,7 +653,7 @@ img.picture.loaded {
   height: 20px;
   padding: 0 7px;
   border-radius: 999px;
-  background: color-mix(in oklch, var(--change-color) 16%, transparent);
+  background: color-mix(in srgb, var(--change-color) 16%, transparent);
   color: var(--change-color);
   font-size: 11px;
   font-weight: 700;
@@ -1738,23 +1738,96 @@ select.field {
 
 /* Playlist tracking */
 
-.panel-top,
-.panel-footer {
+.button .icon {
+  margin-right: 7px;
+  font-size: 12px;
+  vertical-align: -1px;
+}
+
+/* One strip for getting playlists in: loading one's own, a link, the account */
+
+.panel-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.link-field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 3px 3px 3px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--raised);
+  transition: border-color 150ms;
+}
+
+.link-field:focus-within {
+  border-color: var(--focus);
+}
+
+.link-field > .icon {
+  color: var(--muted);
+}
+
+.link-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+
+.link-field input::placeholder {
+  color: var(--muted);
+}
+
+.link-field .button {
+  padding: 5px 14px;
+}
+
+.login-box {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+
+/* The selection and the check stay at the bottom of the window while the cards scroll */
+
+.panel-footer {
+  position: sticky;
+  bottom: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow), 0 8px 24px rgb(0 0 0 / 0.18);
+}
+
+.panel-footer .button.accent {
+  padding: 9px 20px;
+  font-weight: 600;
 }
 
 .login-text {
   color: var(--added);
   margin-right: 4px;
-}
-
-.link-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 8px;
 }
 
 .playlist-grid {
@@ -1907,7 +1980,7 @@ select.field {
 }
 
 .activity-day:hover {
-  background: color-mix(in oklch, var(--text) 8%, transparent);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
 }
 
 .activity-half {
