@@ -19,6 +19,7 @@ import time
 
 from playlist_tracker import background
 from playlist_tracker.api import server, wrapped as api_wrapped
+from playlist_tracker.api.account import Account
 from playlist_tracker.api.playlists import Playlists
 from playlist_tracker.core import account, i18n, sync
 from playlist_tracker.core.config import load_config, save_config
@@ -119,7 +120,7 @@ def main() -> None:
         sync.syncer.start()
         threading.Thread(target=forward, args=(commands, playlists), name="events", daemon=True).start()
 
-    api = server.start(server.Api(token, tracker, lambda enabled: set_tracking(tracker, enabled), emit, playlists))
+    api = server.start(server.Api(token, tracker, lambda enabled: set_tracking(tracker, enabled), emit, playlists, Account(emit)))
     emit("ready", port=api.server_address[1], recording=owner)
     try:
         # Until the window's process ends and closes our stdin

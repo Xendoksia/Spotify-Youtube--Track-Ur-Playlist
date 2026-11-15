@@ -15,6 +15,7 @@ from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
 from playlist_tracker.api import detail, listening, overview, sections, wrapped
+from playlist_tracker.api.account import AVATAR_PATH, Account
 from playlist_tracker.api.playlists import Playlists
 from playlist_tracker.core import i18n
 from playlist_tracker.core.config import load_config
@@ -28,8 +29,9 @@ class Api:
     FOUND_EVENT_SECONDS = 3
 
     def __init__(self, token: str, tracker, set_tracking: Callable[[bool], None], emit: Callable[..., None],
-                 playlists: Playlists):
+                 playlists: Playlists, account: Account):
         self.token = token
+        self.account = account
         self.playlists = playlists
         self.emit = emit
         self._found_timers: dict[str, threading.Timer] = {}
@@ -47,6 +49,12 @@ class Api:
             ("GET", "/api/wrapped/due"): lambda query, body: wrapped.due(query.get("force") == "1"),
             ("GET", "/api/now"): self.now,
             ("GET", "/api/services"): lambda q, b: playlists.services(),
+            ("GET", "/api/account"): lambda q, b: account.page(),
+            ("POST", "/api/account/skip"): lambda q, b: account.skip(),
+            ("POST", "/api/account/login"): lambda q, b: account.login(b.get("remember")),
+            ("POST", "/api/account/refresh"): lambda q, b: account.refresh(),
+            ("POST", "/api/account/logout"): lambda q, b: account.logout(),
+            ("POST", "/api/account/sync"): lambda q, b: account.sync_now(),
             ("GET", "/api/playlists"): lambda q, b: playlists.page(q["service"]),
             ("POST", "/api/playlists/toggle"): lambda q, b: playlists.toggle(b["service"], b["id"]),
             ("POST", "/api/playlists/all"): lambda q, b: playlists.set_all(b["service"], bool(b["tracked"])),
@@ -116,6 +124,8 @@ class Api:
             return artwork.fetch_cover(query.get("artist", ""), query.get("album", ""), query.get("name", ""))
         if path == "/api/artist-photo":
             return artwork.fetch_artist(query.get("name", ""))
+        if path == "/api/avatar":
+            return AVATAR_PATH if AVATAR_PATH.exists() else None
         return None
 
 
@@ -158,11 +168,12 @@ def handler_for(api: Api):
             query = {k: v[0] for k, v in parse_qs(url.query).items()}
             if not self._allowed(query):
                 return self._json(403, {"error": "forbidden"})
-            if method == "GET" and url.path in ("/api/cover", "/api/artist-photo"):
+            if method == "GET" and url.path in ("/api/cover", "/api/artist-photo", "/api/avatar"):
                 path = api.image(url.path, query)
                 if path is None:
                     return self._send(404, b"", "image/jpeg")
-                return self._send(200, path.read_bytes(), "image/jpeg", cache=True)
+                # The account picture changes with the account, so it is not kept by the window
+                return self._send(200, path.read_bytes(), "image/jpeg", cache=url.path != "/api/avatar")
             route = api.routes.get((method, url.path))
             if route is None:
                 return self._json(404, {"error": "not found"})

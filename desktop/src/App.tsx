@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { get } from "./api";
 import Icon, { IconName } from "./components/Icon";
 import { AppInfo, makeTexts, TextsContext } from "./i18n";
@@ -6,6 +6,7 @@ import MiniPlayer from "./components/MiniPlayer";
 import { NowPlayingContext, useNowPlayingPoll } from "./nowPlaying";
 import Listening, { OpenRequest } from "./pages/Listening";
 import Playlists from "./pages/Playlists";
+import Account, { AccountContext, LoginScreen, useAccountState } from "./pages/Account";
 import { DialogProvider } from "./components/Dialog";
 
 type Section = "listening" | "playlists" | "account" | "settings" | "help";
@@ -14,7 +15,7 @@ type Section = "listening" | "playlists" | "account" | "settings" | "help";
 const SECTIONS: { name: Section; label: string; icon: IconName; ready: boolean }[] = [
   { name: "listening", label: "nav.listening", icon: "music", ready: true },
   { name: "playlists", label: "nav.playlists", icon: "list", ready: true },
-  { name: "account", label: "nav.account", icon: "account", ready: false },
+  { name: "account", label: "nav.account", icon: "account", ready: true },
   { name: "help", label: "nav.help", icon: "help", ready: false },
   { name: "settings", label: "settings.title", icon: "settings", ready: false },
 ];
@@ -25,6 +26,22 @@ export default function App() {
   const [section, setSection] = useState<Section>("listening");
   const [request, setRequest] = useState<OpenRequest | null>(null);
   const now = useNowPlayingPoll();
+  const account = useAccountState();
+  // The login screen covers the window when it opens logged out, once the account is known (not in the tray)
+  const [loginScreen, setLoginScreen] = useState<boolean | null>(null);
+  useEffect(() => {
+    // Started in the tray: decided when the window is first shown
+    const decide = () => {
+      if (loginScreen === null && account.data && !document.hidden) setLoginScreen(account.data.needs_login);
+    };
+    decide();
+    document.addEventListener("visibilitychange", decide);
+    return () => document.removeEventListener("visibilitychange", decide);
+  }, [account.data, loginScreen]);
+  const closeLogin = useCallback(() => {
+    setLoginScreen(false);
+    setSection("listening");
+  }, []);
   // The mini player's song opens in the Listening section, from any section
   const openTrack = (key: string) => {
     setSection("listening");
@@ -50,6 +67,7 @@ export default function App() {
     <TextsContext.Provider value={texts}>
       <NowPlayingContext.Provider value={now}>
       <DialogProvider>
+      <AccountContext.Provider value={account}>
       <div className="shell">
         <nav className="sidebar">
           <div className="brand">
@@ -64,7 +82,8 @@ export default function App() {
               onClick={() => setSection(item.name)}
             >
               <Icon name={item.icon} />
-              <span>{t(item.label)}</span>
+              {/* The account item shows the logged-in user's first name */}
+              <span>{item.name === "account" && account.data?.profile ? account.data.profile.first_name : t(item.label)}</span>
             </button>
           ))}
         </nav>
@@ -72,10 +91,13 @@ export default function App() {
           <div className="content">
             <div hidden={section !== "listening"}><Listening request={request} /></div>
             <div hidden={section !== "playlists"}><Playlists /></div>
+            <div hidden={section !== "account"}><Account onLoggedOut={() => setLoginScreen(true)} /></div>
           </div>
           <MiniPlayer openTrack={openTrack} />
         </main>
       </div>
+      {loginScreen && <LoginScreen onDone={closeLogin} />}
+      </AccountContext.Provider>
       </DialogProvider>
       </NowPlayingContext.Provider>
     </TextsContext.Provider>
