@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
 from playlist_tracker.core.i18n import number, t
-from playlist_tracker.music import listening
+from playlist_tracker.music import artwork, listening
 from playlist_tracker.music.text import (duration_text, hour_buckets, month_name, period_title, plays_text,
                                             summary_text, tracks_text)
 
@@ -60,7 +60,18 @@ def overview(period: str, offset: int) -> dict:
         } for rank, r in enumerate(artists[1:], start=2)],
         "timeline": timeline(period, start, end),
         "hours": {"title": t("stats.hours"), "buckets": hour_buckets(listening.hours(start, end))},
+        "mood": period_mood(tracks[:1], artists[:1]),
     }
+
+
+def period_mood(tracks: list[dict], artists: list[dict]) -> dict | None:
+    """The color of the number one track's cover (else of the number one artist's photo) for the page's accents."""
+    for top in tracks:
+        if found := artwork.mood(artwork.fetch_cover(top["artist"], top["album"], top["name"])):
+            return found
+    for top in artists:
+        return artwork.mood(artwork.fetch_artist(top["name"]))
+    return None
 
 
 def tiles(period: str, offset: int, start: datetime, end: datetime) -> list[dict]:

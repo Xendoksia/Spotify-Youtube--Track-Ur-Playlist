@@ -29,6 +29,8 @@ interface OverviewData {
   top_artists: BarRow[];
   timeline: { title: string; buckets: Bucket[] };
   hours: { title: string; buckets: Bucket[] };
+  /** The number one's color as OKLCH hue and chroma; the page sets the lightness for the theme */
+  mood: { hue: number; chroma: number } | null;
 }
 
 /** The route's answer for the period; an answer for a period clicked past meanwhile is dropped. */
@@ -82,9 +84,14 @@ export default function Overview({ hidden, openSummary, inboxVersion }: {
   }, [loadOverview, loadSections, loadGenres, offset]);
 
   const empty = t("stats.empty");
+  const mood = data?.mood;
   return (
     // Kept while a detail page is open, so the statistics come back as they were left
-    <div className="page" hidden={hidden}>
+    <div
+      className={`page stats-page${mood ? " has-mood" : ""}`}
+      style={mood ? { "--mood-h": mood.hue, "--mood-c": mood.chroma } as React.CSSProperties : undefined}
+      hidden={hidden}
+    >
       <header className="toolbar">
         <div className="segmented" role="tablist">
           {PERIODS.map((name) => (

@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import math
 import re
 import ssl
 import threading
@@ -237,3 +238,62 @@ def fill_missing_lengths(done: Callable[[], None]) -> None:
         changed = True
     if changed:
         done()
+
+
+# The colors of a picture: the hue its vivid parts share most, as OKLCH so the window can set the lightness
+_MOOD_BINS = 24
+_moods: dict[tuple[Path, float], dict | None] = {}
+
+
+def _oklch(r: int, g: int, b: int) -> tuple[float, float, float]:
+    def linear(c: int) -> float:
+        c /= 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = linear(r), linear(g), linear(b)
+    l = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
+    m = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b) ** (1 / 3)
+    s = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b) ** (1 / 3)
+    lightness = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s
+    a = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s
+    b = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+    return lightness, (a * a + b * b) ** 0.5, math.degrees(math.atan2(b, a)) % 360
+
+
+def mood(path: Path | None) -> dict | None:
+    """{hue, chroma} of the picture's most common vivid hue, or None for a grey or missing picture."""
+    if not available or path is None or not path.exists():
+        return None
+    cache_key = (path, path.stat().st_mtime)
+    if cache_key in _moods:
+        return _moods[cache_key]
+    # Per hue: weight, sin and cos of the hue, highest chroma, pixels
+    bins = [[0.0, 0.0, 0.0, 0.0, 0] for _ in range(_MOOD_BINS)]
+    try:
+        with Image.open(path) as image:
+            pixels = image.convert("RGB").resize((40, 40)).getdata()
+    except OSError:
+        return None
+    total = 0.0
+    for r, g, b in pixels:
+        lightness, chroma, hue = _oklch(r, g, b)
+        total += 1
+        # Near black, white or grey pixels say little about the picture's color
+        if chroma < 0.04 or not 0.2 < lightness < 0.92:
+            continue
+        slot = bins[int(hue / 360 * _MOOD_BINS) % _MOOD_BINS]
+        slot[0] += chroma
+        slot[1] += chroma * math.sin(math.radians(hue))
+        slot[2] += chroma * math.cos(math.radians(hue))
+        slot[3] = max(slot[3], chroma)
+        slot[4] += 1
+    # A hue and its two neighbours together, so a color split over two bins still wins
+    best = max(range(_MOOD_BINS), key=lambda i: sum(bins[(i + d) % _MOOD_BINS][0] for d in (-1, 0, 1)))
+    group = [bins[(best + d) % _MOOD_BINS] for d in (-1, 0, 1)]
+    count = sum(slot[4] for slot in group)
+    # A few colored pixels in a grey picture are not its color
+    result = None
+    if total and count / total > 0.06:
+        hue = math.degrees(math.atan2(sum(s[1] for s in group), sum(s[2] for s in group))) % 360
+        result = {"hue": round(hue, 1), "chroma": round(min(0.16, max(s[3] for s in group)), 3)}
+    _moods[cache_key] = result
+    return result

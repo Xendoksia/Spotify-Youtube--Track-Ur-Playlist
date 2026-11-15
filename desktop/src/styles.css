@@ -31,6 +31,8 @@
   --radius: 16px;
   --title-bar: 36px;
   --change: 450ms cubic-bezier(0.33, 1, 0.68, 1);
+  --mood-l: 0.5;
+  --mood-tint: 10%;
   color-scheme: light;
 }
 
@@ -71,6 +73,8 @@
     --series-3: #c98500;
     --series-other: #4a505a;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.2);
+    --mood-l: 0.56;
+    --mood-tint: 12%;
     color-scheme: dark;
   }
 }
@@ -93,6 +97,8 @@
   --grid: #2a2e35;
   --nav: #1b1e23;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.2);
+  --mood-l: 0.56;
+  --mood-tint: 12%;
   color-scheme: dark;
 }
 
@@ -244,6 +250,38 @@ button {
   max-width: 1400px;
   margin: 0 auto;
   padding: 20px 28px 32px;
+}
+
+/* The statistics take their accent from the number one track's cover (api/overview.py period_mood); a
+ * registered property so the color glides when the period changes */
+
+@property --mood {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+.stats-page {
+  --mood: var(--focus);
+  --tint: color-mix(in oklch, var(--mood) var(--mood-tint), var(--bg));
+  background: linear-gradient(var(--tint), var(--bg) 520px);
+  transition: --mood 800ms ease;
+}
+
+.stats-page.has-mood {
+  --mood: oklch(var(--mood-l) var(--mood-c) var(--mood-h));
+}
+
+.stats-page .toolbar {
+  background: var(--tint);
+}
+
+.stats-page .segmented button.selected {
+  background: var(--mood);
+}
+
+.stats-page .hero {
+  border-color: color-mix(in oklch, var(--mood) 35%, var(--border));
 }
 
 .toolbar {
