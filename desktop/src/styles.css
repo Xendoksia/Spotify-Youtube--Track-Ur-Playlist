@@ -533,7 +533,7 @@ img.picture.loaded {
   border-radius: 10px;
 }
 
-.bar-row:hover {
+.bar-row.clickable:hover {
   background: var(--hover);
 }
 
@@ -797,4 +797,142 @@ img.picture.loaded {
   height: 100%;
   border-radius: 0;
   font-size: 32px;
+}
+
+/* Things that open a page */
+
+.clickable {
+  cursor: pointer;
+}
+
+.plain-row.clickable:hover span:last-child,
+.album-card.clickable:hover .album-card-title {
+  text-decoration: underline;
+}
+
+.hero.clickable {
+  transition: transform 150ms, box-shadow 150ms;
+}
+
+.hero.clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
+}
+
+.collage-cell.clickable {
+  transition: filter 150ms;
+}
+
+.collage-cell.clickable:hover {
+  filter: brightness(1.12);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Detail pages */
+
+.hero.large .hero-picture {
+  width: 168px;
+  height: 168px;
+}
+
+.hero-subtitle.link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.hero-subtitle.link:hover {
+  text-decoration: underline;
+}
+
+.hero-about {
+  max-width: 720px;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.tile-value.text {
+  overflow: hidden;
+  font-size: 20px;
+  line-height: 45px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile.progress {
+  gap: 10px;
+}
+
+.progress-text {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.progress-track {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--grid);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--chart);
+  transition: width 700ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.pair.track-row {
+  grid-template-columns: 2fr 3fr;
+}
+
+.album-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.album-card-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.album-card-picture {
+  width: 96px;
+  height: 96px;
+  flex: none;
+  font-size: 32px;
+}
+
+.album-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.album-card-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.album-card-open {
+  margin-top: 6px;
+  color: var(--added);
+  font-weight: 600;
 }

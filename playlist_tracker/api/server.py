@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
-from playlist_tracker.api import overview, sections
+from playlist_tracker.api import detail, overview, sections
 from playlist_tracker.core import i18n
 from playlist_tracker.core.config import load_config
 from playlist_tracker.music import artwork
@@ -23,14 +23,14 @@ from playlist_tracker.music import artwork
 class Api:
     """The routes; recording is None in a window started while another copy records."""
 
-    # Genres found in the background are told to the window at most this often
-    GENRE_EVENT_SECONDS = 3
+    # What was found in the background (genres, artist facts, track lists) is told to the window at most this often
+    FOUND_EVENT_SECONDS = 3
 
     def __init__(self, token: str, recording: dict | None, emit: Callable[..., None]):
         self.token = token
         self.emit = emit
-        self._genre_timer: threading.Timer | None = None
-        self._genre_lock = threading.Lock()
+        self._found_timers: dict[str, threading.Timer] = {}
+        self._found_lock = threading.Lock()
         # {"enabled": () -> bool, "set": (bool) -> None}
         self.recording = recording
         self.routes: dict[tuple[str, str], Callable[[dict, dict], object]] = {
@@ -38,6 +38,7 @@ class Api:
             ("GET", "/api/overview"): self.overview,
             ("GET", "/api/sections"): self.sections,
             ("GET", "/api/genres"): self.genres,
+            ("GET", "/api/detail"): self.detail,
             ("GET", "/api/recording"): self.get_recording,
             ("POST", "/api/recording"): self.set_recording,
         }
@@ -56,19 +57,25 @@ class Api:
         return sections.sections(query.get("period", "week"), int(query.get("offset", 0)))
 
     def genres(self, query, body):
-        return sections.genres(query.get("period", "week"), int(query.get("offset", 0)), self._genre_arrived)
+        return sections.genres(query.get("period", "week"), int(query.get("offset", 0)), self.found("genres"))
 
-    def _genre_arrived(self):
-        with self._genre_lock:
-            if self._genre_timer is None:
-                self._genre_timer = threading.Timer(self.GENRE_EVENT_SECONDS, self._send_genres)
-                self._genre_timer.daemon = True
-                self._genre_timer.start()
+    def detail(self, query, body):
+        return {"page": detail.detail(query["column"], query["key"], self.found("detail"))}
 
-    def _send_genres(self):
-        with self._genre_lock:
-            self._genre_timer = None
-        self.emit("genres")
+    def found(self, event: str) -> Callable[[], None]:
+        """A callback for background lookups that sends the event once a few seconds after the first call."""
+        def send():
+            with self._found_lock:
+                self._found_timers.pop(event, None)
+            self.emit(event)
+
+        def arrived():
+            with self._found_lock:
+                if event not in self._found_timers:
+                    timer = self._found_timers[event] = threading.Timer(self.FOUND_EVENT_SECONDS, send)
+                    timer.daemon = True
+                    timer.start()
+        return arrived
 
     def get_recording(self, query, body):
         if self.recording is None:

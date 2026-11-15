@@ -81,7 +81,8 @@ def tiles(period: str, offset: int, start: datetime, end: datetime) -> list[dict
             delta = {"text": f"{arrow} {t('stats.percent', value=abs(change))}  {t(f'stats.vs.{period}')}",
                      "kind": "up" if change > 0 else "down" if change < 0 else "same"}
         result.append({"name": name, "label": t(f"stats.tile.{name}"), "value": current[key],
-                       "text": text(current[key]), "delta": delta})
+                       "text": text(current[key]), "kind": "duration" if name == "time" else "number",
+                       "delta": delta})
     return result
 
 

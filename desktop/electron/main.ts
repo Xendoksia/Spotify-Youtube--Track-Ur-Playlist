@@ -72,6 +72,11 @@ function createWindow(): BrowserWindow {
   if (screenshot) {
     created.webContents.once("did-finish-load", () => {
       setTimeout(async () => {
+        // PLAYLIST_TRACKER_SCREENSHOT_JS runs in the page first, e.g. to click something
+        if (process.env.PLAYLIST_TRACKER_SCREENSHOT_JS) {
+          await created.webContents.executeJavaScript(process.env.PLAYLIST_TRACKER_SCREENSHOT_JS);
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+        }
         if (process.env.PLAYLIST_TRACKER_SCREENSHOT_SCROLL) {
           await created.webContents.executeJavaScript(
             `document.querySelector(".content").scrollTop = ${Number(process.env.PLAYLIST_TRACKER_SCREENSHOT_SCROLL)}`);

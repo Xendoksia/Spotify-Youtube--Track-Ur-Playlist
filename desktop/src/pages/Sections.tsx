@@ -4,6 +4,7 @@
 import BarList, { BarRow } from "../components/BarList";
 import Card from "../components/Card";
 import Picture from "../components/Picture";
+import { Column, useOpenDetail } from "../navigation";
 import StackedColumns, { Series, seriesClass, StackedColumn } from "../components/StackedColumns";
 
 export interface SectionsData {
@@ -18,7 +19,7 @@ export interface SectionsData {
   };
   milestones: {
     title: string; summary: string; empty: string; year_ago_title: string;
-    items: { date: string; text: string; kind: string; column: string | null; key: string | null }[];
+    items: { date: string; text: string; kind: string; column: Column | null; key: string | null }[];
     year_ago: { rank: number; key: string; text: string }[];
   };
   collage: {
@@ -40,7 +41,7 @@ export function Discoveries({ data }: { data: SectionsData }) {
     const forgotten = data.forgotten;
     return (
       <Card icon="history" title={forgotten.title} summary={forgotten.summary}>
-        <BarList rows={forgotten.tracks} empty={forgotten.empty} />
+        <BarList rows={forgotten.tracks} empty={forgotten.empty} column="track_key" />
       </Card>
     );
   }
@@ -51,11 +52,11 @@ export function Discoveries({ data }: { data: SectionsData }) {
         <div className="pair inner">
           <div>
             <h3 className="column-title">{discoveries.tracks_title}</h3>
-            <BarList rows={discoveries.tracks} empty={discoveries.empty} />
+            <BarList rows={discoveries.tracks} empty={discoveries.empty} column="track_key" />
           </div>
           <div>
             <h3 className="column-title">{discoveries.artists_title}</h3>
-            <BarList rows={discoveries.artists} empty={discoveries.empty} round />
+            <BarList rows={discoveries.artists} empty={discoveries.empty} round column="artist_key" />
           </div>
         </div>
       )}
@@ -80,7 +81,7 @@ export function Diversity({ data }: { data: SectionsData["diversity"] }) {
       {data.artists.length > 0 && (
         <>
           <h3 className="column-title">{data.top_title}</h3>
-          <BarList rows={data.artists} empty="" />
+          <BarList rows={data.artists} empty="" column="artist_key" />
         </>
       )}
     </Card>
@@ -107,13 +108,15 @@ export function GenreShift({ data }: { data: GenresData["shift"] | null }) {
 }
 
 export function Milestones({ data }: { data: SectionsData["milestones"] }) {
+  const open = useOpenDetail();
   return (
     <Card icon="flag" title={data.title} summary={data.summary}>
       <div className={data.year_ago.length ? "milestones split" : "milestones"}>
         <ul className="plain-list">
           {data.items.length === 0 && <li className="empty">{data.empty}</li>}
           {data.items.map((item, index) => (
-            <li key={index} className="plain-row">
+            <li key={index} className={`plain-row${item.column ? " clickable" : ""}`}
+                onClick={item.column && open ? () => open(item.column!, item.key!) : undefined}>
               <span className="plain-left">{item.date}</span>
               <span>{item.text}</span>
             </li>
@@ -124,7 +127,7 @@ export function Milestones({ data }: { data: SectionsData["milestones"] }) {
             <h3 className="column-title">{data.year_ago_title}</h3>
             <ul className="plain-list">
               {data.year_ago.map((item) => (
-                <li key={item.key} className="plain-row">
+                <li key={item.key} className="plain-row clickable" onClick={() => open?.("track_key", item.key)}>
                   <span className="plain-left">{item.rank}.</span>
                   <span>{item.text}</span>
                 </li>
@@ -147,6 +150,7 @@ export function Genres({ data }: { data: GenresData["genres"] | null }) {
 }
 
 export function Collage({ data }: { data: SectionsData["collage"] }) {
+  const open = useOpenDetail();
   if (!data.available) return null;
   return (
     <Card icon="disc" title={data.title} summary={data.summary}>
@@ -155,7 +159,8 @@ export function Collage({ data }: { data: SectionsData["collage"] }) {
       ) : (
         <div className="collage" style={{ gridTemplateColumns: `repeat(${data.columns}, 1fr)` }}>
           {data.albums.map((album) => (
-            <div key={album.key} className="collage-cell" title={`${album.title}\n${album.artist}\n${album.detail}`}>
+            <div key={album.key} className="collage-cell clickable" title={`${album.title}\n${album.artist}\n${album.detail}`}
+                 onClick={() => open?.("album", album.key)}>
               <Picture src={album.image} alt={album.title} className="collage-picture" />
             </div>
           ))}
