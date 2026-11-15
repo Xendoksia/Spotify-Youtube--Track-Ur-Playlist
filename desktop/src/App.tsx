@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { get } from "./api";
 import Icon, { IconName } from "./components/Icon";
 import { AppInfo, makeTexts, TextsContext } from "./i18n";
+import Logo from "./components/Logo";
 import MiniPlayer from "./components/MiniPlayer";
 import { NowPlayingContext, useNowPlayingPoll } from "./nowPlaying";
 import Listening, { OpenRequest } from "./pages/Listening";
@@ -94,7 +95,7 @@ export default function App() {
       <div className="shell">
         <nav className="sidebar">
           <div className="brand">
-            <span className="brand-mark"><Icon name="music" /></span>
+            <Logo size={30} />
             {t("app.title")}
           </div>
           {SECTIONS.map((item, index) => (

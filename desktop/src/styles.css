@@ -149,6 +149,10 @@ button {
   border-right: 1px solid var(--border);
 }
 
+.logo {
+  flex: none;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -156,17 +160,6 @@ button {
   padding: 4px 8px 20px;
   font-size: 15px;
   font-weight: 600;
-}
-
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: white;
-  font-size: 15px;
 }
 
 .nav-item {
@@ -1944,17 +1937,6 @@ select.field {
   background: var(--surface);
   box-shadow: var(--shadow);
   text-align: center;
-}
-
-.login-logo {
-  display: grid;
-  place-items: center;
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: white;
-  font-size: 30px;
 }
 
 .login-card h1 {

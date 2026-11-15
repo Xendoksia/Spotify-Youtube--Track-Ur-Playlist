@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { get, post } from "../api";
 import Hero from "../components/Hero";
 import Icon from "../components/Icon";
+import Logo from "../components/Logo";
 import { useTexts } from "../i18n";
 
 export interface AccountData {
@@ -85,7 +86,7 @@ export function LoginScreen({ onDone }: { onDone: () => void }) {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <span className="login-logo"><Icon name="music" /></span>
+        <Logo size={64} />
         <h1>{t("app.title")}</h1>
         <p className="muted">{t("login_screen.lead")}</p>
         <button className="button primary large" disabled={data?.busy}
