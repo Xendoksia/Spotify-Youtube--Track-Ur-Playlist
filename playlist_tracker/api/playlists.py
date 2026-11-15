@@ -19,8 +19,9 @@ from urllib.parse import urlencode
 from playlist_tracker.core.config import load_config
 from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.core.i18n import number, t
+from playlist_tracker.api.listening import day_title
 from playlist_tracker.api.overview import cover_url
-from playlist_tracker.core.text import format_date, track_label
+from playlist_tracker.core.text import track_label
 from playlist_tracker.playlists import history
 from playlist_tracker.playlists.services import EVENTS, SERVICES, event_label
 from playlist_tracker.music.text import month_name
@@ -323,20 +324,34 @@ class Playlists:
     # History
 
     def history(self, name: str, playlist_id: str | None, event: str | None) -> dict:
+        """The changes found, newest first, under a heading for each day they were found."""
         service = service_of(name)
         tracked = sorted(history.tracked_playlists(service.db_path), key=lambda p: p["name"].lower())
-        rows = []
+        today = datetime.now().astimezone().date()
+        days: list[dict] = []
         for r in history.get_events(playlist_id or None, service.db_path):
             if event and r["event"] != event:
                 continue
-            item = track_label(r)
+            moment = datetime.fromisoformat(r["checked_at"].replace("Z", "+00:00")).astimezone()
+            if not days or days[-1]["date"] != moment.date():
+                days.append({"date": moment.date(), "title": day_title(moment.date(), today), "counts": {}, "rows": []})
+            day = days[-1]
+            initial = r["event"] == history.EVENT_INITIAL
             count = re.match(r"(\d+) ", r["name"] or "")
-            if r["event"] == history.EVENT_INITIAL and count:
-                item = t("history.initial_count", count=count.group(1))
-            rows.append({**event_text(r["event"]), "checked": format_date(r["checked_at"]),
-                         "playlist": r["playlist"] or "", "track": item, "added": format_date(r["added_at"])})
+            day["counts"][r["event"]] = day["counts"].get(r["event"], 0) + 1
+            day["rows"].append({
+                **event_text(r["event"]), "time": f"{moment:%H:%M}", "playlist": r["playlist"] or "",
+                "title": t("history.initial_count", count=count.group(1)) if initial and count else r["name"] or "",
+                "artist": "" if initial else r["artist"] or "",
+                "added": t("result.added", date=short_date(r["added_at"])).strip().strip("()") if r["added_at"] else "",
+                "image": None if initial else track_image(service, r),
+            })
+        for day in days:
+            day["date"] = day["date"].isoformat()
+            day["counts"] = [{**event_text(e), "symbol": event_label(e).split()[0], "count": number(day["counts"][e])}
+                             for e in (*CHANGE_ORDER[::-1], history.EVENT_INITIAL) if day["counts"].get(e)]
         return {"playlists": [{"id": p["playlist_id"], "name": p["name"]} for p in tracked],
-                "events": [{"id": e, "label": event_label(e)} for e in EVENTS], "rows": rows}
+                "events": [{"id": e, "label": event_label(e)} for e in EVENTS], "days": days}
 
     def export(self, name: str, path: str) -> dict:
         service = service_of(name)
