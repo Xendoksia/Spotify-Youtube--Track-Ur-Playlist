@@ -2800,69 +2800,183 @@ select.field {
   padding: 0;
 }
 
+/* Settings: a card for each group, the setup steps numbered */
+
+.settings-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 820px;
+}
+
 .settings-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-width: 820px;
-  padding: 24px;
+  gap: 12px;
+  padding: 20px 24px;
+  animation: fade-in 250ms ease-out both;
+}
+
+.settings-card .card-title {
+  margin-bottom: 4px;
+}
+
+/* The card's icon in a small tinted square */
+.settings-card .card-title .icon,
+.help .card-title .icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--focus) 16%, transparent);
+  color: var(--focus);
+  font-size: 14px;
 }
 
 .steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin: 0;
-  white-space: pre-line;
+  padding: 0;
+  list-style: none;
   user-select: text;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 12px;
+  align-items: start;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.step-number {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .setting-link {
   align-self: flex-start;
-  margin-bottom: 8px;
-  color: var(--focus);
+  margin-top: 4px;
+  color: var(--text);
   text-decoration: none;
-}
-
-.setting-link:hover {
-  text-decoration: underline;
 }
 
 .setting-row {
   display: grid;
-  grid-template-columns: 200px minmax(0, 420px);
+  grid-template-columns: 200px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .setting-note {
-  margin: -4px 0 4px 212px;
+  margin: -4px 0 0 216px;
   font-size: 12px;
 }
 
+/* A setting that is on or off: its text on the left, the switch on the right */
 .setting-switch {
-  margin-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.setting-switch + .setting-switch {
+  border-top: 1px solid var(--grid);
+}
+
+.tabs button .setup-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: var(--unplayable);
+  vertical-align: 1px;
+}
+
+.tabs button .setup-dot.ready {
+  background: var(--added);
 }
 
 .settings-footer {
+  position: sticky;
+  bottom: 12px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 16px;
   max-width: 820px;
   margin-top: 16px;
+  padding: 10px 10px 10px 20px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
+.settings-footer .muted {
+  flex: 1;
+}
+
+/* How it works: the topics in two columns, what to do set apart */
+
 .lead {
-  margin: 0 0 16px;
+  max-width: 900px;
+  margin: 0 0 18px;
   font-size: 16px;
+  line-height: 1.5;
+}
+
+.overview.help {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .overview.help {
+    grid-template-columns: 1fr;
+  }
+}
+
+.help .card {
+  animation: fade-in 300ms ease-out both;
 }
 
 .help .card p {
-  margin: 0 0 8px;
-  max-width: 900px;
-  line-height: 1.55;
+  margin: 0;
+  line-height: 1.6;
 }
 
-.help .card p:last-child {
-  margin-bottom: 0;
+.help-todo {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--added) 10%, transparent);
+  border-left: 3px solid var(--added);
+}
+
+.help-todo strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--added);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 
 /* Longer track lists on detail pages */

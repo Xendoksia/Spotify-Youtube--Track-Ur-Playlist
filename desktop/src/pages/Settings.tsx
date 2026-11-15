@@ -3,7 +3,9 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { get, post } from "../api";
+import Card from "../components/Card";
 import { useDialogs } from "../components/Dialog";
+import Icon from "../components/Icon";
 import { useTexts } from "../i18n";
 
 type Tab = "spotify" | "youtube" | "general";
@@ -57,6 +59,28 @@ function Choice({ label, options, value, onChange }: {
   );
 }
 
+/** Setup steps written as "1) ..." lines as a numbered list */
+function Steps({ text }: { text: string }) {
+  const steps = text.split(/\n(?=\d+\)\s)/).map((step) => step.replace(/^\d+\)\s*/, "").trim());
+  return (
+    <ol className="steps">
+      {steps.map((step, index) => <li key={index}><span className="step-number">{index + 1}</span><span>{step}</span></li>)}
+    </ol>
+  );
+}
+
+function Switch({ label, checked, disabled = false, onChange }: {
+  label: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className={`switch setting-switch${disabled ? " disabled" : ""}`}>
+      <span>{label}</span>
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
+      <span className="switch-track"><span className="switch-thumb" /></span>
+    </label>
+  );
+}
+
 export default function Settings({ tab, setTab, hidden }: { tab: Tab; setTab: (tab: Tab) => void; hidden: boolean }) {
   const { t } = useTexts();
   const dialogs = useDialogs();
@@ -71,6 +95,12 @@ export default function Settings({ tab, setTab, hidden }: { tab: Tab; setTab: (t
   }, [hidden]);
 
   if (!data) return null;
+  const filled = (...names: string[]) => names.every((name) => (data.values[name] ?? "").trim());
+  // Whether each service can be used with what is typed in now
+  const ready = {
+    spotify: filled("CLIENT_ID", "CLIENT_SECRET"),
+    youtube: filled("YOUTUBE_API_KEY") || filled("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET"),
+  };
   const save = async () => {
     const result = await post<{ ok: boolean; tab?: Tab; title?: string; message?: string; appearance_changed?: boolean }>(
       "/api/settings", data);
@@ -94,61 +124,71 @@ export default function Settings({ tab, setTab, hidden }: { tab: Tab; setTab: (t
         {(["spotify", "youtube", "general"] as Tab[]).map((name) => (
           <button key={name} className={tab === name ? "selected" : ""} onClick={() => setTab(name)}>
             {name === "spotify" ? "Spotify" : name === "youtube" ? "YouTube" : t("settings.general")}
+            {name !== "general" && (
+              <span className={`setup-dot${ready[name] ? " ready" : ""}`}
+                    title={t(ready[name] ? "settings.ready" : "settings.missing")} />
+            )}
           </button>
         ))}
       </nav>
-      <section className="card settings-card">
+      <div className="settings-cards">
         {tab === "spotify" && (
           <>
-            <p className="steps muted">{data.spotify_steps}</p>
-            <a className="setting-link" href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer">
-              {t("settings.open_dashboard")} ↗
-            </a>
-            <Field label={t("settings.client_id")} name="CLIENT_ID" data={data} setData={setData} />
-            <Field label={t("settings.client_secret")} name="CLIENT_SECRET" secret data={data} setData={setData} />
+            <Card icon="list" title={t("settings.how_to")} className="settings-card">
+              <Steps text={data.spotify_steps} />
+              <a className="button setting-link" href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer">
+                <Icon name="link" />{t("settings.open_dashboard")}
+              </a>
+            </Card>
+            <Card icon="account" title={t("settings.keys")} className="settings-card">
+              <Field label={t("settings.client_id")} name="CLIENT_ID" data={data} setData={setData} />
+              <Field label={t("settings.client_secret")} name="CLIENT_SECRET" secret data={data} setData={setData} />
+            </Card>
           </>
         )}
         {tab === "youtube" && (
           <>
-            <p className="steps muted">{t("settings.youtube_steps")}</p>
-            <a className="setting-link" href="https://console.cloud.google.com/apis/library/youtube.googleapis.com"
-               target="_blank" rel="noreferrer">
-              {t("settings.open_console")} ↗
-            </a>
-            <Field label={t("settings.api_key")} name="YOUTUBE_API_KEY" secret data={data} setData={setData} />
-            <Field label={t("settings.oauth_client_id")} name="YOUTUBE_CLIENT_ID" data={data} setData={setData} />
-            <Field label={t("settings.oauth_client_secret")} name="YOUTUBE_CLIENT_SECRET" secret data={data}
-                   setData={setData} />
+            <Card icon="list" title={t("settings.how_to")} className="settings-card">
+              <Steps text={t("settings.youtube_steps")} />
+              <a className="button setting-link" href="https://console.cloud.google.com/apis/library/youtube.googleapis.com"
+                 target="_blank" rel="noreferrer">
+                <Icon name="link" />{t("settings.open_console")}
+              </a>
+            </Card>
+            <Card icon="account" title={t("settings.keys")} className="settings-card">
+              <Field label={t("settings.api_key")} name="YOUTUBE_API_KEY" secret data={data} setData={setData} />
+              <Field label={t("settings.oauth_client_id")} name="YOUTUBE_CLIENT_ID" data={data} setData={setData} />
+              <Field label={t("settings.oauth_client_secret")} name="YOUTUBE_CLIENT_SECRET" secret data={data}
+                     setData={setData} />
+            </Card>
           </>
         )}
         {tab === "general" && (
           <>
-            <Choice label={t("settings.language")} options={data.languages} value={data.language}
-                    onChange={(language) => setData({ ...data, language })} />
-            <Choice label={t("settings.theme")} options={data.themes} value={data.theme}
-                    onChange={(theme) => setData({ ...data, theme })} />
-            <Choice label={t("settings.auto_check")} options={data.auto_checks} value={data.auto_check}
-                    onChange={(value) => setData({ ...data, auto_check: value })} />
-            <p className="setting-note muted">{t("settings.auto_check_note")}</p>
-            <label className="switch setting-switch">
-              <input type="checkbox" checked={data.close_to_tray}
-                     onChange={(event) => setData({ ...data, close_to_tray: event.target.checked })} />
-              <span className="switch-track"><span className="switch-thumb" /></span>
-              {t("settings.close_to_tray")}
-            </label>
-            <label className={`switch setting-switch${data.autostart_supported ? "" : " disabled"}`}>
-              <input type="checkbox" checked={data.autostart} disabled={!data.autostart_supported}
-                     onChange={(event) => setData({ ...data, autostart: event.target.checked })} />
-              <span className="switch-track"><span className="switch-thumb" /></span>
-              {t("settings.autostart")}
-            </label>
-            <p className="setting-note muted">{t("settings.restart_note")}</p>
+            <Card icon="star" title={t("settings.appearance")} className="settings-card">
+              <Choice label={t("settings.language")} options={data.languages} value={data.language}
+                      onChange={(language) => setData({ ...data, language })} />
+              <Choice label={t("settings.theme")} options={data.themes} value={data.theme}
+                      onChange={(theme) => setData({ ...data, theme })} />
+              <p className="setting-note muted">{t("settings.restart_note")}</p>
+            </Card>
+            <Card icon="sync" title={t("settings.checking")} className="settings-card">
+              <Choice label={t("settings.auto_check")} options={data.auto_checks} value={data.auto_check}
+                      onChange={(value) => setData({ ...data, auto_check: value })} />
+              <p className="setting-note muted">{t("settings.auto_check_note")}</p>
+            </Card>
+            <Card icon="device" title={t("settings.background")} className="settings-card">
+              <Switch label={t("settings.close_to_tray")} checked={data.close_to_tray}
+                      onChange={(checked) => setData({ ...data, close_to_tray: checked })} />
+              <Switch label={t("settings.autostart")} checked={data.autostart} disabled={!data.autostart_supported}
+                      onChange={(checked) => setData({ ...data, autostart: checked })} />
+            </Card>
           </>
         )}
-      </section>
+      </div>
       <div className="settings-footer">
         <span className="muted">{message}</span>
-        <button className="button primary" onClick={save}>{t("settings.save")}</button>
+        <button className="button primary" onClick={save}><Icon name="check" />{t("settings.save")}</button>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { get } from "../api";
 import Card from "../components/Card";
 import { IconName } from "../components/Icon";
+import { useTexts } from "../i18n";
 
 interface HelpData {
   title: string;
@@ -13,6 +14,7 @@ interface HelpData {
 }
 
 export default function Help() {
+  const { t } = useTexts();
   const [data, setData] = useState<HelpData | null>(null);
   useEffect(() => {
     get<HelpData>("/api/help").then(setData, () => {});
@@ -26,7 +28,11 @@ export default function Help() {
         {data.topics.map((topic) => (
           <Card key={topic.title} icon={topic.icon} title={topic.title}>
             <p>{topic.why}</p>
-            {topic.todo && <p className="muted">{topic.todo}</p>}
+            {topic.todo && (
+              <div className="help-todo">
+                <p><strong>{t("help.todo")}</strong>{topic.todo}</p>
+              </div>
+            )}
           </Card>
         ))}
       </div>
