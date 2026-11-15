@@ -19,6 +19,7 @@ import time
 
 from playlist_tracker import background
 from playlist_tracker.api import server, wrapped as api_wrapped
+from playlist_tracker.api.playlists import Playlists
 from playlist_tracker.core import account, i18n, sync
 from playlist_tracker.core.config import load_config, save_config
 from playlist_tracker.music import nowplaying
@@ -52,16 +53,19 @@ def set_tracking(tracker: nowplaying.LocalTracker, enabled: bool) -> None:
     emit("recording", enabled=enabled)
 
 
-def forward(commands) -> None:
+def forward(commands, playlists: Playlists) -> None:
     """Requests of later copies and results of the background work, as events for the window."""
     while True:
         command = commands.get()
         if command == "show":
             emit("show")
         elif isinstance(command, tuple) and command[0] == "checked":
-            emit("checked", service=command[1])
+            # Results of the automatic check: ("checked", service name, results)
+            playlists.show_results(command[1], command[2], automatic=True)
         elif isinstance(command, tuple) and command[0] == "synced":
-            emit("synced")
+            # What the sync brought: plays, playlists tracked elsewhere, changes found elsewhere, settings
+            result = command[1] or {}
+            emit("synced", **{key: bool(result.get(key)) for key in ("received", "playlists", "events", "settings")})
 
 
 def watch_plays(tracker: nowplaying.LocalTracker) -> None:
@@ -98,6 +102,7 @@ def main() -> None:
     i18n.set_language(load_config().get("LANGUAGE"))
     instance = background.SingleInstance()
     owner = instance.acquire()
+    playlists = Playlists(emit)
     tracker = checker = None
     if owner:
         account.end_unremembered_session()
@@ -112,9 +117,9 @@ def main() -> None:
         checker.start()
         sync.syncer = sync.Syncer(lambda result: commands.put(("synced", result)))
         sync.syncer.start()
-        threading.Thread(target=forward, args=(commands,), name="events", daemon=True).start()
+        threading.Thread(target=forward, args=(commands, playlists), name="events", daemon=True).start()
 
-    api = server.start(server.Api(token, tracker, lambda enabled: set_tracking(tracker, enabled), emit))
+    api = server.start(server.Api(token, tracker, lambda enabled: set_tracking(tracker, enabled), emit, playlists))
     emit("ready", port=api.server_address[1], recording=owner)
     try:
         # Until the window's process ends and closes our stdin

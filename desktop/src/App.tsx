@@ -5,13 +5,15 @@ import { AppInfo, makeTexts, TextsContext } from "./i18n";
 import MiniPlayer from "./components/MiniPlayer";
 import { NowPlayingContext, useNowPlayingPoll } from "./nowPlaying";
 import Listening, { OpenRequest } from "./pages/Listening";
+import Playlists from "./pages/Playlists";
+import { DialogProvider } from "./components/Dialog";
 
 type Section = "listening" | "playlists" | "account" | "settings" | "help";
 
-// The sections of the Tk window's sidebar; only the statistics are moved over so far
+// The sections of the Tk window's sidebar; the ones not moved over yet are greyed out
 const SECTIONS: { name: Section; label: string; icon: IconName; ready: boolean }[] = [
   { name: "listening", label: "nav.listening", icon: "music", ready: true },
-  { name: "playlists", label: "nav.playlists", icon: "list", ready: false },
+  { name: "playlists", label: "nav.playlists", icon: "list", ready: true },
   { name: "account", label: "nav.account", icon: "account", ready: false },
   { name: "help", label: "nav.help", icon: "help", ready: false },
   { name: "settings", label: "settings.title", icon: "settings", ready: false },
@@ -47,6 +49,7 @@ export default function App() {
   return (
     <TextsContext.Provider value={texts}>
       <NowPlayingContext.Provider value={now}>
+      <DialogProvider>
       <div className="shell">
         <nav className="sidebar">
           <div className="brand">
@@ -68,10 +71,12 @@ export default function App() {
         <main className="main">
           <div className="content">
             <div hidden={section !== "listening"}><Listening request={request} /></div>
+            <div hidden={section !== "playlists"}><Playlists /></div>
           </div>
           <MiniPlayer openTrack={openTrack} />
         </main>
       </div>
+      </DialogProvider>
       </NowPlayingContext.Provider>
     </TextsContext.Provider>
   );

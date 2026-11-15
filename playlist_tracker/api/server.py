@@ -15,6 +15,7 @@ from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
 from playlist_tracker.api import detail, listening, overview, sections, wrapped
+from playlist_tracker.api.playlists import Playlists
 from playlist_tracker.core import i18n
 from playlist_tracker.core.config import load_config
 from playlist_tracker.music import artwork
@@ -26,8 +27,10 @@ class Api:
     # What was found in the background (genres, artist facts, track lists) is told to the window at most this often
     FOUND_EVENT_SECONDS = 3
 
-    def __init__(self, token: str, tracker, set_tracking: Callable[[bool], None], emit: Callable[..., None]):
+    def __init__(self, token: str, tracker, set_tracking: Callable[[bool], None], emit: Callable[..., None],
+                 playlists: Playlists):
         self.token = token
+        self.playlists = playlists
         self.emit = emit
         self._found_timers: dict[str, threading.Timer] = {}
         self._found_lock = threading.Lock()
@@ -43,6 +46,16 @@ class Api:
             ("GET", "/api/wrapped"): lambda query, body: wrapped.summary(query["id"]),
             ("GET", "/api/wrapped/due"): lambda query, body: wrapped.due(query.get("force") == "1"),
             ("GET", "/api/now"): self.now,
+            ("GET", "/api/services"): lambda q, b: playlists.services(),
+            ("GET", "/api/playlists"): lambda q, b: playlists.page(q["service"]),
+            ("POST", "/api/playlists/toggle"): lambda q, b: playlists.toggle(b["service"], b["id"]),
+            ("POST", "/api/playlists/all"): lambda q, b: playlists.set_all(b["service"], bool(b["tracked"])),
+            ("POST", "/api/playlists/login"): lambda q, b: playlists.login(b["service"]),
+            ("POST", "/api/playlists/load"): lambda q, b: playlists.load(b["service"]),
+            ("POST", "/api/playlists/add"): lambda q, b: playlists.add(b["service"], b["link"]),
+            ("POST", "/api/playlists/check"): lambda q, b: playlists.check(b["service"]),
+            ("GET", "/api/history"): lambda q, b: playlists.history(q["service"], q.get("playlist"), q.get("event")),
+            ("POST", "/api/history/export"): lambda q, b: playlists.export(b["service"], b["path"]),
             ("GET", "/api/recent"): self.recent,
             ("GET", "/api/recording"): self.get_recording,
             ("POST", "/api/recording"): self.set_recording,

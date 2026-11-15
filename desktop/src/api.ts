@@ -15,6 +15,7 @@ declare global {
   interface Window {
     tracker: {
       backend: () => Promise<Connection>;
+      savePath: (name: string, filter: string) => Promise<string | null>;
       onEvent: (listener: (message: BackendEvent) => void) => () => void;
     };
   }

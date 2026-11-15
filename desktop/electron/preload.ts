@@ -4,6 +4,7 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 
 contextBridge.exposeInMainWorld("tracker", {
   backend: () => ipcRenderer.invoke("backend"),
+  savePath: (name: string, filter: string) => ipcRenderer.invoke("save-path", name, filter),
   onEvent: (listener: (message: unknown) => void) => {
     const handler = (_event: IpcRendererEvent, message: unknown) => listener(message);
     ipcRenderer.on("backend-event", handler);

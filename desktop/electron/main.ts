@@ -3,7 +3,7 @@
  * so recording goes on after the window is closed. Quitting is done from the tray menu.
  */
 
-import { app, BrowserWindow, ipcMain, Menu, nativeTheme, Notification, shell, Tray } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, Notification, shell, Tray } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { Backend, BackendEvent } from "./backend";
@@ -173,6 +173,14 @@ async function start(): Promise<void> {
   }
 
   ipcMain.handle("backend", () => backend.connection);
+  // Where to save a file (the history as CSV): the chosen path, or null when cancelled
+  ipcMain.handle("save-path", async (_event, name: string, filter: string) => {
+    const result = await dialog.showSaveDialog(window!, {
+      defaultPath: name,
+      filters: [{ name: filter, extensions: [path.extname(name).slice(1)] }],
+    });
+    return result.canceled ? null : result.filePath;
+  });
   tray = new Tray(ICON);
   tray.setToolTip(t("app.title"));
   tray.on("click", showWindow);
