@@ -1,6 +1,6 @@
 """
-The account as data and actions for the desktop window, as the Tk window's account page (ui/account_page.py) and
-login screen (ui/login_screen.py): the profile, how syncing goes, this computer's plays, and logging in, out,
+The account as data and actions for the desktop window, as the earlier window's account page and
+login screen: the profile, how syncing goes, this computer's plays, and logging in, out,
 reading the account again and syncing now. Each action runs on a thread of its own and ends with an "account"
 event: state "done" (message) or "error" (message).
 """
@@ -15,7 +15,7 @@ from playlist_tracker.core import account, sync
 from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.music import artwork, listening
-from playlist_tracker.ui.stats.text import month_name
+from playlist_tracker.music.text import month_name
 
 AVATAR_PATH = artwork.ART_DIR / "account" / "avatar.jpg"
 

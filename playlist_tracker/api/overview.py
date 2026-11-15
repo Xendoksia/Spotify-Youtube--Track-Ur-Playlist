@@ -1,6 +1,6 @@
 """
-The statistics overview as data for the desktop window (desktop/): the same numbers and texts as the Tk
-overview (ui/stats/overview.py), with changes named by kind instead of color so the window picks the colors.
+The statistics overview as data for the desktop window (desktop/): the same numbers and texts as the earlier
+window's overview, with changes named by kind instead of color so the window picks the colors.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from urllib.parse import urlencode
 
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.music import listening
-from playlist_tracker.ui.stats.text import (duration_text, hour_buckets, month_name, period_title, plays_text,
+from playlist_tracker.music.text import (duration_text, hour_buckets, month_name, period_title, plays_text,
                                             summary_text, tracks_text)
 
 TOP_COUNT = 10

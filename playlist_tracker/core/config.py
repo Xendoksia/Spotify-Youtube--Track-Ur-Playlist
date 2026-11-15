@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 
-# Settings and history live next to the program: app.py, or the .exe when it is built with PyInstaller. The
+# Settings and history live next to the program: the repository, or the backend .exe built by build.py. The
 # installed desktop window (desktop/) keeps them in a folder of its own, which it names in PLAYLIST_TRACKER_DATA
 _DATA_DIR = os.environ.get("PLAYLIST_TRACKER_DATA")
 BASE_DIR = (Path(_DATA_DIR) if _DATA_DIR

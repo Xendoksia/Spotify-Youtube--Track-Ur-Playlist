@@ -16,7 +16,6 @@ import queue
 import re
 import threading
 import time
-import tkinter as tk
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -45,7 +44,7 @@ LATER = 1
 _lock = threading.Lock()
 _cache: dict | None = None
 _queue: queue.PriorityQueue = queue.PriorityQueue()
-_waiting: dict[str, list[tuple[object, Callable[[], None]]]] = {}
+_waiting: dict[str, list[Callable[[], None]]] = {}
 _worker: threading.Thread | None = None
 _last_request = 0.0
 _order = 0
@@ -179,14 +178,10 @@ def _work():
                 _save()
             callbacks = _waiting.pop(artist_key, [])
         if facts is not None:
-            for widget, done in callbacks:
-                # Without a Tk widget (the desktop backend) the callback runs on this thread
-                if widget is None:
-                    done()
-                    continue
+            for done in callbacks:
                 try:
-                    widget.after(0, done)
-                except (RuntimeError, tk.TclError):  # the window was closed meanwhile
+                    done()
+                except Exception:  # one listener's failure must not stop the others or the lookups
                     pass
 
 
@@ -203,9 +198,8 @@ def waiting(artist_key: str) -> bool:
         return artist_key in _waiting
 
 
-def request(artist: str, artist_key: str, widget, done: Callable[[], None], priority: int = FIRST) -> dict | None:
-    """Return the cached facts, or look them up in the background and call done on the Tk thread (or on the
-    lookup thread when widget is None)."""
+def request(artist: str, artist_key: str, done: Callable[[], None], priority: int = FIRST) -> dict | None:
+    """Return the cached facts, or look them up in the background and call done on the lookup thread."""
     global _worker, _order
     with _lock:
         facts = _load()["artists"].get(artist_key)
@@ -213,8 +207,8 @@ def request(artist: str, artist_key: str, widget, done: Callable[[], None], prio
             return facts if "missing" not in facts else None
         first_request = artist_key not in _waiting
         callbacks = _waiting.setdefault(artist_key, [])
-        if (widget, done) not in callbacks:
-            callbacks.append((widget, done))
+        if done not in callbacks:
+            callbacks.append(done)
         if first_request or priority == FIRST:
             # An artist page asked while the genre share is still filling in jumps the queue
             _order += 1

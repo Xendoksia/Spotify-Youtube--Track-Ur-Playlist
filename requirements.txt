@@ -1,7 +1,5 @@
-# Optional: album covers and artist photos in the listening statistics, and the tray icon
+# Optional: album covers and artist photos in the listening statistics, and the album collage
 Pillow
-# Optional: system tray icon (keeps recording after the window is closed)
-pystray
 # Optional: lets listening history read album, cover and playback position from Windows' media controls
 winrt-runtime; sys_platform == "win32"
 winrt-Windows.Foundation; sys_platform == "win32"

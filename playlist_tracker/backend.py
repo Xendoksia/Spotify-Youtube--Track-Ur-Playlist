@@ -1,6 +1,6 @@
 """
-The app without its Tk window, started by the desktop window (desktop/, Electron): records listening, checks
-playlists and syncs like main.py, and serves the window's data through api/server.py.
+The app behind the desktop window (desktop/, Electron), which starts it: records listening, checks playlists and
+syncs, and serves the window's data through api/server.py.
 
 Events go to the window as JSON lines on stdout ({"event": "ready", "port": ...} first); the backend stops
 when stdin closes, which happens when the window's process ends. The token for the API is read from the
@@ -23,7 +23,7 @@ from playlist_tracker.api.account import Account
 from playlist_tracker.api.playlists import Playlists
 from playlist_tracker.core import account, i18n, sync
 from playlist_tracker.core.config import BASE_DIR, load_config, save_config
-from playlist_tracker.music import nowplaying
+from playlist_tracker.music import artwork, nowplaying
 from playlist_tracker.playlists.auto_check import AutoChecker
 
 _emit_lock = threading.Lock()
@@ -85,7 +85,7 @@ def watch_plays(tracker: nowplaying.LocalTracker) -> None:
 
 def notify_summaries() -> None:
     """On the first days of a month, say once that the summary of the month before (and in January, of the year
-    before) is ready, as the Tk window did; looked at every 10 minutes, so it also comes when the month turns."""
+    before) is ready, as the earlier window did; looked at every 10 minutes, so it also comes when the month turns."""
     time.sleep(SUMMARY_FIRST_SECONDS)
     while True:
         try:
@@ -137,6 +137,9 @@ def main() -> None:
             tracker.start()
         threading.Thread(target=watch_plays, args=(tracker,), name="plays", daemon=True).start()
         threading.Thread(target=notify_summaries, name="summaries", daemon=True).start()
+        # Plays stored without a listening time by an early version get their track's length
+        threading.Thread(target=artwork.fill_missing_lengths, args=(lambda: emit("plays"),), name="lengths",
+                         daemon=True).start()
         commands = instance.requests
         checker = AutoChecker(lambda message: emit("notify", message=message),
                               lambda service, results: commands.put(("checked", service, results)))

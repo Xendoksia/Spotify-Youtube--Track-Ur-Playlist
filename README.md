@@ -17,10 +17,12 @@ and compares it with the previous one, so the title, artist and original add dat
 | **Artist page:** plays over time, most played tracks and a few words about the artist | **Recently played**, by day, with the song playing now and the mini player along the bottom |
 | ![Playlist tracking](docs/playlists.png) | ![Light theme](docs/statistics-light.png) |
 | **Playlist tracking:** tracked playlists with their last check and latest changes | **Light theme**, or follow the Windows setting |
-| ![Login](docs/login.png) | ![How it works](docs/help.png) |
-| **Login** with Google to sync between devices, or go on without an account | **How it works:** what Spotify and YouTube allow, and why |
+| ![How it works](docs/help.png) | |
+| **How it works:** what Spotify and YouTube allow, and why | |
 
-The screenshots are taken with `python docs/screenshots.py` (Windows, with the app closed).
+The screenshots are taken by the window itself: `PLAYLIST_TRACKER_SCREENSHOT=file.png npx electron .` in
+`desktop/` saves the page a few seconds after it opens and quits (`PLAYLIST_TRACKER_SCREENSHOT_JS` runs in the page
+first, e.g. to click a section).
 
 ## Features
 
@@ -52,30 +54,31 @@ The screenshots are taken with `python docs/screenshots.py` (Windows, with the a
   Click a track or artist for its own page: first and last play, totals, plays over time and an
   artist's most played tracks; an album's page lists all its tracks with how often you played each.
   An artist's page also says in a sentence or two what kind of band or artist it is,
-  where and when it started and who its members are (from MusicBrainz, no account needed). Pages open in the statistics tab, with back / forward buttons (Alt+← / Alt+→) and
-  a close button (Esc).
+  where and when it started and who its members are (from MusicBrainz, no account needed). Pages open in the
+  statistics, with back / forward buttons (Alt+← / Alt+→) and a close button (Esc).
 - **Monthly summary:** a month in review, slide by slide: time listened, song and artist of the month, top
   fives, discoveries, busiest day and hour, genres and a closing overview. It is there on the 1st and 2nd of
-  each month for the month before: it opens by itself once, and from the **Monthly summary** button.
+  each month for the month before (in January for the year before too): it opens by itself once, a notification
+  says it is ready, and until you open it it waits behind the bell of the statistics.
 - **Mini player:** a strip along the bottom of the window shows the song playing in Spotify with its cover and
   progress; clicking it opens the song's page.
 - **Runs in the background:** closing the window keeps the app in the system tray, where recording can be
   paused; it can also start with Windows. Only one copy runs at a time, opening it again shows the window.
+- **Installer for Windows:** the app installs like any other program and needs no Python or Node on the computer.
 - **Account and sync:** log in with Google to sync your plays and the playlists you track between your devices
   (through [Supabase](https://supabase.com)). "Remember me" opens the app straight away next time; everything
   also works without an account, and your data stays on your computer as the main copy.
 - **How it works** page: what Spotify and YouTube let an app read, and what you can do about it
 - English and Turkish interface, light and dark theme (or follow the Windows setting), under **Settings → General**
-- The window opens centered and scales with the screen: text, pictures and spacing grow or shrink together, so
-  it looks the same on a laptop, a 1440p or a 4K screen, and stays sharp on high DPI displays
-- Playlist tracking needs only the Python standard library. On Windows, `pip install -r requirements.txt` adds
-  the tray icon, album covers, artist photos and the album and playback position of the playing song (without it the Spotify
-  window title is used and the statistics show initials instead of pictures).
+- The window is an [Electron](https://www.electronjs.org) app written in React and TypeScript (`desktop/`); the
+  recording, checks, sync and statistics are Python (`playlist_tracker/`), which the window starts behind itself
+  and talks to on `127.0.0.1`. The command line uses the same Python code.
 
 ## Requirements
 
-- Windows, macOS or Linux
-- [Python 3.9+](https://www.python.org/downloads/). On Windows, tick "Add Python to PATH" during installation.
+- Windows (the listening history reads Windows' media controls; the command line also runs on macOS and Linux)
+- To use the installer: nothing else. To build it or run from the code: [Python 3.9+](https://www.python.org/downloads/)
+  (tick "Add Python to PATH") and [Node.js 22.12+](https://nodejs.org).
 - A Spotify account. Spotify requires the account that creates a developer app to be **Premium**.
 
 ## Setup
@@ -111,36 +114,9 @@ Go to **OAuth consent screen** (or **Google Auth Platform → Audience**) → **
 exact Gmail address you log in with and try again. You do not need to publish or verify the app. The
 "Google hasn't verified this app" warning is expected: click **Continue** (under **Advanced** if hidden).
 
-### 3. Run the app
+### 3. Install or run the app
 
-```
-python app.py
-```
-
-On Windows you can also double-click **`Spotify Playlist Tracker.bat`**.
-
-#### Build a single .exe (Windows, optional)
-
-```
-python -m pip install pyinstaller -r requirements.txt
-python build.py
-```
-
-This creates `dist\Spotify Playlist Tracker.exe`, which runs without Python. It keeps its settings and history
-next to itself: to take your existing data along, copy `config.json` and the `.db` files into the same folder.
-
-#### The desktop app (Windows)
-
-The new window is an Electron app in `desktop/`, with the Python code running behind it. To try it from the code
-(close the older window first, only one of them records):
-
-```
-cd desktop
-npm install
-npm start
-```
-
-To build its installer, which needs no Python or Node on the computer it is installed on:
+Build the installer once and run it:
 
 ```
 python -m pip install pyinstaller -r requirements.txt
@@ -149,17 +125,27 @@ npm install
 npm run dist
 ```
 
-This creates `desktop\release\Playlist Tracker Setup 1.0.0.exe`. The installed app keeps its data in
-`%APPDATA%\Playlist Tracker`. On its first start it copies the settings, histories and pictures of the older window
-there (found from the older window's Start with Windows entry), and takes over that entry.
+This creates `desktop\release\Playlist Tracker Setup 1.0.0.exe`. It is not signed, so Windows asks whether to run
+it: **More info → Run anyway**. The installed app keeps its data in `%APPDATA%\Playlist Tracker`. If an earlier
+version of the app started with Windows, its settings, histories and pictures are copied there on the first start,
+and the new app starts with Windows in its place.
 
-On first launch, enter your Client ID and Client Secret in the settings window. Then click **Log in with Spotify**
-and approve access in the browser. You only need to do this once; the app remembers your session.
+To run it from the code instead, with its data in the repository folder:
+
+```
+python -m pip install -r requirements.txt
+cd desktop
+npm install
+npm start
+```
+
+On first launch, enter your Client ID and Client Secret in **Settings → Spotify**. Then click **Log in with
+Spotify** under **Playlist tracking** and approve access in the browser. You only need to do this once; the app remembers your session.
 
 ## Usage
 
 1. Click **Load my Spotify playlists**.
-2. Click the **☐** box of each playlist you want to track. Double-click a playlist to open it in Spotify.
+2. Click each playlist you want to track; **Open ↗** opens it in Spotify.
 3. Click **▶ Check selected**.
 4. See the results in the **History** tab and optionally **Export CSV**.
 
@@ -186,8 +172,8 @@ python cli.py listening recent                                       # last reco
 python cli.py listening stats month                                  # most played this week/month/year/all
 ```
 
-To use the command line without the GUI, copy `config.example.json` to `config.json` and fill in
-your Client ID and Client Secret.
+The command line uses the data in the repository folder. To use it without the window, copy
+`config.example.json` to `config.json` and fill in your Client ID and Client Secret.
 
 ### Tests
 
@@ -230,7 +216,8 @@ The tests use only the standard library and never touch your databases, `config.
 
 ## Data and privacy
 
-All data stays on your computer, in the app folder:
+All data stays on your computer: in `%APPDATA%\Playlist Tracker` for the installed app, in the repository folder
+when it runs from the code:
 
 | File | Contents |
 |---|---|
@@ -248,18 +235,18 @@ the artist and track names are sent, no account is involved).
 
 | File | Description |
 |---|---|
-| `app.py` | Starts the graphical interface |
+| `desktop/` | The window: Electron (`electron/`: window, tray icon, starting the Python side) and React (`src/`) |
+| `desktop/src/pages/` | Statistics and their pages, recently played, the summary, playlist tracking, account, settings |
 | `cli.py` | Command line |
+| `build.py` | Builds the Python side into a program of its own for the installer (PyInstaller) |
 | `tests/` | Tests (`python -m unittest`) |
-| `docs/screenshots.py` | Takes the screenshots of this README |
 | `supabase/migrations/` | Tables of the sync, applied with `npx supabase db push` |
-| `build.py` | Builds the single-file Windows program with PyInstaller |
-| `Spotify Playlist Tracker.bat` | Double-click launcher for Windows |
+| `mobile/` | The phone app (Flutter) |
 | `config.example.json` | Sample configuration file |
-| `playlist_tracker/main.py` | Startup: single running copy, listening recorder and tray icon |
-| `playlist_tracker/background.py` | System tray icon, single running copy and starting with Windows |
-| `playlist_tracker/core/` | Settings (`config.py`), English and Turkish texts (`i18n.py`), shared error and text formats |
+| `playlist_tracker/backend.py` | The Python side the window starts: recording, automatic checks, sync and the API |
+| `playlist_tracker/api/` | The window's data and actions, served on `127.0.0.1` behind a token (`server.py`) |
+| `playlist_tracker/background.py` | Single recording copy, the app's icon and starting with Windows |
+| `playlist_tracker/migrate.py` | Copies an earlier version's data into the installed app's folder |
+| `playlist_tracker/core/` | Settings (`config.py`), English and Turkish texts (`i18n.py`), account and sync, shared formats |
 | `playlist_tracker/playlists/` | Spotify and YouTube clients, login redirect, playlist history and comparison (`history.py`) |
-| `playlist_tracker/music/` | Listening history (`listening.py`), recording what Spotify plays (`nowplaying.py`), covers and artist photos (`artwork.py`), artist facts (`artist_info.py`), album collage |
-| `playlist_tracker/ui/` | Interface (tkinter): main window, playlist tabs, history, settings, listening section, mini player, theme and charts |
-| `playlist_tracker/ui/stats/` | Statistics tab: overview, its sections, track / artist / album pages and the monthly summary |
+| `playlist_tracker/music/` | Listening history (`listening.py`), recording what Spotify plays (`nowplaying.py`), covers and artist photos (`artwork.py`), artist facts (`artist_info.py`), album collage, the summary's rules |

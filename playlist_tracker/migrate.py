@@ -1,7 +1,7 @@
 """
 Moving the data to the installed desktop window's folder: the first time it starts with an empty folder, the
 settings, histories and pictures are copied from where the earlier program kept them. That place is found from
-the command Windows starts the earlier program with (app.py's or the .exe's folder).
+the command Windows starts the earlier program with (its app.py's or .exe's folder).
 """
 
 from __future__ import annotations

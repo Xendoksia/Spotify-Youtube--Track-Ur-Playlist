@@ -188,7 +188,8 @@ async function start(): Promise<void> {
   const early: BackendEvent[] = [];
   let started = false;
   backend.on("event", (message: BackendEvent) => (started ? onBackendEvent(message) : early.push(message)));
-  let launch = developmentLaunch();
+  // How Windows starts the app at login, when that is turned on in the settings
+  let launch = developmentLaunch(`"${process.execPath}" "${app.getAppPath()}" --minimized`);
   if (app.isPackaged) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     launch = installedLaunch(DATA_DIR, CUSTOM_DATA_DIR ? "" : `"${process.execPath}" --minimized`);

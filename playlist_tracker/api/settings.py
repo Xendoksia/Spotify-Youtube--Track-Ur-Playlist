@@ -1,5 +1,5 @@
 """
-Settings as data for the desktop window, as the Tk window's settings page (ui/settings_page.py): the Spotify and
+Settings as data for the desktop window, as the earlier window's settings page: the Spotify and
 YouTube credentials, language, theme, the automatic check and running in the background. Saving follows the
 same rules, and a changed language or theme is told to the window (and to other devices by syncing).
 """

@@ -1,7 +1,7 @@
 """
 The overview's cards below the charts as data for the desktop window: discoveries (or, over all time, the
 forgotten tracks), diversity, milestones, genres, genres over time and the album collage. The same counts
-and texts as the Tk cards (ui/stats/sections.py).
+and texts as the earlier window's cards.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import format_date
 from playlist_tracker.music import artist_info, artwork, collage, listening
 from playlist_tracker.music.listening import key, name_variants
-from playlist_tracker.ui.stats.text import month_name, plays_text, summary_text, tracks_text
+from playlist_tracker.music.text import month_name, plays_text, summary_text, tracks_text
 
 DISCOVERY_COUNT = 5
 FORGOTTEN_COUNT = 10
@@ -248,7 +248,7 @@ def genre_share(start: datetime, end: datetime, arrived: Callable[[], None]) -> 
     found: dict[str, dict] = {}
     waiting = 0
     for artist in artists:
-        facts = artist_info.request(artist["name"], artist["key"], None, arrived, priority=artist_info.LATER)
+        facts = artist_info.request(artist["name"], artist["key"], arrived, priority=artist_info.LATER)
         if facts and facts["genres"]:
             genre = found.setdefault(facts["genres"][0], {"plays": 0, "artists": []})
             genre["plays"] += artist["plays"]
@@ -284,39 +284,79 @@ def main_genre(artist_key: str) -> str | None:
     return facts["genres"][0] if facts and facts["genres"] else None
 
 
+def yearly_shift(period: str, days: list) -> bool:
+    """All time past three years goes by year."""
+    if period != "all" or not days:
+        return False
+    first = datetime.strptime(days[0][0], "%Y-%m-%d")
+    today = datetime.now()
+    return (today.year - first.year) * 12 + today.month - first.month >= GENRE_SHIFT_MAX_MONTHS
+
+
+def shift_bucket(period: str, day: str, yearly: bool) -> str:
+    """The column a day ('%Y-%m-%d') falls in: the day of a week, the week of a month, the month of a year."""
+    if yearly:
+        return day[:4]
+    if period == "week":
+        return day
+    if period == "month":
+        # A week begins on Monday, or on the 1st when the month begins in the middle of it
+        moment = datetime.strptime(day, "%Y-%m-%d")
+        return max(moment - timedelta(days=moment.weekday()), moment.replace(day=1)).strftime("%Y-%m-%d")
+    return day[:7]
+
+
+def shift_label(period: str, bucket: str, yearly: bool) -> str:
+    if yearly:
+        return bucket
+    if period == "week":
+        return t("stats.weekdays").split(",")[datetime.strptime(bucket, "%Y-%m-%d").weekday()]
+    if period == "month":
+        moment = datetime.strptime(bucket, "%Y-%m-%d")
+        return f"{moment.day} {month_name(moment.month, True)}"
+    year, month = int(bucket[:4]), int(bucket[5:7])
+    return month_name(month, True) + (f" {year % 100:02d}" if period == "all" else "")
+
+
+def shift_buckets(period: str, start: datetime, end: datetime, first_day: str | None, yearly: bool) -> list[str]:
+    """Every column of the period in order, also the ones without plays, up to today; all time starts at the
+    first play (first_day)."""
+    if period == "all":
+        if first_day is None:
+            return []
+        start = datetime.strptime(first_day, "%Y-%m-%d").astimezone()
+    keys: list[str] = []
+    day = start
+    today = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+    last = min(end, today + timedelta(days=1))
+    while day < last:
+        bucket = shift_bucket(period, day.strftime("%Y-%m-%d"), yearly)
+        if bucket not in keys:
+            keys.append(bucket)
+        day += timedelta(days=1)
+    return keys
+
+
+def shift_column(label: str, counts: dict[str, int], top: list[str]) -> dict:
+    """One column: the shares of the top genres (series 0-3) and of the rest ("other"), bottom first."""
+    total = sum(counts.values())
+    if not total:
+        return {"label": label, "segments": [], "tooltip": f"{label}\n{t('stats.genres.none')}"}
+    others = total - sum(counts.get(name, 0) for name in top)
+    segments = [{"series": index, "share": counts.get(name, 0) / total} for index, name in enumerate(top)]
+    segments.append({"series": "other", "share": others / total})
+    lines = [f"{capitalized(name)}: {percent(share(counts.get(name, 0), total))}" for name in top if counts.get(name)]
+    if others:
+        lines.append(f"{t('stats.genre_shift.other')}: {percent(share(others, total))}")
+    return {"label": label, "segments": segments, "tooltip": "\n".join([label, *lines])}
+
+
 def genre_shift(period: str, start: datetime, end: datetime) -> dict:
     """How the share of the period's main genres changed over it: per day of a week, per week of a month, per
     month of a year (or of all time, per year past three years). The biggest genres get a color (series 0-3),
     the rest is "other"; plays by artists of unknown genre are left out."""
     days = listening.artist_days(start, end)
-    yearly = False
-    if period == "all" and days:
-        first = datetime.strptime(days[0][0], "%Y-%m-%d")
-        today = datetime.now()
-        yearly = (today.year - first.year) * 12 + today.month - first.month >= GENRE_SHIFT_MAX_MONTHS
-
-    def bucket_of(day: str) -> str:
-        if yearly:
-            return day[:4]
-        if period == "week":
-            return day
-        if period == "month":
-            # A week begins on Monday, or on the 1st when the month begins in the middle of it
-            moment = datetime.strptime(day, "%Y-%m-%d")
-            return max(moment - timedelta(days=moment.weekday()), moment.replace(day=1)).strftime("%Y-%m-%d")
-        return day[:7]
-
-    def label_of(bucket: str) -> str:
-        if yearly:
-            return bucket
-        if period == "week":
-            return t("stats.weekdays").split(",")[datetime.strptime(bucket, "%Y-%m-%d").weekday()]
-        if period == "month":
-            moment = datetime.strptime(bucket, "%Y-%m-%d")
-            return f"{moment.day} {month_name(moment.month, True)}"
-        year, month = int(bucket[:4]), int(bucket[5:7])
-        return month_name(month, True) + (f" {year % 100:02d}" if period == "all" else "")
-
+    yearly = yearly_shift(period, days)
     buckets: dict[str, dict[str, int]] = {}
     totals: dict[str, int] = {}
     known = 0
@@ -325,46 +365,17 @@ def genre_shift(period: str, start: datetime, end: datetime) -> dict:
         if genre is None:
             continue
         known += plays
-        counts = buckets.setdefault(bucket_of(day), {})
+        counts = buckets.setdefault(shift_bucket(period, day, yearly), {})
         counts[genre] = counts.get(genre, 0) + plays
         totals[genre] = totals.get(genre, 0) + plays
     top = [name for name, _ in sorted(totals.items(), key=lambda item: -item[1])[:GENRE_SHIFT_COUNT]]
-
-    # Every bucket of the period in order, also the ones without plays, up to today; all time starts at
-    # the first play
-    keys: list[str] = []
-    if days:
-        day = datetime.strptime(days[0][0], "%Y-%m-%d").astimezone() if period == "all" else start
-        today = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
-        last = min(end, today + timedelta(days=1))
-        while day < last:
-            bucket = bucket_of(day.strftime("%Y-%m-%d"))
-            if bucket not in keys:
-                keys.append(bucket)
-            day += timedelta(days=1)
-
-    columns = []
-    other_name = t("stats.genre_shift.other")
-    for bucket in keys:
-        counts = buckets.get(bucket, {})
-        total = sum(counts.values())
-        label = label_of(bucket)
-        if not total:
-            columns.append({"label": label, "segments": [], "tooltip": f"{label}\n{t('stats.genres.none')}"})
-            continue
-        others = total - sum(counts.get(name, 0) for name in top)
-        segments = [{"series": index, "share": counts.get(name, 0) / total} for index, name in enumerate(top)]
-        segments.append({"series": "other", "share": others / total})
-        lines = [f"{capitalized(name)}: {percent(share(counts.get(name, 0), total))}" for name in top if counts.get(name)]
-        if others:
-            lines.append(f"{other_name}: {percent(share(others, total))}")
-        columns.append({"label": label, "segments": segments, "tooltip": "\n".join([label, *lines])})
-
+    keys = shift_buckets(period, start, end, days[0][0] if days else None, yearly)
+    columns = [shift_column(shift_label(period, key, yearly), buckets.get(key, {}), top) for key in keys]
     others = known - sum(totals[name] for name in top)
     legend = [{"series": index, "text": f"{capitalized(name)}  {percent(share(totals[name], known))}"}
               for index, name in enumerate(top)]
     if others:
-        legend.append({"series": "other", "text": f"{other_name}  {percent(share(others, known))}"})
+        legend.append({"series": "other", "text": f"{t('stats.genre_shift.other')}  {percent(share(others, known))}"})
     unit = "year" if yearly else period
     return {
         "title": t("stats.genre_shift"),

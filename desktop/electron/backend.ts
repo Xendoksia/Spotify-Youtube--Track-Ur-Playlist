@@ -34,9 +34,9 @@ export interface Launch {
 // The repository root, where the playlist_tracker package and, while developing, the databases are
 const ROOT = path.resolve(__dirname, "..", "..");
 
-export function developmentLaunch(): Launch {
+export function developmentLaunch(autostart: string): Launch {
   return { command: process.env.PLAYLIST_TRACKER_PYTHON ?? "python", args: ["-m", "playlist_tracker.backend"],
-           cwd: ROOT, env: {} };
+           cwd: ROOT, env: { PLAYLIST_TRACKER_AUTOSTART: autostart } };
 }
 
 export function installedLaunch(dataDir: string, autostart: string): Launch {

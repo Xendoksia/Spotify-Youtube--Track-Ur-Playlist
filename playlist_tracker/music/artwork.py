@@ -9,7 +9,6 @@ without it the statistics show placeholders.
 
 from __future__ import annotations
 
-import colorsys
 import hashlib
 import io
 import json
@@ -19,7 +18,6 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
@@ -28,7 +26,7 @@ from playlist_tracker.music import listening
 from playlist_tracker.music.listening import key, name_variants
 
 try:
-    from PIL import Image, ImageDraw, ImageTk
+    from PIL import Image
 except ImportError:
     Image = None
 
@@ -239,112 +237,3 @@ def fill_missing_lengths(done: Callable[[], None]) -> None:
         changed = True
     if changed:
         done()
-
-
-class Fetcher:
-    """Downloads missing images in the background and reports back on the Tk thread."""
-
-    def __init__(self, widget):
-        self.widget = widget
-        self._pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="artwork")
-        self._pending: set[Path] = set()
-        self._lock = threading.Lock()
-
-    def cover(self, artist: str, album: str, name: str, done: Callable[[], None]) -> Path | None:
-        path = cover_path(artist, album, name)
-        return self._get_or_fetch(path, lambda: _find_cover(artist, name), done)
-
-    def artist(self, artist: str, done: Callable[[], None]) -> Path | None:
-        path = artist_path(artist)
-        return self._get_or_fetch(path, lambda: _find_artist_photo(artist), done)
-
-    def _get_or_fetch(self, path: Path, find: Callable[[], str | None], done) -> Path | None:
-        if path.exists():
-            return path
-        if not available or _recently_missed(path):
-            return None
-        with self._lock:
-            if path in self._pending:
-                return None
-            self._pending.add(path)
-        self._pool.submit(self._fetch, path, find, done)
-        return None
-
-    def _fetch(self, path: Path, find, done):
-        try:
-            url = find()
-            if url and save_image(_get(url, as_json=False), path):
-                self.widget.after(0, done)
-                return
-            path.parent.mkdir(parents=True, exist_ok=True)
-            _missing_marker(path).touch()
-        except Exception:  # offline or Deezer unavailable: try again next time
-            pass
-        finally:
-            with self._lock:
-                self._pending.discard(path)
-
-
-def photo(path: Path | None, size: int, background: str, round_: bool = False, radius: int = 6):
-    """Return a Tk image of the file cropped to a square with rounded corners or a circle, or None."""
-    result = picture(path, size, background, round_, radius)
-    return ImageTk.PhotoImage(result) if result is not None else None
-
-
-def picture(path: Path | None, size: int, background: str | None, round_: bool = False, radius: int = 6):
-    """Like photo(), as a Pillow image; with no background the corners are transparent."""
-    if not available or not path or not path.exists():
-        return None
-    try:
-        image = Image.open(path).convert("RGB")
-    except OSError:
-        return None
-    side = min(image.size)
-    left, top = (image.width - side) // 2, (image.height - side) // 2
-    image = image.crop((left, top, left + side, top + side)).resize((size, size), Image.LANCZOS)
-    # The mask is drawn larger and scaled down so the edges are smooth
-    scale = 4
-    mask = Image.new("L", (size * scale, size * scale), 0)
-    draw = ImageDraw.Draw(mask)
-    if round_:
-        draw.ellipse((0, 0, size * scale - 1, size * scale - 1), fill=255)
-    else:
-        draw.rounded_rectangle((0, 0, size * scale - 1, size * scale - 1), radius=radius * scale, fill=255)
-    mask = mask.resize((size, size), Image.LANCZOS)
-    if background is None:
-        image.putalpha(mask)
-        return image
-    result = Image.new("RGB", (size, size), background)
-    result.paste(image, (0, 0), mask)
-    return result
-
-
-_colors: dict = {}
-
-
-def colors(path: Path | None) -> tuple[tuple[int, int, int], tuple[int, int, int]] | None:
-    """The two main colors of a picture as RGB, the more vivid and frequent first, or None."""
-    if not available or not path or not path.exists():
-        return None
-    cache_key = (path, path.stat().st_mtime)
-    if cache_key not in _colors:
-        try:
-            image = Image.open(path).convert("RGB").resize((48, 48))
-        except OSError:
-            return None
-        quantized = image.quantize(colors=8, method=Image.Quantize.MEDIANCUT)
-        palette = quantized.getpalette()
-        candidates = []
-        for count, index in quantized.getcolors():
-            rgb = tuple(palette[index * 3:index * 3 + 3])
-            hue, saturation, value = colorsys.rgb_to_hsv(*(channel / 255 for channel in rgb))
-            # Near black and near white say little about a cover; vivid colors say the most
-            weight = 0.25 if value < 0.12 or (saturation < 0.08 and value > 0.92) else 1
-            candidates.append((count * (0.15 + saturation) * weight, rgb))
-        candidates.sort(reverse=True)
-        first = candidates[0][1]
-        # The second is the next one that clearly differs from the first, else a darker shade of it
-        second = next((rgb for _, rgb in candidates[1:] if sum(abs(a - b) for a, b in zip(rgb, first)) > 90),
-                      tuple(int(channel * 0.55) for channel in first))
-        _colors[cache_key] = (first, second)
-    return _colors[cache_key]

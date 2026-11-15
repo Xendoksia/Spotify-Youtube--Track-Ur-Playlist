@@ -1,5 +1,5 @@
 """
-Command line, for using the trackers without the window (see cli.py next to app.py).
+Command line, for using the trackers without the window (see cli.py in the repository's root).
 
     python cli.py spotify login                          Log in with your Spotify account (once)
     python cli.py spotify check <playlist url> [...]     Check playlists and record changes

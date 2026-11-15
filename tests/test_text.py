@@ -6,7 +6,7 @@ from pathlib import Path
 from playlist_tracker.core import i18n
 from playlist_tracker.core.text import format_date, format_length, track_label
 from playlist_tracker.playlists import auto_check
-from playlist_tracker.ui.stats import text as stats_text
+from playlist_tracker.music import text as stats_text
 
 PACKAGE = Path(__file__).resolve().parents[1] / "playlist_tracker"
 

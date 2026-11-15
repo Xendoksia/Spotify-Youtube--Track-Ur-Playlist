@@ -1,5 +1,5 @@
 """
-Numbers, durations and dates of the statistics written out in the interface language.
+Numbers, durations and dates of the listening statistics written out in the interface language.
 """
 
 from __future__ import annotations

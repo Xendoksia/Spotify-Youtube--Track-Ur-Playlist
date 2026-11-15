@@ -1,10 +1,10 @@
 """
-Playlist tracking as data and actions for the desktop window, as the Tk window's playlist tabs
-(ui/playlist_panel.py) and history tab (ui/history_tab.py): each service's playlists as cards, tracking one or
+Playlist tracking as data and actions for the desktop window, as the earlier window's playlist tabs and
+history tab: each service's playlists as cards, tracking one or
 not, logging in, loading one's playlists, adding one by link, checking the tracked ones, the result of the last
 check, and the history of changes.
 
-Network work runs on one worker thread at a time, as in the Tk window; its progress and end are told to the
+Network work runs on one worker thread at a time, as in the earlier window; its progress and end are told to the
 window as "task" events, and the cards change with a "playlists" event.
 """
 
@@ -20,8 +20,8 @@ from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import format_date, track_label
 from playlist_tracker.playlists import history
-from playlist_tracker.ui.services import EVENTS, SERVICES, event_label
-from playlist_tracker.ui.stats.text import month_name
+from playlist_tracker.playlists.services import EVENTS, SERVICES, event_label
+from playlist_tracker.music.text import month_name
 
 # Order of the latest changes on a card: what went wrong first
 CHANGE_ORDER = (history.EVENT_REMOVED, history.EVENT_UNPLAYABLE, history.EVENT_PLAYABLE, history.EVENT_ADDED)
@@ -181,7 +181,7 @@ class Playlists:
         return {"started": True}
 
     def login(self, name: str) -> dict:
-        """Log in in the browser, then load the account's playlists, as the Tk window did."""
+        """Log in in the browser, then load the account's playlists, as the earlier window did."""
         service = service_of(name)
 
         def task():

@@ -8,7 +8,7 @@
     "dev": "tsc -p electron && concurrently -k -n vite,app \"vite\" \"wait-on tcp:127.0.0.1:5173 && electron . --dev\"",
     "build": "tsc -p electron && tsc --noEmit && vite build",
     "start": "npm run build && electron .",
-    "dist": "python ../build.py backend && npm run build && electron-builder --win nsis"
+    "dist": "python ../build.py && npm run build && electron-builder --win nsis"
   },
   "license": "MIT",
   "dependencies": {

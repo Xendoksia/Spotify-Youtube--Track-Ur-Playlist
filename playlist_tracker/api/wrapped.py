@@ -1,7 +1,7 @@
 """
 The monthly and yearly summary as data for the desktop window: its slides, the bell's box of summaries not seen
-yet, and when one opens by itself. When a summary is there and who saw it follow the Tk window's rules
-(ui/stats/wrapped.py), so the two windows and the phone agree.
+yet, and when one opens by itself. When a summary is there and who saw it follow the rules of
+music/wrapped.py, which the phone follows too.
 
 A slide is a caption and parts shown one after another: big (a number counting up), heading, text, image, list,
 columns, genre and tiles.
@@ -14,8 +14,8 @@ from datetime import datetime
 from playlist_tracker.api.overview import artist_url, cover_url
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.music import artist_info, listening
-from playlist_tracker.ui.stats import wrapped
-from playlist_tracker.ui.stats.text import duration_text, month_name, period_title, plays_text
+from playlist_tracker.music import wrapped
+from playlist_tracker.music.text import duration_text, month_name, period_title, plays_text
 
 TOP = wrapped.TOP
 
@@ -48,7 +48,7 @@ def inbox() -> dict:
 
 def due(force: bool = False) -> dict:
     """The summary to open by itself now, once (marked seen); force gives the last month with plays on any day,
-    without marking it (app.py --summary)."""
+    without marking it (the window's --summary)."""
     if force:
         return {"id": summary_id(wrapped.month_to_show())}
     summary = wrapped.auto_open_due()

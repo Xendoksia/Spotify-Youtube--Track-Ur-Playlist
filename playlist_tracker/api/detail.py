@@ -1,6 +1,6 @@
 """
-The page of one track, artist or album as data for the desktop window, as the Tk DetailPage
-(ui/stats/detail.py): totals, plays over time, and for a track its album and the hours it is played at,
+The page of one track, artist or album as data for the desktop window, as the earlier window's detail page:
+totals, plays over time, and for a track its album and the hours it is played at,
 for an artist its most played tracks and a few facts, for an album its track list and how much was heard.
 """
 
@@ -14,7 +14,7 @@ from playlist_tracker.api.overview import artist_url, cover_url
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import format_length
 from playlist_tracker.music import artist_info, artwork, listening
-from playlist_tracker.ui.stats.text import date_text, duration_text, hour_buckets, month_name, plays_text, summary_text, tracks_text
+from playlist_tracker.music.text import date_text, duration_text, hour_buckets, month_name, plays_text, summary_text, tracks_text
 
 ARTIST_TRACKS = 15
 # Plays of tracks of an album fetched at most (the album's own tracks come from Deezer)
@@ -118,7 +118,7 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
             "subtitle": info["artist"], "subtitle_link": {"column": "artist_key", "key": info["artist_key"]},
             "image": cover_url(info["artist"], info["album"], info["name"])}
     if kind == "artist":
-        facts = artist_info.request(title, key, None, arrived)
+        facts = artist_info.request(title, key, arrived)
         hero.update(subtitle=tracks_text(info["tracks"]), subtitle_link=None, image=artist_url(title),
                     about=artist_info.describe(facts) if facts else "")
     page = {"kind": kind, "column": column, "key": key, "title": title, "hero": hero,

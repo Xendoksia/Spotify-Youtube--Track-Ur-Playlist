@@ -1,8 +1,8 @@
 """
-Running in the background: one instance at a time, a system tray icon and starting with Windows.
+Running in the background: one recording copy at a time, the app's icon and starting with Windows.
 
-Only one copy of the app may run, otherwise two listening trackers would record the same song twice.
-A second copy asks the running one to show its window and exits.
+Only one copy may record, otherwise two listening trackers would record the same song twice. The desktop window
+(desktop/) keeps a single window itself; its backend takes this lock, and a second backend only serves data.
 """
 
 from __future__ import annotations
@@ -12,26 +12,16 @@ import queue
 import socket
 import sys
 import threading
-from pathlib import Path
-from typing import Callable
 
 from playlist_tracker.core.config import BASE_DIR
-from playlist_tracker.core.i18n import t
-
-try:
-    import pystray
-    from PIL import Image, ImageDraw
-except ImportError:  # the app still works without a tray icon, closing the window then exits
-    pystray = None
 
 APP_NAME = "Spotify Playlist Tracker"
 MUTEX_NAME = "Local\\SpotifyPlaylistTracker"
 PORT_FILE = BASE_DIR / ".instance"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-MINIMIZED_FLAG = "--minimized"
 ICON_COLOR = "#1aa34a"
-
-TRAY_AVAILABLE = pystray is not None
+# The desktop window names the command Windows starts it with (desktop/electron/main.ts)
+AUTOSTART_ENV = "PLAYLIST_TRACKER_AUTOSTART"
 
 
 class SingleInstance:
@@ -87,16 +77,6 @@ class SingleInstance:
                 except OSError:
                     pass
 
-    @staticmethod
-    def notify_running() -> None:
-        """Ask the copy that is already running to bring its window to the front."""
-        try:
-            port = int(PORT_FILE.read_text(encoding="utf-8"))
-            with socket.create_connection(("127.0.0.1", port), timeout=2) as connection:
-                connection.sendall(b"show")
-        except (OSError, ValueError):
-            pass
-
     def release(self) -> None:
         if self._server:
             server, self._server = self._server, None
@@ -105,7 +85,10 @@ class SingleInstance:
 
 
 def icon_image(size: int = 64):
-    """A green circle with equalizer bars, drawn so no image file has to be shipped."""
+    """A green circle with equalizer bars, drawn so no image file has to be shipped (build.py makes the
+    icon files from it)."""
+    from PIL import Image, ImageDraw
+
     scale = 4
     image = Image.new("RGBA", (size * scale, size * scale), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
@@ -120,72 +103,18 @@ def icon_image(size: int = 64):
     return image.resize((size, size), Image.LANCZOS)
 
 
-class Tray:
-    """System tray icon. Menu actions run on the tray thread; window actions are queued for Tk."""
-
-    def __init__(self, commands: queue.Queue[str], is_paused: Callable[[], bool],
-                 set_paused: Callable[[bool], None]):
-        self.commands = commands
-        self.is_paused = is_paused
-        self.set_paused = set_paused
-        self._icon = None
-        self.hint_shown = False
-
-    def start(self) -> None:
-        if not TRAY_AVAILABLE or self._icon:
-            return
-        # Texts are read on every menu open, so a language change applies without restarting the icon
-        menu = pystray.Menu(
-            pystray.MenuItem(lambda item: t("tray.open"), lambda: self.commands.put("show"), default=True),
-            pystray.MenuItem(lambda item: t("tray.pause"), lambda: self.set_paused(not self.is_paused()),
-                             checked=lambda item: self.is_paused()),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(lambda item: t("tray.quit"), lambda: self.commands.put("quit")),
-        )
-        self._icon = pystray.Icon("spotify-playlist-tracker", icon_image(), t("app.title"), menu)
-        self._icon.run_detached()
-
-    def set_title(self, title: str) -> None:
-        if self._icon:
-            self._icon.title = title
-
-    def notify(self, message: str) -> None:
-        if self._icon:
-            try:
-                self._icon.notify(message, t("app.title"))
-            except Exception:  # notifications are a nicety, never a reason to fail
-                pass
-
-    def stop(self) -> None:
-        if self._icon:
-            icon, self._icon = self._icon, None
-            icon.stop()
-
-
-# The installed desktop window starts itself with Windows, not this program; it names its command here
-AUTOSTART_ENV = "PLAYLIST_TRACKER_AUTOSTART"
-
-
 def autostart_command() -> str:
-    if os.environ.get(AUTOSTART_ENV):
-        return os.environ[AUTOSTART_ENV]
-    if getattr(sys, "frozen", False):
-        return f'"{sys.executable}" {MINIMIZED_FLAG}'
-    # pythonw runs without a console window
-    python = Path(sys.executable)
-    pythonw = python.with_name("pythonw.exe")
-    if pythonw.exists():
-        python = pythonw
-    return f'"{python}" "{Path(BASE_DIR, "app.py")}" {MINIMIZED_FLAG}'
+    return os.environ.get(AUTOSTART_ENV, "")
 
 
 def autostart_supported() -> bool:
-    return sys.platform == "win32"
+    """On Windows, when the window said how it is started."""
+    return sys.platform == "win32" and bool(autostart_command())
 
 
 def autostart_value() -> str:
     """The command Windows starts the app with at login, or "" when it is not started."""
-    if not autostart_supported():
+    if sys.platform != "win32":
         return ""
     import winreg
     try:
@@ -212,11 +141,3 @@ def set_autostart(enabled: bool) -> None:
                 winreg.DeleteValue(key, APP_NAME)
             except FileNotFoundError:
                 pass
-
-
-def start_minimized() -> bool:
-    return MINIMIZED_FLAG in sys.argv[1:]
-
-
-def close_to_tray(config: dict) -> bool:
-    return TRAY_AVAILABLE and config.get("CLOSE_TO_TRAY", True) is not False

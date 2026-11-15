@@ -1,7 +1,6 @@
 """
 The Recently played tab and the mini player as data for the desktop window: what Spotify plays now, as the
-recorder sees it (as ui/mini_player.py and the NowPlaying card), and the last plays grouped by day (as
-ui/recent_plays.py).
+recorder sees it, and the last plays grouped by day.
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ from playlist_tracker.api.overview import cover_url
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import format_length
 from playlist_tracker.music import listening, nowplaying
-from playlist_tracker.ui.stats.text import duration_text, month_name, plays_text
+from playlist_tracker.music.text import duration_text, month_name, plays_text
 
 RECENT_COUNT = 200
 

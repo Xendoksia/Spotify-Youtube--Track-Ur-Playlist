@@ -35,6 +35,7 @@ class Api:
         self.playlists = playlists
         self.emit = emit
         self._found_timers: dict[str, threading.Timer] = {}
+        self._found_callbacks: dict[str, Callable[[], None]] = {}
         self._found_lock = threading.Lock()
         self.tracker = tracker
         self.set_tracking = set_tracking
@@ -95,6 +96,9 @@ class Api:
 
     def found(self, event: str) -> Callable[[], None]:
         """A callback for background lookups that sends the event once a few seconds after the first call."""
+        if event in self._found_callbacks:
+            return self._found_callbacks[event]
+
         def send():
             with self._found_lock:
                 self._found_timers.pop(event, None)
@@ -106,6 +110,7 @@ class Api:
                     timer = self._found_timers[event] = threading.Timer(self.FOUND_EVENT_SECONDS, send)
                     timer.daemon = True
                     timer.start()
+        self._found_callbacks[event] = arrived
         return arrived
 
     def now(self, query, body):
