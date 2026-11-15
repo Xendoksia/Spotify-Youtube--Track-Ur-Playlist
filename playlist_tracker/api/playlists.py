@@ -14,10 +14,12 @@ import re
 import threading
 from datetime import datetime
 from typing import Callable
+from urllib.parse import urlencode
 
 from playlist_tracker.core.config import load_config
 from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.core.i18n import number, t
+from playlist_tracker.api.overview import cover_url
 from playlist_tracker.core.text import format_date, track_label
 from playlist_tracker.playlists import history
 from playlist_tracker.playlists.services import EVENTS, SERVICES, event_label
@@ -42,6 +44,13 @@ def service_of(name: str):
         if service.name == name or service.key == name:
             return service
     raise ValueError(name)
+
+
+def track_image(service, track: dict) -> str:
+    """A track's picture: the album cover, or the video's thumbnail on YouTube."""
+    if service.key == "youtube":
+        return "/api/video-thumbnail?" + urlencode({"id": track.get("uri") or ""})
+    return cover_url(track.get("artist") or "", track.get("album"), track.get("name") or "")
 
 
 def event_text(event: str) -> dict:
@@ -75,6 +84,7 @@ class Playlists:
         user = service.session_user(config)
         tracked = {p["playlist_id"]: p for p in history.tracked_playlists(service.db_path)}
         summaries = history.playlist_summaries(service.db_path)
+        latest = history.latest_tracks(service.db_path)
         cards = {}
         for playlist_id, p in self.loaded[service.name].items():
             cards[playlist_id] = {"name": p["name"], "owner": p.get("owner", ""), "count": p.get("track_count")}
@@ -100,6 +110,9 @@ class Playlists:
                 "checked": t("panel.last_checked", date=short_date(checked)) if checked else t("panel.never_checked"),
                 "last_change": t("panel.last_change", date=short_date(summary["changed_at"])) if changes else "",
                 "changes": changes, "url": service.playlist_url.format(playlist_id),
+                "covers": [track_image(service, track) for track in latest.get(playlist_id, [])],
+                "latest": t("panel.latest", track=track_label(latest[playlist_id][0]))
+                if latest.get(playlist_id) else "",
             })
         result.sort(key=lambda card: (not card["tracked"], card["name"].lower()))
         return {

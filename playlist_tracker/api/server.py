@@ -134,6 +134,8 @@ class Api:
             return artwork.fetch_cover(query.get("artist", ""), query.get("album", ""), query.get("name", ""))
         if path == "/api/artist-photo":
             return artwork.fetch_artist(query.get("name", ""))
+        if path == "/api/video-thumbnail":
+            return artwork.fetch_video_thumbnail(query.get("id", ""))
         if path == "/api/avatar":
             return AVATAR_PATH if AVATAR_PATH.exists() else None
         return None
@@ -178,7 +180,7 @@ def handler_for(api: Api):
             query = {k: v[0] for k, v in parse_qs(url.query).items()}
             if not self._allowed(query):
                 return self._json(403, {"error": "forbidden"})
-            if method == "GET" and url.path in ("/api/cover", "/api/artist-photo", "/api/avatar"):
+            if method == "GET" and url.path in ("/api/cover", "/api/artist-photo", "/api/video-thumbnail", "/api/avatar"):
                 path = api.image(url.path, query)
                 if path is None:
                     return self._send(404, b"", "image/jpeg")

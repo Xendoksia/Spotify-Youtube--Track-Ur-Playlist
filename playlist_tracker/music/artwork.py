@@ -160,6 +160,13 @@ def fetch_artist(artist: str) -> Path | None:
     return _fetch_now(artist_path(artist), lambda: _find_artist_photo(artist))
 
 
+def fetch_video_thumbnail(video_id: str) -> Path | None:
+    """A YouTube video's thumbnail, from YouTube's public image address (no account or key)."""
+    if not re.fullmatch(r"[\w-]{6,20}", video_id or ""):
+        return None
+    return _fetch_now(_path("videos", video_id), lambda: f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg")
+
+
 TRACKLISTS_PATH = ART_DIR / "tracklists.json"
 _tracklists: dict | None = None
 _tracklists_lock = threading.Lock()

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { get, post } from "../api";
 import { useDialogs } from "../components/Dialog";
 import Icon from "../components/Icon";
+import Picture from "../components/Picture";
 import { useTexts } from "../i18n";
 import History from "./History";
 import { useOpenSettings } from "./Settings";
@@ -23,6 +24,21 @@ interface Card {
   last_change: string;
   changes: (EventText & { symbol: string; count: string })[];
   url: string;
+  /** The newest tracks' covers (or video thumbnails), one per album, newest first */
+  covers: string[];
+  latest: string;
+}
+
+/** A playlist's picture made of its newest covers: four in a square, else the newest alone. */
+function Covers({ covers, name, tracked }: { covers: string[]; name: string; tracked: boolean }) {
+  const shown = covers.length >= 4 ? covers.slice(0, 4) : covers.slice(0, 1);
+  return (
+    <div className={`playlist-cover${shown.length === 4 ? " mosaic" : ""}`}>
+      {shown.length ? shown.map((src) => <Picture key={src} src={src} alt={name} />)
+        : <span className="picture placeholder">{name.trim().charAt(0).toUpperCase()}</span>}
+      <span className="check-mark">{tracked && <Icon name="check" />}</span>
+    </div>
+  );
 }
 
 interface Result {
@@ -128,7 +144,7 @@ function ServicePanel({ name, busy, hidden }: { name: string; busy: boolean; hid
                      change(post<Page>("/api/playlists/toggle", { service: name, id: card.id }));
                    }
                  }}>
-              <span className="check-mark">{card.tracked && "✓"}</span>
+              <Covers covers={card.covers} name={card.name} tracked={card.tracked} />
               <div className="playlist-body">
                 <div className="playlist-head">
                   <span className="playlist-name">{card.name}</span>
@@ -139,6 +155,7 @@ function ServicePanel({ name, busy, hidden }: { name: string; busy: boolean; hid
                 </div>
                 {card.details && <span className="muted">{card.details}</span>}
                 <span className="muted">{card.checked}</span>
+                {card.latest && <span className="playlist-latest" title={card.latest}>{card.latest}</span>}
                 {card.changes.length > 0 && (
                   <span className="playlist-changes">
                     <span className="muted">{card.last_change}</span>

@@ -233,6 +233,25 @@ def playlist_summaries(db_path: Path) -> dict[str, dict]:
     return summaries
 
 
+def latest_tracks(db_path: Path, count: int = 4) -> dict[str, list[dict]]:
+    """Per playlist: its most recently added tracks, one per album (or per video when there are no albums),
+    newest first, for the card's covers."""
+    latest: dict[str, list[dict]] = {}
+    seen: dict[str, set] = {}
+    with open_db(db_path) as db:
+        for row in db.execute("SELECT playlist_id, uri, name, artist, album, added_at FROM tracks "
+                              "WHERE in_playlist = 1 ORDER BY playlist_id, added_at DESC, first_seen DESC"):
+            tracks = latest.setdefault(row["playlist_id"], [])
+            if len(tracks) >= count:
+                continue
+            cover = (row["artist"] or "").lower(), (row["album"] or row["uri"] or "").lower()
+            if cover in seen.setdefault(row["playlist_id"], set()):
+                continue
+            seen[row["playlist_id"]].add(cover)
+            tracks.append(dict(row))
+    return latest
+
+
 def _write_event(db: sqlite3.Connection, playlist_id: str, checked_at: str, event: str, track: dict) -> bool:
     """Record a change found here; False when another device already found it."""
     return _insert_event(db, {"uid": str(uuid.uuid4()), "device": None, "playlist_id": playlist_id,
