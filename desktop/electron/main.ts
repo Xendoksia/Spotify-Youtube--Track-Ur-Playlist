@@ -6,7 +6,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, Notification, shell, Tray } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import { Backend, BackendEvent } from "./backend";
+import { Backend, BackendEvent, developmentLaunch, installedLaunch } from "./backend";
 
 interface AppInfo {
   language: string;
@@ -16,6 +16,13 @@ interface AppInfo {
 }
 
 const DEV = process.argv.includes("--dev");
+// Installed, the app keeps its data in a folder of its own (the earlier program's is copied there the first
+// time); the window's own files (cache, storage) go in a folder inside it. PLAYLIST_TRACKER_DATA_DIR names another
+// folder, for trying a build without touching the real data or the Windows startup entry
+const CUSTOM_DATA_DIR = process.env.PLAYLIST_TRACKER_DATA_DIR;
+const DATA_DIR = CUSTOM_DATA_DIR ?? path.join(app.getPath("appData"), "Playlist Tracker");
+const APP_ID = "com.xendoksia.playlisttracker";
+if (app.isPackaged) app.setPath("userData", path.join(DATA_DIR, "window"));
 const MINIMIZED = process.argv.includes("--minimized");
 // Opens with last month's summary, to look at it on any day (as app.py --summary)
 const SUMMARY = process.argv.includes("--summary");
@@ -177,8 +184,16 @@ function quit(): void {
 }
 
 async function start(): Promise<void> {
-  const connection = await backend.start();
-  backend.on("event", onBackendEvent);
+  // Events that come before the window and the tray are there (a notification about copied data) wait for them
+  const early: BackendEvent[] = [];
+  let started = false;
+  backend.on("event", (message: BackendEvent) => (started ? onBackendEvent(message) : early.push(message)));
+  let launch = developmentLaunch();
+  if (app.isPackaged) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    launch = installedLaunch(DATA_DIR, CUSTOM_DATA_DIR ? "" : `"${process.execPath}" --minimized`);
+  }
+  const connection = await backend.start(launch);
   backend.on("exit", () => {
     if (!quitting) console.error("The backend stopped");
   });
@@ -202,12 +217,15 @@ async function start(): Promise<void> {
   tray.on("click", showWindow);
   updateTrayMenu();
   window = createWindow();
+  started = true;
+  early.forEach(onBackendEvent);
 }
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.setAppUserModelId("PlaylistTracker");
+  // The same as the installer's, so notifications carry the app's name and icon
+  app.setAppUserModelId(APP_ID);
   app.on("second-instance", showWindow);
   app.on("before-quit", () => {
     quitting = true;

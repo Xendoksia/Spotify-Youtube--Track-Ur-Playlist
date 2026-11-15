@@ -32,3 +32,4 @@ desktop.ini
 # Desktop window (Electron)
 node_modules/
 dist-electron/
+release/

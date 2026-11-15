@@ -7,6 +7,7 @@ A second copy asks the running one to show its window and exits.
 
 from __future__ import annotations
 
+import os
 import queue
 import socket
 import sys
@@ -161,7 +162,13 @@ class Tray:
             icon.stop()
 
 
+# The installed desktop window starts itself with Windows, not this program; it names its command here
+AUTOSTART_ENV = "PLAYLIST_TRACKER_AUTOSTART"
+
+
 def autostart_command() -> str:
+    if os.environ.get(AUTOSTART_ENV):
+        return os.environ[AUTOSTART_ENV]
     if getattr(sys, "frozen", False):
         return f'"{sys.executable}" {MINIMIZED_FLAG}'
     # pythonw runs without a console window
@@ -176,16 +183,21 @@ def autostart_supported() -> bool:
     return sys.platform == "win32"
 
 
-def autostart_enabled() -> bool:
+def autostart_value() -> str:
+    """The command Windows starts the app with at login, or "" when it is not started."""
     if not autostart_supported():
-        return False
+        return ""
     import winreg
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
             value, _ = winreg.QueryValueEx(key, APP_NAME)
     except OSError:
-        return False
-    return bool(value)
+        return ""
+    return value or ""
+
+
+def autostart_enabled() -> bool:
+    return bool(autostart_value())
 
 
 def set_autostart(enabled: bool) -> None:

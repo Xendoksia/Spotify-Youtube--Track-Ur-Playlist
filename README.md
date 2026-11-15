@@ -129,6 +129,30 @@ python build.py
 This creates `dist\Spotify Playlist Tracker.exe`, which runs without Python. It keeps its settings and history
 next to itself: to take your existing data along, copy `config.json` and the `.db` files into the same folder.
 
+#### The desktop app (Windows)
+
+The new window is an Electron app in `desktop/`, with the Python code running behind it. To try it from the code
+(close the older window first, only one of them records):
+
+```
+cd desktop
+npm install
+npm start
+```
+
+To build its installer, which needs no Python or Node on the computer it is installed on:
+
+```
+python -m pip install pyinstaller -r requirements.txt
+cd desktop
+npm install
+npm run dist
+```
+
+This creates `desktop\release\Playlist Tracker Setup 1.0.0.exe`. The installed app keeps its data in
+`%APPDATA%\Playlist Tracker`. On its first start it copies the settings, histories and pictures of the older window
+there (found from the older window's Start with Windows entry), and takes over that entry.
+
 On first launch, enter your Client ID and Client Secret in the settings window. Then click **Log in with Spotify**
 and approve access in the browser. You only need to do this once; the app remembers your session.
 

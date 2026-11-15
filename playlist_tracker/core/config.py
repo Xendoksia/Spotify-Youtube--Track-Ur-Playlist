@@ -5,11 +5,15 @@ Settings in config.json and where the app keeps its files.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
-# Settings and history live next to the program: app.py, or the .exe when it is built with PyInstaller
-BASE_DIR = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
+# Settings and history live next to the program: app.py, or the .exe when it is built with PyInstaller. The
+# installed desktop window (desktop/) keeps them in a folder of its own, which it names in PLAYLIST_TRACKER_DATA
+_DATA_DIR = os.environ.get("PLAYLIST_TRACKER_DATA")
+BASE_DIR = (Path(_DATA_DIR) if _DATA_DIR
+            else Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
             else Path(__file__).resolve().parents[2])
 CONFIG_PATH = BASE_DIR / "config.json"
 DEFAULT_MARKET = "TR"

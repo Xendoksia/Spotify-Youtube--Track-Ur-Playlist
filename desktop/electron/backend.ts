@@ -22,19 +22,42 @@ export interface Connection {
   recording: boolean;
 }
 
-// The repository root, where the playlist_tracker package and the databases are
+/** How the backend is started: the Python package of the repository while developing, the program built by
+ * build.py (in the app's resources) once installed, with the folder of the data. */
+export interface Launch {
+  command: string;
+  args: string[];
+  cwd: string;
+  env: Record<string, string>;
+}
+
+// The repository root, where the playlist_tracker package and, while developing, the databases are
 const ROOT = path.resolve(__dirname, "..", "..");
+
+export function developmentLaunch(): Launch {
+  return { command: process.env.PLAYLIST_TRACKER_PYTHON ?? "python", args: ["-m", "playlist_tracker.backend"],
+           cwd: ROOT, env: {} };
+}
+
+export function installedLaunch(dataDir: string, autostart: string): Launch {
+  return {
+    command: path.join(process.resourcesPath, "backend", "PlaylistTrackerBackend.exe"),
+    args: [],
+    cwd: dataDir,
+    // Without an autostart command the Windows startup entry is left as it is
+    env: { PLAYLIST_TRACKER_DATA: dataDir, ...(autostart ? { PLAYLIST_TRACKER_AUTOSTART: autostart } : {}) },
+  };
+}
 
 export class Backend extends EventEmitter {
   readonly token = randomBytes(24).toString("hex");
   private process: ChildProcess | null = null;
   connection: Connection | null = null;
 
-  start(): Promise<Connection> {
-    const python = process.env.PLAYLIST_TRACKER_PYTHON ?? "python";
-    const child = spawn(python, ["-m", "playlist_tracker.backend"], {
-      cwd: ROOT,
-      env: { ...process.env, PLAYLIST_TRACKER_TOKEN: this.token, PYTHONIOENCODING: "utf-8" },
+  start(launch: Launch): Promise<Connection> {
+    const child = spawn(launch.command, launch.args, {
+      cwd: launch.cwd,
+      env: { ...process.env, ...launch.env, PLAYLIST_TRACKER_TOKEN: this.token, PYTHONIOENCODING: "utf-8" },
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],
     });
