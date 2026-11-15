@@ -108,6 +108,14 @@ class StatisticsTest(ListeningTestCase):
         self.assertEqual(totals["artists"], 2)
         self.assertEqual(totals["minutes"], (3 * 270_000 + 240_000 + 2 * 220_000) // 60_000)
 
+    def test_summary_by_day(self):
+        days = listening.summary_by(self.start, self.end, "day", self.db)
+        # Plays at 10:00-12:00 UTC fall on the same local day in any zone within ±10 hours
+        self.assertEqual(sum(day["plays"] for day in days.values()), 6)
+        third = days["2026-11-03"]
+        self.assertEqual((third["plays"], third["tracks"], third["artists"]), (2, 2, 1))
+        self.assertEqual(listening.summary_by(self.start, self.end, "month", self.db)["2026-11"]["tracks"], 3)
+
     def test_top_tracks_and_artists(self):
         tracks = listening.top_tracks(self.start, self.end, db_path=self.db)
         self.assertEqual([t["key"] for t in tracks], ["slipknot|snuff", "evanescence|lithium", "slipknot|psychosocial"])

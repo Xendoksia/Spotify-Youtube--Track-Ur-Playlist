@@ -72,18 +72,47 @@ def tiles(period: str, offset: int, start: datetime, end: datetime) -> list[dict
             # The current period is still running, so compare with the same stretch of the previous one
             previous_end = min(previous_end, previous_start + (datetime.now().astimezone() - start))
         previous = listening.summary(previous_start, previous_end)
+    bucket, points = trend_points(period, start, end)
+    by_bucket = listening.summary_by(start, end, bucket) if len(points) > 1 else {}
     result = []
     for name, key, text in TILES:
+        label = t(f"stats.tile.{name}")
         delta = None
         if previous and previous[key]:
             change = round((current[key] - previous[key]) * 100 / previous[key])
             arrow = "▲" if change > 0 else "▼" if change < 0 else "="
             delta = {"text": f"{arrow} {t('stats.percent', value=abs(change))}  {t(f'stats.vs.{period}')}",
                      "kind": "up" if change > 0 else "down" if change < 0 else "same"}
-        result.append({"name": name, "label": t(f"stats.tile.{name}"), "value": current[key],
+        result.append({"name": name, "label": label, "value": current[key],
                        "text": text(current[key]), "kind": "duration" if name == "time" else "number",
-                       "delta": delta})
+                       "delta": delta,
+                       "trend": trend(by_bucket, points, key, label, text)})
     return result
+
+
+def trend(by_bucket: dict[str, dict], points: list[tuple[str, str]], key: str, label: str, text) -> list[dict]:
+    """A tile's value per day, month or year of the period, for its trend line."""
+    result = []
+    for point, when in points if by_bucket else []:
+        value = by_bucket.get(point, {}).get(key, 0)
+        result.append({"value": value, "tooltip": f"{when}\n{label}: {text(value)}"})
+    return result
+
+
+def trend_points(period: str, start: datetime, end: datetime) -> tuple[str, list[tuple[str, str]]]:
+    """The tiles' trend lines: the period's days (or months, or years) up to now as (bucket, label)."""
+    last = min(end, datetime.now().astimezone()) - timedelta(seconds=1)
+    if period in ("week", "month") or (last - start).days < 62:
+        days = [start + timedelta(days=i) for i in range((last - start).days + 1)]
+        return "day", [(day.strftime("%Y-%m-%d"), f"{day.day} {month_name(day.month)}") for day in days]
+    months = []
+    year, month = start.year, start.month
+    while (year, month) <= (last.year, last.month):
+        months.append((year, month))
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+    if len(months) > 36:
+        return "year", [(str(year), str(year)) for year in range(start.year, last.year + 1)]
+    return "month", [(f"{year}-{month:02d}", f"{month_name(month)} {year}") for year, month in months]
 
 
 def track_hero(top: dict, change) -> dict:

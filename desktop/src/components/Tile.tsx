@@ -1,5 +1,6 @@
 import { useTexts } from "../i18n";
 import { useCountUp } from "./motion";
+import Sparkline, { TrendPoint } from "./Sparkline";
 
 export interface TileData {
   name: string;
@@ -9,6 +10,8 @@ export interface TileData {
   /** Numbers and durations count up to new values; dates and names ("text") are shown as they are */
   kind: "number" | "duration" | "text";
   delta?: { text: string; kind: "up" | "down" | "same" } | null;
+  /** The value per day (or month) of the period, drawn as a line under it */
+  trend?: TrendPoint[];
 }
 
 export default function Tile({ tile }: { tile: TileData }) {
@@ -25,6 +28,7 @@ export default function Tile({ tile }: { tile: TileData }) {
       {tile.delta !== undefined && (
         <span className={`tile-delta delta-${tile.delta?.kind ?? "none"}`}>{tile.delta?.text ?? " "}</span>
       )}
+      {tile.trend && <Sparkline points={tile.trend} />}
     </section>
   );
 }

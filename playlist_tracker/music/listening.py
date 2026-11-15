@@ -233,6 +233,18 @@ def summary(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
             "FROM listens WHERE played_at >= ? AND played_at < ?", _range(start, end)).fetchone())
 
 
+def summary_by(start: datetime, end: datetime, bucket: str, db_path: Path = DB_PATH) -> dict[str, dict]:
+    """summary() per local day ('%Y-%m-%d'), month ('%Y-%m') or year ('%Y')."""
+    pattern = {"day": "%Y-%m-%d", "month": "%Y-%m", "year": "%Y"}[bucket]
+    with open_db(db_path) as db:
+        return {r["bucket"]: {name: r[name] for name in ("plays", "minutes", "tracks", "artists")}
+                for r in db.execute(
+            "SELECT strftime(?, played_at, 'localtime') AS bucket, COUNT(*) AS plays, "
+            "COALESCE(SUM(ms_played), 0) / 60000 AS minutes, "
+            "COUNT(DISTINCT track_key) AS tracks, COUNT(DISTINCT artist_key) AS artists "
+            "FROM listens WHERE played_at >= ? AND played_at < ? GROUP BY bucket", (pattern, *_range(start, end)))}
+
+
 def top_tracks(start: datetime, end: datetime, limit: int = 10, artist_key: str | None = None,
                album: str | None = None, db_path: Path = DB_PATH) -> list[dict]:
     """Most played tracks of the period, optionally of one artist or one album (an album_key) only."""
