@@ -180,6 +180,10 @@ def _work():
             callbacks = _waiting.pop(artist_key, [])
         if facts is not None:
             for widget, done in callbacks:
+                # Without a Tk widget (the desktop backend) the callback runs on this thread
+                if widget is None:
+                    done()
+                    continue
                 try:
                     widget.after(0, done)
                 except (RuntimeError, tk.TclError):  # the window was closed meanwhile
@@ -200,7 +204,8 @@ def waiting(artist_key: str) -> bool:
 
 
 def request(artist: str, artist_key: str, widget, done: Callable[[], None], priority: int = FIRST) -> dict | None:
-    """Return the cached facts, or look them up in the background and call done on the Tk thread."""
+    """Return the cached facts, or look them up in the background and call done on the Tk thread (or on the
+    lookup thread when widget is None)."""
     global _worker, _order
     with _lock:
         facts = _load()["artists"].get(artist_key)

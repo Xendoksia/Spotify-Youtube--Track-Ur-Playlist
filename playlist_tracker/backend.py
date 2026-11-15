@@ -83,7 +83,7 @@ def main() -> None:
         sync.syncer.start()
         threading.Thread(target=forward, args=(commands,), name="events", daemon=True).start()
 
-    api = server.start(server.Api(token, recording))
+    api = server.start(server.Api(token, recording, emit))
     emit("ready", port=api.server_address[1], recording=owner)
     try:
         # Until the window's process ends and closes our stdin

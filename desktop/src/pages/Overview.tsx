@@ -7,6 +7,7 @@ import Hero, { HeroData } from "../components/Hero";
 import Icon from "../components/Icon";
 import { useCountUp } from "../components/motion";
 import { useTexts } from "../i18n";
+import { Collage, Discoveries, Diversity, Genres, GenresData, GenreShift, Milestones, SectionsData } from "./Sections";
 
 type Period = "week" | "month" | "year" | "all";
 const PERIODS: Period[] = ["week", "month", "year", "all"];
@@ -48,19 +49,15 @@ function TileView({ tile }: { tile: Tile }) {
   );
 }
 
-export default function Overview() {
-  const { t } = useTexts();
-  const [period, setPeriod] = useState<Period>("week");
-  const [offset, setOffset] = useState(0);
-  const [data, setData] = useState<OverviewData | null>(null);
+/** The route's answer for the period; an answer for a period clicked past meanwhile is dropped. */
+function usePeriodData<T>(route: string, period: Period, offset: number): [T | null, string | null, () => void] {
+  const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const latest = useRef(0);
-
   const load = useCallback(() => {
     const request = ++latest.current;
-    get<OverviewData>("/api/overview", { period, offset }).then(
+    get<T>(route, { period, offset }).then(
       (result) => {
-        // An answer for a period clicked past meanwhile is dropped
         if (request === latest.current) {
           setData(result);
           setError(null);
@@ -68,18 +65,36 @@ export default function Overview() {
       },
       (reason) => request === latest.current && setError(String(reason)),
     );
-  }, [period, offset]);
-
+  }, [route, period, offset]);
   useEffect(load, [load]);
+  return [data, error, load];
+}
+
+export default function Overview() {
+  const { t } = useTexts();
+  const [period, setPeriod] = useState<Period>("week");
+  const [offset, setOffset] = useState(0);
+  const [data, error, loadOverview] = usePeriodData<OverviewData>("/api/overview", period, offset);
+  const [sections, , loadSections] = usePeriodData<SectionsData>("/api/sections", period, offset);
+  const [genres, , loadGenres] = usePeriodData<GenresData>("/api/genres", period, offset);
 
   useEffect(() => {
-    const stop = window.tracker.onEvent((message) => message.event === "synced" && load());
-    const timer = offset === 0 ? window.setInterval(load, REFRESH_MS) : 0;
+    const loadAll = () => {
+      loadOverview();
+      loadSections();
+      loadGenres();
+    };
+    // Genres are looked up in the background, and the backend tells when some arrived
+    const stop = window.tracker.onEvent((message) => {
+      if (message.event === "synced") loadAll();
+      else if (message.event === "genres") loadGenres();
+    });
+    const timer = offset === 0 ? window.setInterval(loadAll, REFRESH_MS) : 0;
     return () => {
       stop();
       window.clearInterval(timer);
     };
-  }, [load, offset]);
+  }, [loadOverview, loadSections, loadGenres, offset]);
 
   const empty = t("stats.empty");
   return (
@@ -136,6 +151,20 @@ export default function Overview() {
               <ColumnChart buckets={data.hours.buckets} empty={empty} />
             </Card>
           </div>
+          {sections && (
+            <>
+              <Discoveries data={sections} />
+              <div className="pair">
+                <Diversity data={sections.diversity} />
+                <GenreShift data={genres?.shift ?? null} />
+              </div>
+              <Milestones data={sections.milestones} />
+              <div className="pair">
+                <Genres data={genres?.genres ?? null} />
+                <Collage data={sections.collage} />
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

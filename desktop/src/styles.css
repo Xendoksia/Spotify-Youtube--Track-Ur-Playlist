@@ -18,6 +18,11 @@
   --grid: #d0d5dc;
   --nav: #cbd0d8;
   --accent: #1aa34a;
+  --series-0: #2a78d6;
+  --series-1: #eb6834;
+  --series-2: #1baf7a;
+  --series-3: #eda100;
+  --series-other: #b6bbc3;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 4px 16px rgb(0 0 0 / 0.05);
   --radius: 16px;
   --change: 450ms cubic-bezier(0.33, 1, 0.68, 1);
@@ -42,6 +47,16 @@
     --chart-hover: #3fb950;
     --grid: #2a2e35;
     --nav: #1b1e23;
+  --series-0: #3987e5;
+  --series-1: #d95926;
+  --series-2: #199e70;
+  --series-3: #c98500;
+  --series-other: #4a505a;
+    --series-0: #3987e5;
+    --series-1: #d95926;
+    --series-2: #199e70;
+    --series-3: #c98500;
+    --series-other: #4a505a;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.2);
     color-scheme: dark;
   }
@@ -423,17 +438,25 @@ button {
 
 /* Pictures */
 
+/* Until it loads, a picture is an empty tile of its size; it fades in when it arrives */
 .picture {
   border-radius: 8px;
   object-fit: cover;
   background: var(--raised);
-  opacity: 0;
-  transition: opacity 250ms;
 }
 
-.picture.loaded,
-.picture.placeholder {
-  opacity: 1;
+img.picture:not(.loaded) {
+  color: transparent;
+}
+
+img.picture.loaded {
+  animation: fade-in 250ms ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .picture.round {
@@ -503,7 +526,6 @@ button {
 
 .bar-row {
   display: grid;
-  grid-template-columns: 24px 40px 1fr 40px 36px;
   align-items: center;
   gap: 12px;
   padding: 6px 8px;
@@ -633,4 +655,146 @@ button {
 
 .chart-empty {
   height: 190px;
+}
+
+/* Card details */
+
+.card-summary {
+  margin: -6px 0 12px;
+  color: var(--muted);
+  white-space: pre-line;
+}
+
+.column-title {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.pair.inner {
+  gap: 32px;
+}
+
+.bar-list.compact .bar-row {
+  padding: 4px 8px;
+}
+
+/* Diversity */
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+}
+
+.figure-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.figure-value {
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.verdict {
+  margin: 12px 0 16px;
+}
+
+/* Genres over time */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.column-space.stacked {
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.segment {
+  width: 100%;
+  transition: height var(--change);
+}
+
+.series-0 { background: var(--series-0); }
+.series-1 { background: var(--series-1); }
+.series-2 { background: var(--series-2); }
+.series-3 { background: var(--series-3); }
+.series-other { background: var(--series-other); }
+
+/* Milestones */
+
+.milestones.split {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 32px;
+}
+
+.plain-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plain-row {
+  display: flex;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.plain-left {
+  flex: none;
+  width: 84px;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Album collage */
+
+.collage {
+  display: grid;
+  gap: 0;
+  max-width: 420px;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.collage-cell {
+  aspect-ratio: 1;
+}
+
+.collage-picture {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  font-size: 32px;
 }
