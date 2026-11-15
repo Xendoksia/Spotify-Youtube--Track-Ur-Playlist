@@ -7,6 +7,7 @@ import { useDialogs } from "../components/Dialog";
 import Icon from "../components/Icon";
 import { useTexts } from "../i18n";
 import History from "./History";
+import { useOpenSettings } from "./Settings";
 
 interface EventText {
   kind: "added" | "removed" | "unplayable" | "playable" | "initial";
@@ -56,6 +57,7 @@ interface Services {
 function ServicePanel({ name, busy, hidden }: { name: string; busy: boolean; hidden: boolean }) {
   const { t } = useTexts();
   const dialogs = useDialogs();
+  const openSettings = useOpenSettings();
   const [page, setPage] = useState<Page | null>(null);
   const [link, setLink] = useState("");
 
@@ -68,14 +70,15 @@ function ServicePanel({ name, busy, hidden }: { name: string; busy: boolean; hid
     const result = await post<Started>(`/api/playlists/${action}`, { service: name, ...body });
     if (result.started || result.reason === "busy") return result.started;
     if (result.reason === "credentials") {
-      await dialogs.alert(t("dialog.error"), t("panel.no_credentials", { service: name }));
+      // Without the service's API details its settings tab opens, as in the Tk window
+      openSettings(name.toLowerCase() as "spotify" | "youtube");
     } else if (result.reason === "nothing") {
       await dialogs.alert(result.title!, result.message!);
     } else if (result.reason === "error") {
       await dialogs.alert(t("dialog.error"), result.message!);
     }
     return false;
-  }, [name, dialogs, t]);
+  }, [name, dialogs, t, openSettings]);
 
   useEffect(() => window.tracker.onEvent(async (message) => {
     if (message.event === "playlists" && message.service === name) load();

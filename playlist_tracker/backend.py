@@ -66,6 +66,10 @@ def forward(commands, playlists: Playlists) -> None:
         elif isinstance(command, tuple) and command[0] == "synced":
             # What the sync brought: plays, playlists tracked elsewhere, changes found elsewhere, settings
             result = command[1] or {}
+            if result.get("settings"):
+                # Language or theme changed on another device
+                i18n.set_language(load_config().get("LANGUAGE"))
+                emit("appearance")
             emit("synced", **{key: bool(result.get(key)) for key in ("received", "playlists", "events", "settings")})
 
 

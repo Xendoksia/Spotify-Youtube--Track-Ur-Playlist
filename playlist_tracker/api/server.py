@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
-from playlist_tracker.api import detail, listening, overview, sections, wrapped
+from playlist_tracker.api import detail, listening, overview, sections, settings, wrapped
 from playlist_tracker.api.account import AVATAR_PATH, Account
 from playlist_tracker.api.playlists import Playlists
 from playlist_tracker.core import i18n
@@ -49,6 +49,9 @@ class Api:
             ("GET", "/api/wrapped/due"): lambda query, body: wrapped.due(query.get("force") == "1"),
             ("GET", "/api/now"): self.now,
             ("GET", "/api/services"): lambda q, b: playlists.services(),
+            ("GET", "/api/settings"): lambda q, b: settings.settings(),
+            ("POST", "/api/settings"): lambda q, b: settings.save(b, emit),
+            ("GET", "/api/help"): lambda q, b: settings.help_page(),
             ("GET", "/api/account"): lambda q, b: account.page(),
             ("POST", "/api/account/skip"): lambda q, b: account.skip(),
             ("POST", "/api/account/login"): lambda q, b: account.login(b.get("remember")),
@@ -72,8 +75,10 @@ class Api:
     def app(self, query, body):
         """The interface texts in the chosen language and the chosen theme ("system", "light" or "dark")."""
         language = i18n.current()
-        theme = load_config().get("THEME")
+        config = load_config()
+        theme = config.get("THEME")
         return {"language": language, "theme": theme if theme in ("light", "dark") else "system",
+                "close_to_tray": config.get("CLOSE_TO_TRAY", True) is not False,
                 "strings": {**i18n.STRINGS[i18n.DEFAULT_LANGUAGE], **i18n.STRINGS[language]}}
 
     def overview(self, query, body):

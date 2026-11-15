@@ -11,6 +11,7 @@ import { Backend, BackendEvent } from "./backend";
 interface AppInfo {
   language: string;
   theme: "system" | "light" | "dark";
+  close_to_tray: boolean;
   strings: Record<string, string>;
 }
 
@@ -57,7 +58,12 @@ function createWindow(): BrowserWindow {
     return { action: "deny" };
   });
   created.on("close", (event) => {
+    // Closing quits when running in the tray is turned off in the settings
     if (quitting || !tray) return;
+    if (info && !info.close_to_tray) {
+      quit();
+      return;
+    }
     // Closing hides the window to the tray, so recording goes on
     event.preventDefault();
     created.hide();
@@ -146,6 +152,16 @@ function onBackendEvent(message: BackendEvent): void {
         notification.on("click", showWindow);
         notification.show();
       }
+      break;
+    case "appearance":
+    case "settings":
+      // New texts for the tray menu, the theme and whether closing keeps running in the tray
+      backend.request<AppInfo>("/api/app").then((fresh) => {
+        info = fresh;
+        nativeTheme.themeSource = fresh.theme;
+        tray?.setToolTip(t("app.title"));
+        updateTrayMenu();
+      }, console.error);
       break;
     case "recording":
       recording = Boolean(message.enabled);

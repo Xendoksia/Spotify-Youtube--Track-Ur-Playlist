@@ -8,22 +8,32 @@ import Listening, { OpenRequest } from "./pages/Listening";
 import Playlists from "./pages/Playlists";
 import Account, { AccountContext, LoginScreen, useAccountState } from "./pages/Account";
 import { DialogProvider } from "./components/Dialog";
+import Help from "./pages/Help";
+import Settings, { OpenSettingsContext } from "./pages/Settings";
 
 type Section = "listening" | "playlists" | "account" | "settings" | "help";
 
-// The sections of the Tk window's sidebar; the ones not moved over yet are greyed out
-const SECTIONS: { name: Section; label: string; icon: IconName; ready: boolean }[] = [
-  { name: "listening", label: "nav.listening", icon: "music", ready: true },
-  { name: "playlists", label: "nav.playlists", icon: "list", ready: true },
-  { name: "account", label: "nav.account", icon: "account", ready: true },
-  { name: "help", label: "nav.help", icon: "help", ready: false },
-  { name: "settings", label: "settings.title", icon: "settings", ready: false },
+// The sections of the sidebar, as in the Tk window: the app's own at the top, the rest at the bottom
+const SECTIONS: { name: Section; label: string; icon: IconName; bottom?: boolean }[] = [
+  { name: "listening", label: "nav.listening", icon: "music" },
+  { name: "playlists", label: "nav.playlists", icon: "list" },
+  { name: "account", label: "nav.account", icon: "account", bottom: true },
+  { name: "help", label: "nav.help", icon: "help", bottom: true },
+  { name: "settings", label: "settings.title", icon: "settings", bottom: true },
 ];
+
+// After a language or theme change the window is built again on the section it was on (?section=settings)
+const START_SECTION = new URLSearchParams(location.search).get("section") as Section | null;
 
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [section, setSection] = useState<Section>("listening");
+  const [section, setSection] = useState<Section>(START_SECTION ?? "listening");
+  const [settingsTab, setSettingsTab] = useState<"spotify" | "youtube" | "general">("general");
+  const openSettings = useCallback((tab: "spotify" | "youtube" | "general" = "general") => {
+    setSettingsTab(tab);
+    setSection("settings");
+  }, []);
   const [request, setRequest] = useState<OpenRequest | null>(null);
   const now = useNowPlayingPoll();
   const account = useAccountState();
@@ -42,6 +52,18 @@ export default function App() {
     setLoginScreen(false);
     setSection("listening");
   }, []);
+  // Without any service's credentials the app opens on the settings, as in the Tk window
+  useEffect(() => {
+    if (START_SECTION) return;
+    get<{ services: { has_credentials: boolean }[] }>("/api/services").then((result) => {
+      if (!result.services.some((service) => service.has_credentials)) openSettings("spotify");
+    }, () => {});
+  }, [openSettings]);
+  // A new language or theme, here or from another device: built again with its texts and colors
+  useEffect(() => window.tracker.onEvent((message) => {
+    if (message.event === "appearance") location.search = `?section=${section}`;
+  }), [section]);
+
   // The mini player's song opens in the Listening section, from any section
   const openTrack = (key: string) => {
     setSection("listening");
@@ -68,18 +90,19 @@ export default function App() {
       <NowPlayingContext.Provider value={now}>
       <DialogProvider>
       <AccountContext.Provider value={account}>
+      <OpenSettingsContext.Provider value={openSettings}>
       <div className="shell">
         <nav className="sidebar">
           <div className="brand">
             <span className="brand-mark"><Icon name="music" /></span>
             {t("app.title")}
           </div>
-          {SECTIONS.map((item) => (
+          {SECTIONS.map((item, index) => (
             <button
               key={item.name}
-              className={`nav-item${section === item.name ? " selected" : ""}`}
-              disabled={!item.ready}
-              onClick={() => setSection(item.name)}
+              className={`nav-item${section === item.name ? " selected" : ""}${
+                item.bottom && !SECTIONS[index - 1]?.bottom ? " first-bottom" : ""}`}
+              onClick={() => item.name === "settings" ? openSettings() : setSection(item.name)}
             >
               <Icon name={item.icon} />
               {/* The account item shows the logged-in user's first name */}
@@ -92,11 +115,14 @@ export default function App() {
             <div hidden={section !== "listening"}><Listening request={request} /></div>
             <div hidden={section !== "playlists"}><Playlists /></div>
             <div hidden={section !== "account"}><Account onLoggedOut={() => setLoginScreen(true)} /></div>
+            {section === "help" && <Help />}
+            <Settings tab={settingsTab} setTab={setSettingsTab} hidden={section !== "settings"} />
           </div>
           <MiniPlayer openTrack={openTrack} />
         </main>
       </div>
       {loginScreen && <LoginScreen onDone={closeLogin} />}
+      </OpenSettingsContext.Provider>
       </AccountContext.Provider>
       </DialogProvider>
       </NowPlayingContext.Provider>

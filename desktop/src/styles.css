@@ -2009,3 +2009,82 @@ select.field {
 .link-button:hover:not(:disabled) {
   color: var(--focus);
 }
+
+/* Sidebar sections at the bottom */
+
+.nav-item.first-bottom {
+  margin-top: auto;
+}
+
+/* Settings and help */
+
+.tabs.inline {
+  max-width: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 820px;
+  padding: 24px;
+}
+
+.steps {
+  margin: 0;
+  white-space: pre-line;
+  user-select: text;
+}
+
+.setting-link {
+  align-self: flex-start;
+  margin-bottom: 8px;
+  color: var(--focus);
+  text-decoration: none;
+}
+
+.setting-link:hover {
+  text-decoration: underline;
+}
+
+.setting-row {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 420px);
+  align-items: center;
+  gap: 12px;
+}
+
+.setting-note {
+  margin: -4px 0 4px 212px;
+  font-size: 12px;
+}
+
+.setting-switch {
+  margin-top: 6px;
+}
+
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  max-width: 820px;
+  margin-top: 16px;
+}
+
+.lead {
+  margin: 0 0 16px;
+  font-size: 16px;
+}
+
+.help .card p {
+  margin: 0 0 8px;
+  max-width: 900px;
+  line-height: 1.55;
+}
+
+.help .card p:last-child {
+  margin-bottom: 0;
+}
