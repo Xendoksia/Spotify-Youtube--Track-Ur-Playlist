@@ -183,11 +183,10 @@ class _ListeningScreenState extends State<ListeningScreen> {
                 _tile(context, 'stats.artists', summary.artists, previous?.artists, context.number, days, (s) => s.artists)),
       ]),
       gap,
-      // The tiles count to the new numbers; everything under them changes with the period as a whole
-      _PeriodSwitcher(
-        contentKey: ValueKey('$_period/$_offset'),
-        direction: _direction,
-        children: plays.isEmpty
+      // The tiles count to the new numbers; the cards under them change with the period, each by itself:
+      // straight in the list rather than in one column, so only the cards on the screen are built when the period
+      // changes
+      for (final (index, card) in (plays.isEmpty
             ? [MessageView(icon: Icons.music_off, text: context.t('stats.empty'))]
             : [
               _trackHero(context, tracks.first, trackChange),
@@ -264,8 +263,10 @@ class _ListeningScreenState extends State<ListeningScreen> {
               GenreShiftCard(period: _period, range: range, plays: plays),
               gap,
               CollageCard(store: widget.store, plays: plays),
-              ],
-      ),
+              ]).indexed)
+        card is SizedBox
+            ? card
+            : _Appear(key: ValueKey('$_period/$_offset/$index'), direction: _direction, child: card),
       gap,
       SectionCard(
         title: context.t('stats.recent'),
@@ -355,35 +356,36 @@ class _ListeningScreenState extends State<ListeningScreen> {
   }
 }
 
-/// A period's content, sliding in from the side of the arrow that was tapped, or rising in for another kind of
-/// period, while the one before fades out
-class _PeriodSwitcher extends StatelessWidget {
-  /// Changes with the period, so the switcher knows its content is new
-  final Key contentKey;
+/// A card of a period, sliding in from the side of the arrow that was tapped, or rising in for another kind of
+/// period; only the card moves, never the whole page
+class _Appear extends StatefulWidget {
   final int direction;
-  final List<Widget> children;
+  final Widget child;
 
-  const _PeriodSwitcher({required this.contentKey, required this.direction, required this.children});
+  const _Appear({super.key, required this.direction, required this.child});
 
   @override
-  Widget build(BuildContext context) => AnimatedSwitcher(
-        duration: const Duration(milliseconds: 380),
-        reverseDuration: const Duration(milliseconds: 160),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeIn,
-        layoutBuilder: (current, previous) =>
-            Stack(alignment: Alignment.topCenter, children: [...previous, ?current]),
-        transitionBuilder: (shown, animation) {
-          // The one going out only fades
-          if (shown.key != contentKey) return FadeTransition(opacity: animation, child: shown);
-          final from = direction == 0 ? const Offset(0, 0.03) : Offset(0.25 * direction, 0);
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(position: Tween(begin: from, end: Offset.zero).animate(animation), child: shown),
-          );
-        },
-        child: Column(key: contentKey, crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
-      );
+  State<_Appear> createState() => _AppearState();
+}
+
+class _AppearState extends State<_Appear> with SingleTickerProviderStateMixin {
+  late final _shown = AnimationController(vsync: this, duration: const Duration(milliseconds: 380))..forward();
+  late final _curve = CurvedAnimation(parent: _shown, curve: Curves.easeOutCubic);
+  late final _slide = Tween(
+    begin: widget.direction == 0 ? const Offset(0, 0.06) : Offset(0.2 * widget.direction, 0),
+    end: Offset.zero,
+  ).animate(_curve);
+
+  @override
+  void dispose() {
+    _curve.dispose();
+    _shown.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      FadeTransition(opacity: _curve, child: SlideTransition(position: _slide, child: widget.child));
 }
 
 /// How many recent plays show at first, and how many more each tap on "Show more" adds
