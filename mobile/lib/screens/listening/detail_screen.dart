@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/artwork.dart';
 import '../../data/models.dart';
+import '../../data/mood.dart';
 import '../../data/stats.dart';
 import '../../l10n/strings.dart';
 import '../../state/data_store.dart';
@@ -36,12 +37,30 @@ class _DetailScreenState extends State<DetailScreen> {
   /// Deezer's track list of an album page
   Future<List<(String, int)>?>? _tracklist;
 
+  /// The page's picture, for the blurred copy behind it, and its color for the page
+  String? _picture;
+  Mood? _mood;
+
   DetailTarget get target => widget.target;
 
   @override
   void initState() {
     super.initState();
     if (target.kind == DetailKind.album) _tracklist = Artwork.instance.tracklist(target.artist, target.album);
+    _findPicture();
+  }
+
+  Future<void> _findPicture() async {
+    final artwork = Artwork.instance;
+    final url = await switch (target.kind) {
+      DetailKind.track => artwork.cover(target.artist, target.album, target.title),
+      DetailKind.artist => artwork.artistPhoto(target.artist),
+      DetailKind.album => artwork.albumCover(target.artist, target.album),
+    };
+    if (url == null || !mounted) return;
+    setState(() => _picture = url);
+    final mood = await moodOf(url);
+    if (mood != null && mounted) setState(() => _mood = mood);
   }
 
   int get _next => widget.depth + 1;
@@ -53,68 +72,88 @@ class _DetailScreenState extends State<DetailScreen> {
     final plays = target.playsIn(widget.store.plays);
     final detail = Detail.of(plays);
     const gap = SizedBox(height: 12);
-    return Scaffold(
-      appBar: AppBar(),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-        children: [
-          _Header(
-            target: target,
-            hero: target.hero(widget.depth),
-            onArtist: () => _open(DetailTarget.artist(target.artist)),
-            tracklist: _tracklist,
+    final theme = Theme.of(context);
+    final background = theme.colorScheme.surface;
+    // The whole page in the color of its picture, as the statistics take their number one's
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: _mood?.color(theme.brightness) ?? theme.colorScheme.primary),
+      duration: const Duration(milliseconds: 600),
+      builder: (context, mood, child) => DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0, 0.7],
+            colors: [Color.lerp(background, mood, theme.brightness == Brightness.dark ? 0.16 : 0.13)!, background],
           ),
-          gap,
-          if (detail != null) ...[
-            Row(children: [
-              Expanded(child: StatTile(label: context.t('stats.plays'), value: context.number(detail.plays))),
-              const SizedBox(width: 8),
-              Expanded(child: StatTile(label: context.t('stats.time'), value: context.minutes(detail.minutes))),
-            ]),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(child: StatTile(label: context.t('detail.first'), value: context.date(detail.first))),
-              const SizedBox(width: 8),
-              Expanded(child: StatTile(label: context.t('detail.last'), value: context.date(detail.last))),
-            ]),
-            gap,
-          ],
-          if (target.kind == DetailKind.track && target.album.isNotEmpty) ...[
-            _AlbumLink(
+        ),
+        child: MoodColor(color: mood, child: child!),
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(backgroundColor: Colors.transparent),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          children: [
+            _Header(
               target: target,
-              hero: DetailTarget.album(target.artist, target.album).hero(_next),
-              onTap: () => _open(DetailTarget.album(target.artist, target.album)),
+              hero: target.hero(widget.depth),
+              onArtist: () => _open(DetailTarget.artist(target.artist)),
+              tracklist: _tracklist,
+              picture: _picture,
             ),
             gap,
-          ],
-          if (target.kind == DetailKind.album) ...[_albumTracks(context, plays), gap],
-          _chart(context, plays),
-          if (target.kind == DetailKind.artist) ...[
-            gap,
-            SectionCard(
-              title: context.t('stats.top_tracks'),
-              child: RankedList(
-                rows: topTracks(plays, limit: 15),
-                image: (row) => ArtworkImage.cover(
-                    artist: row.artist, album: row.album, name: row.title, hero: heroTag(DetailKind.track, row.key, _next)),
-                onTap: (row) => _open(DetailTarget.ranked(DetailKind.track, row)),
+            if (detail != null) ...[
+              Row(children: [
+                Expanded(child: StatTile(label: context.t('stats.plays'), value: context.number(detail.plays))),
+                const SizedBox(width: 8),
+                Expanded(child: StatTile(label: context.t('stats.time'), value: context.minutes(detail.minutes))),
+              ]),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: StatTile(label: context.t('detail.first'), value: context.date(detail.first))),
+                const SizedBox(width: 8),
+                Expanded(child: StatTile(label: context.t('detail.last'), value: context.date(detail.last))),
+              ]),
+              gap,
+            ],
+            if (target.kind == DetailKind.track && target.album.isNotEmpty) ...[
+              _AlbumLink(
+                target: target,
+                hero: DetailTarget.album(target.artist, target.album).hero(_next),
+                onTap: () => _open(DetailTarget.album(target.artist, target.album)),
               ),
-            ),
-            if (topAlbums(plays).isNotEmpty) ...[
+              gap,
+            ],
+            if (target.kind == DetailKind.album) ...[_albumTracks(context, plays), gap],
+            _chart(context, plays),
+            if (target.kind == DetailKind.artist) ...[
               gap,
               SectionCard(
-                title: context.t('stats.top_albums'),
+                title: context.t('stats.top_tracks'),
                 child: RankedList(
-                  rows: topAlbums(plays),
-                  image: (row) => ArtworkImage.album(
-                      artist: row.artist, album: row.album, hero: heroTag(DetailKind.album, row.key, _next)),
-                  onTap: (row) => _open(DetailTarget.ranked(DetailKind.album, row)),
+                  rows: topTracks(plays, limit: 15),
+                  image: (row) => ArtworkImage.cover(
+                      artist: row.artist, album: row.album, name: row.title, hero: heroTag(DetailKind.track, row.key, _next)),
+                  onTap: (row) => _open(DetailTarget.ranked(DetailKind.track, row)),
                 ),
               ),
+              if (topAlbums(plays).isNotEmpty) ...[
+                gap,
+                SectionCard(
+                  title: context.t('stats.top_albums'),
+                  child: RankedList(
+                    rows: topAlbums(plays),
+                    image: (row) => ArtworkImage.album(
+                        artist: row.artist, album: row.album, hero: heroTag(DetailKind.album, row.key, _next)),
+                    onTap: (row) => _open(DetailTarget.ranked(DetailKind.album, row)),
+                  ),
+                ),
+              ],
             ],
           ],
-        ],
-      ),
+        ),
+    ),
     );
   }
 
@@ -155,43 +194,50 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 }
 
-/// The big picture, the kind, the name, and the artist under a track or album
+/// The big picture over a blurred copy of it, the kind, the name in large type rising in, and the artist under a
+/// track or album, on a card in the picture's color
 class _Header extends StatelessWidget {
   final DetailTarget target;
   final String hero;
   final VoidCallback onArtist;
   final Future<List<(String, int)>?>? tracklist;
+  final String? picture;
 
-  const _Header({required this.target, required this.hero, required this.onArtist, this.tracklist});
+  const _Header({required this.target, required this.hero, required this.onArtist, this.tracklist, this.picture});
 
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
-    const size = 180.0;
+    final mood = MoodColor.of(context) ?? palette.chart;
+    final surface = Theme.of(context).colorScheme.surfaceContainer;
+    const size = 200.0;
     final image = switch (target.kind) {
       DetailKind.track =>
         ArtworkImage.cover(artist: target.artist, album: target.album, name: target.title, size: size, hero: hero),
       DetailKind.artist => ArtworkImage.artist(artist: target.artist, size: size, hero: hero),
       DetailKind.album => ArtworkImage.album(artist: target.artist, album: target.album, size: size, hero: hero),
     };
-    return Column(
+    final text = Column(
       children: [
-        image,
-        const SizedBox(height: 16),
         Text(
-          context.t('detail.${target.kind.name}'),
+          context.t('detail.${target.kind.name}').toUpperCase(),
           style: TextStyle(color: palette.muted, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1.2),
         ),
         const SizedBox(height: 4),
         Text(
           target.title,
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context)
+              .textTheme
+              .headlineMedium
+              ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5, height: 1.15),
         ),
         if (target.kind != DetailKind.artist)
           TextButton(
             onPressed: onArtist,
-            child: Text(target.artist, style: TextStyle(color: palette.chart, fontSize: 16)),
+            child: Text(target.artist, style: TextStyle(color: mood, fontSize: 17, fontWeight: FontWeight.w600)),
           ),
         if (tracklist != null)
           FutureBuilder<List<(String, int)>?>(
@@ -207,6 +253,41 @@ class _Header extends StatelessWidget {
             },
           ),
       ],
+    );
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Color.lerp(surface, mood, 0.14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Color.lerp(palette.border, mood, 0.4)!),
+      ),
+      child: Stack(children: [
+        if (picture != null) Positioned.fill(child: Opacity(opacity: 0.45, child: BlurredPicture(url: picture!))),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+          child: Column(children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(target.kind == DetailKind.artist ? size : size * 0.12),
+                boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 40, offset: Offset(0, 14))],
+              ),
+              child: image,
+            ),
+            const SizedBox(height: 18),
+            // The name rises in after the picture landed
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 480),
+              curve: const Interval(0.17, 1, curve: Curves.easeOutCubic),
+              builder: (context, shown, child) => Opacity(
+                opacity: shown,
+                child: Transform.translate(offset: Offset(0, 14 * (1 - shown)), child: child),
+              ),
+              child: text,
+            ),
+          ]),
+        ),
+      ]),
     );
   }
 }

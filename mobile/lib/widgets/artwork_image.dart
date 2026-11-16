@@ -143,3 +143,19 @@ class _ArtworkImageState extends State<ArtworkImage> {
     return widget.hero == null ? clipped : Hero(tag: widget.hero!, child: clipped);
   }
 }
+
+/// A picture decoded tiny and stretched over its box, which blurs it without a blur filter to draw on every frame
+class BlurredPicture extends StatelessWidget {
+  final String url;
+
+  const BlurredPicture({super.key, required this.url});
+
+  @override
+  Widget build(BuildContext context) => Image(
+        image: ResizeImage(CachedNetworkImageProvider(url), width: 12, height: 12),
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.medium,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+      );
+}

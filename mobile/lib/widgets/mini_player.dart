@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../data/artwork.dart';
@@ -632,14 +631,7 @@ class _Backdrop extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         ColoredBox(color: base),
-        if (url != null)
-          Image(
-            image: ResizeImage(CachedNetworkImageProvider(url!), width: 12, height: 12),
-            fit: BoxFit.cover,
-            filterQuality: FilterQuality.medium,
-            gaplessPlayback: true,
-            errorBuilder: (_, _, _) => const SizedBox.shrink(),
-          ),
+        if (url != null) BlurredPicture(url: url!),
         const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
