@@ -61,45 +61,52 @@ class _SparklineState extends State<Sparkline> with SingleTickerProviderStateMix
     final points = widget.points;
     if (points.length < 2) return const SizedBox.shrink();
     final color = MoodColor.of(context) ?? Palette.of(context).chart;
-    return LayoutBuilder(builder: (context, constraints) {
-      final width = constraints.maxWidth;
-      final touched = _touched;
-      return GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onHorizontalDragStart: (d) => _touch(d.localPosition, width),
-        onHorizontalDragUpdate: (d) => _touch(d.localPosition, width),
-        onHorizontalDragEnd: (_) => setState(() => _touched = null),
-        onTapDown: (d) => _touch(d.localPosition, width),
-        onTapUp: (_) => setState(() => _touched = null),
-        onTapCancel: () => setState(() => _touched = null),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          SizedBox(
-            height: 16,
-            child: touched == null
-                ? null
-                : Align(
-                    alignment: Alignment(touched / (points.length - 1) * 2 - 1, 0),
-                    child: Text(points[touched].label,
-                        maxLines: 1,
-                        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final touched = _touched;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragStart: (d) => _touch(d.localPosition, width),
+          onHorizontalDragUpdate: (d) => _touch(d.localPosition, width),
+          onHorizontalDragEnd: (_) => setState(() => _touched = null),
+          onTapDown: (d) => _touch(d.localPosition, width),
+          onTapUp: (_) => setState(() => _touched = null),
+          onTapCancel: () => setState(() => _touched = null),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                height: 16,
+                child: touched == null
+                    ? null
+                    : Align(
+                        alignment: Alignment(touched / (points.length - 1) * 2 - 1, 0),
+                        child: Text(
+                          points[touched].label,
+                          maxLines: 1,
+                          style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+              ),
+              SizedBox(
+                height: _height,
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: _SparklinePainter(
+                      values: [for (final p in points) p.value],
+                      color: color,
+                      drawn: _drawn,
+                      touched: touched,
+                    ),
                   ),
-          ),
-          SizedBox(
-            height: _height,
-            child: RepaintBoundary(
-              child: CustomPaint(
-                painter: _SparklinePainter(
-                  values: [for (final p in points) p.value],
-                  color: color,
-                  drawn: _drawn,
-                  touched: touched,
                 ),
               ),
-            ),
+            ],
           ),
-        ]),
-      );
-    });
+        );
+      },
+    );
   }
 }
 
@@ -110,7 +117,7 @@ class _SparklinePainter extends CustomPainter {
   final int? touched;
 
   _SparklinePainter({required this.values, required this.color, required this.drawn, this.touched})
-      : super(repaint: drawn);
+    : super(repaint: drawn);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -150,10 +157,13 @@ class _SparklinePainter extends CustomPainter {
     canvas.restore();
     final shown = touched ?? values.length - 1;
     if (touched != null) {
-      canvas.drawLine(Offset(x(shown), 0), Offset(x(shown), size.height),
-          Paint()
-            ..color = color.withValues(alpha: 0.5)
-            ..strokeWidth = 1);
+      canvas.drawLine(
+        Offset(x(shown), 0),
+        Offset(x(shown), size.height),
+        Paint()
+          ..color = color.withValues(alpha: 0.5)
+          ..strokeWidth = 1,
+      );
     }
     if (t > 0.95 || touched != null) {
       canvas.drawCircle(Offset(x(shown), y(values[shown])), 3.5, Paint()..color = color);
@@ -161,6 +171,5 @@ class _SparklinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_SparklinePainter old) =>
-      old.values != values || old.color != color || old.touched != touched;
+  bool shouldRepaint(_SparklinePainter old) => old.values != values || old.color != color || old.touched != touched;
 }

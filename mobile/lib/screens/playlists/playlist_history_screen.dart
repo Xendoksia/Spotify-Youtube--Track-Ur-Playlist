@@ -26,7 +26,9 @@ class PlaylistHistoryScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(playlist.name)),
       body: days.isEmpty
-          ? Center(child: MessageView(icon: Icons.history, text: context.t('playlists.no_history')))
+          ? Center(
+              child: MessageView(icon: Icons.history, text: context.t('playlists.no_history')),
+            )
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -56,11 +58,23 @@ class _DayCard extends StatelessWidget {
     }
     return SectionCard(
       title: context.day(day),
-      trailing: Wrap(spacing: 4, children: [
-        for (final MapEntry(key: kind, value: count) in counts.entries)
-          EventBadge(kind: kind, text: kind == EventKind.added ? '+$count' : kind == EventKind.removed ? '−$count' : '$count'),
-      ]),
-      child: Column(children: [for (final event in events) _EventRow(event: event, service: service)]),
+      trailing: Wrap(
+        spacing: 4,
+        children: [
+          for (final MapEntry(key: kind, value: count) in counts.entries)
+            EventBadge(
+              kind: kind,
+              text: kind == EventKind.added
+                  ? '+$count'
+                  : kind == EventKind.removed
+                  ? '−$count'
+                  : '$count',
+            ),
+        ],
+      ),
+      child: Column(
+        children: [for (final event in events) _EventRow(event: event, service: service)],
+      ),
     );
   }
 }
@@ -86,8 +100,8 @@ class _EventRow extends StatelessWidget {
             child: Icon(Icons.flag_outlined, color: color, size: 20),
           )
         : service == 'youtube'
-            ? ArtworkImage.video(id: event.uri, name: event.name, size: 40)
-            : ArtworkImage.cover(artist: event.artist, album: event.album, name: event.name, size: 40);
+        ? ArtworkImage.video(id: event.uri, name: event.name, size: 40)
+        : ArtworkImage.cover(artist: event.artist, album: event.album, name: event.name, size: 40);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: IntrinsicHeight(
@@ -95,8 +109,9 @@ class _EventRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-                width: 3,
-                decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+              width: 3,
+              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+            ),
             const SizedBox(width: 10),
             SizedBox(
               width: 42,
@@ -104,23 +119,34 @@ class _EventRow extends StatelessWidget {
                 child: Text(context.time(event.checkedAt), style: TextStyle(color: palette.muted, fontSize: 12)),
               ),
             ),
-            Center(child: Opacity(opacity: event.kind == EventKind.removed ? 0.45 : 1, child: picture)),
+            Center(
+              child: Opacity(opacity: event.kind == EventKind.removed ? 0.45 : 1, child: picture),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(count != null ? context.t('event.initial_count', {'count': count}) : event.name,
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text(
+                    count != null ? context.t('event.initial_count', {'count': count}) : event.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   if (count == null && event.artist.isNotEmpty)
-                    Text(event.artist,
-                        maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.muted, fontSize: 13)),
+                    Text(
+                      event.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: palette.muted, fontSize: 13),
+                    ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            Center(child: EventBadge(kind: event.kind, text: context.t('event.${event.kind.code}'))),
+            Center(
+              child: EventBadge(kind: event.kind, text: context.t('event.${event.kind.code}')),
+            ),
           ],
         ),
       ),

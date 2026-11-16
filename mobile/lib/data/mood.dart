@@ -24,32 +24,35 @@ final _moods = <String, Future<Mood?>>{};
 
 /// The mood of the picture at [url], read from a small copy of the cached image
 Future<Mood?> moodOf(String url) => _moods[url] ??= () async {
-      try {
-        final provider = ResizeImage(CachedNetworkImageProvider(url), width: 40, height: 40);
-        final done = Completer<ui.Image>();
-        final stream = provider.resolve(ImageConfiguration.empty);
-        late final ImageStreamListener listener;
-        listener = ImageStreamListener((info, _) {
-          if (!done.isCompleted) done.complete(info.image.clone());
-          stream.removeListener(listener);
-        }, onError: (error, _) {
-          if (!done.isCompleted) done.completeError(error);
-          stream.removeListener(listener);
-        });
-        stream.addListener(listener);
-        final image = await done.future.timeout(const Duration(seconds: 20));
-        final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-        image.dispose();
-        if (bytes == null) return null;
-        return moodOfPixels([
-          for (var i = 0; i + 3 < bytes.lengthInBytes; i += 4)
-            (bytes.getUint8(i), bytes.getUint8(i + 1), bytes.getUint8(i + 2)),
-        ]);
-      } catch (_) {
-        _moods.remove(url);
-        return null;
-      }
-    }();
+  try {
+    final provider = ResizeImage(CachedNetworkImageProvider(url), width: 40, height: 40);
+    final done = Completer<ui.Image>();
+    final stream = provider.resolve(ImageConfiguration.empty);
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (info, _) {
+        if (!done.isCompleted) done.complete(info.image.clone());
+        stream.removeListener(listener);
+      },
+      onError: (error, _) {
+        if (!done.isCompleted) done.completeError(error);
+        stream.removeListener(listener);
+      },
+    );
+    stream.addListener(listener);
+    final image = await done.future.timeout(const Duration(seconds: 20));
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    image.dispose();
+    if (bytes == null) return null;
+    return moodOfPixels([
+      for (var i = 0; i + 3 < bytes.lengthInBytes; i += 4)
+        (bytes.getUint8(i), bytes.getUint8(i + 1), bytes.getUint8(i + 2)),
+    ]);
+  } catch (_) {
+    _moods.remove(url);
+    return null;
+  }
+}();
 
 /// The most common vivid hue of the pixels, or null for a grey picture
 Mood? moodOfPixels(List<(int, int, int)> pixels) {
@@ -72,7 +75,9 @@ Mood? moodOfPixels(List<(int, int, int)> pixels) {
   for (var i = 1; i < _bins; i++) {
     if (around(i) > around(best)) best = i;
   }
-  final group = [for (final d in [-1, 0, 1]) bins[(best + d) % _bins]];
+  final group = [
+    for (final d in [-1, 0, 1]) bins[(best + d) % _bins],
+  ];
   final count = group.fold(0.0, (sum, slot) => sum + slot[4]);
   // A few colored pixels in a grey picture are not its color
   if (pixels.isEmpty || count / pixels.length <= 0.06) return null;
@@ -104,7 +109,7 @@ double _cbrt(double v) => v < 0 ? -math.pow(-v, 1 / 3).toDouble() : math.pow(v, 
 
 /// OKLCH to an sRGB color; the chroma is lowered until the color fits in sRGB
 Color oklchColor(double lightness, double chroma, double hue) {
-  for (var c = chroma;; c -= 0.005) {
+  for (var c = chroma; ; c -= 0.005) {
     final a = math.max(c, 0) * math.cos(hue * math.pi / 180);
     final b = math.max(c, 0) * math.sin(hue * math.pi / 180);
     final l = math.pow(lightness + 0.3963377774 * a + 0.2158037573 * b, 3);
@@ -121,6 +126,7 @@ Color oklchColor(double lightness, double chroma, double hue) {
         final encoded = x <= 0.0031308 ? 12.92 * x : 1.055 * math.pow(x, 1 / 2.4) - 0.055;
         return (encoded * 255).round().clamp(0, 255);
       }
+
       return Color.fromARGB(255, channel(rgb[0]), channel(rgb[1]), channel(rgb[2]));
     }
   }

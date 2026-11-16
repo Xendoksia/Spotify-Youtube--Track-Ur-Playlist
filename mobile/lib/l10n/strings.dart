@@ -182,6 +182,8 @@ const _strings = <String, Map<String, String>>{
     'mini.playing': 'Playing',
     'mini.paused': 'Paused',
     'mini.recorded': '  ·  recorded ✓',
+    'mini.now': 'Now playing',
+    'mini.open_page': "Open the song's page",
     'phone.title': 'Playing on this phone',
     'phone.lead': 'The song Spotify plays on this phone shows above the bottom bar, and songs listened to for 30 '
         'seconds are recorded, also while the app is closed; they are sent to your account when you open it. '
@@ -365,6 +367,8 @@ const _strings = <String, Map<String, String>>{
     'mini.playing': 'Çalıyor',
     'mini.paused': 'Duraklatıldı',
     'mini.recorded': '  ·  kaydedildi ✓',
+    'mini.now': 'Şu an çalıyor',
+    'mini.open_page': 'Şarkının sayfasını aç',
     'phone.title': 'Bu telefonda çalan',
     'phone.lead': 'Spotify\'ın bu telefonda çaldığı şarkı alt çubuğun üstünde görünür; 30 saniye dinlenen şarkılar '
         'uygulama kapalıyken de kaydedilir ve uygulamayı açınca hesabına gönderilir. Android bunları uygulamaya '
