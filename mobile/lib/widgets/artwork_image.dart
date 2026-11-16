@@ -21,6 +21,9 @@ class ArtworkImage extends StatefulWidget {
   /// Flies to the image with the same tag on the next page (a row's picture to its page's big one)
   final String? hero;
 
+  /// The square's corners; by default rounded with its size
+  final double? corner;
+
   const ArtworkImage({
     super.key,
     required this.find,
@@ -29,17 +32,25 @@ class ArtworkImage extends StatefulWidget {
     this.size = 44,
     this.round = false,
     this.hero,
+    this.corner,
   });
 
   ArtworkImage.cover(
-      {Key? key, required String artist, required String album, required String name, double size = 44, String? hero})
+      {Key? key,
+      required String artist,
+      required String album,
+      required String name,
+      double size = 44,
+      String? hero,
+      double? corner})
       : this(
             key: key,
             find: (a) => a.cover(artist, album, name),
             which: 'cover|$artist|$album|$name',
             name: album.isNotEmpty ? album : name,
             size: size,
-            hero: hero);
+            hero: hero,
+            corner: corner);
 
   ArtworkImage.album({Key? key, required String artist, required String album, double size = 44, String? hero})
       : this(
@@ -49,6 +60,16 @@ class ArtworkImage extends StatefulWidget {
             name: album,
             size: size,
             hero: hero);
+
+  /// A YouTube video's thumbnail, from YouTube's public image address (no account or key)
+  ArtworkImage.video({Key? key, required String id, required String name, double size = 44, double? corner})
+      : this(
+            key: key,
+            find: (_) async => RegExp(r'^[\w-]{6,20}$').hasMatch(id) ? 'https://i.ytimg.com/vi/$id/mqdefault.jpg' : null,
+            which: 'video|$id',
+            name: name,
+            size: size,
+            corner: corner);
 
   ArtworkImage.artist({Key? key, required String artist, double size = 44, String? hero})
       : this(
@@ -117,7 +138,7 @@ class _ArtworkImageState extends State<ArtworkImage> {
       dimension: widget.size,
       child: widget.round
           ? ClipOval(child: image)
-          : ClipRRect(borderRadius: BorderRadius.circular(widget.size * 0.12), child: image),
+          : ClipRRect(borderRadius: BorderRadius.circular(widget.corner ?? widget.size * 0.12), child: image),
     );
     return widget.hero == null ? clipped : Hero(tag: widget.hero!, child: clipped);
   }

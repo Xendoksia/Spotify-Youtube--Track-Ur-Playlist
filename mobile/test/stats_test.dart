@@ -14,7 +14,7 @@ Play play(String artist, String name, DateTime at, {int minutes = 3, String albu
       msPlayed: minutes * 60000,
     );
 
-PlaylistEvent event(EventKind kind, DateTime at, {String name = 'Song'}) => PlaylistEvent(
+PlaylistEvent event(EventKind kind, DateTime at, {String name = 'Song', String album = ''}) => PlaylistEvent(
       uid: '$kind|$at|$name',
       service: 'spotify',
       playlistId: 'p1',
@@ -22,7 +22,8 @@ PlaylistEvent event(EventKind kind, DateTime at, {String name = 'Song'}) => Play
       kind: kind,
       name: name,
       artist: 'A',
-      album: '',
+      album: album,
+      uri: 'spotify:track:$name',
     );
 
 void main() {
@@ -350,6 +351,34 @@ void main() {
       expect(years.unit, TrendUnit.year);
       expect(years.starts.length, 6);
       expect(years.values.first.plays, 1);
+    });
+  });
+
+  group('playlist cards', () {
+    test('the newest covers leave out removed tracks and repeated albums', () {
+      final tracks = newestTracks([
+        event(EventKind.added, DateTime(2026, 11, 1), name: 'Old', album: 'X'),
+        event(EventKind.added, DateTime(2026, 11, 2), name: 'Gone', album: 'Y'),
+        event(EventKind.added, DateTime(2026, 11, 3), name: 'Same album', album: 'X'),
+        event(EventKind.removed, DateTime(2026, 11, 4), name: 'Gone', album: 'Y'),
+        event(EventKind.added, DateTime(2026, 11, 5), name: 'New', album: 'Z'),
+      ]);
+      expect(tracks.map((t) => t.name), ['New', 'Same album']);
+    });
+
+    test('the last 30 days count the tracks added and removed per day', () {
+      final now = DateTime(2026, 11, 16, 10);
+      final days = dailyChanges([
+        event(EventKind.added, DateTime(2026, 11, 16, 8), name: 'One'),
+        event(EventKind.added, DateTime(2026, 11, 16, 8), name: 'Two'),
+        event(EventKind.removed, DateTime(2026, 10, 18, 8), name: 'Three'),
+        event(EventKind.added, DateTime(2026, 10, 1), name: 'Too old'),
+      ], now)!;
+      expect(days.length, 30);
+      expect(days.last.added, 2);
+      expect(days.first.day, DateTime(2026, 10, 18));
+      expect(days.first.removed, 1);
+      expect(dailyChanges([event(EventKind.initial, DateTime(2026, 11, 16))], now), isNull);
     });
   });
 }

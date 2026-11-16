@@ -29,7 +29,7 @@ class Repository {
   Future<List<PlaylistEvent>> events() async {
     final rows = await _all((from, to) => _db
         .from('playlist_events')
-        .select('uid,service,playlist_id,checked_at,event,name,artist,album')
+        .select('uid,service,playlist_id,checked_at,event,name,artist,album,uri')
         .order('checked_at', ascending: false)
         .order('uid')
         .range(from, to));

@@ -398,6 +398,63 @@ LatestChanges? latestChanges(Iterable<PlaylistEvent> events) {
   return LatestChanges(at, counts);
 }
 
+/// A playlist's most recently added tracks still in it, one per album (or per video without albums), newest first,
+/// for its card's covers, as the desktop app's history.latest_tracks
+List<PlaylistEvent> newestTracks(Iterable<PlaylistEvent> events, {int count = 4}) {
+  final newest = [...events]..sort((a, b) => b.checkedAt.compareTo(a.checkedAt));
+  // Removed later than (or as) any adding seen after it in this walk
+  final removed = <String>{};
+  final covers = <String>{};
+  final result = <PlaylistEvent>[];
+  for (final event in newest) {
+    final track = event.uri.isNotEmpty ? event.uri : '${textKey(event.artist)}|${textKey(event.name)}';
+    if (event.kind == EventKind.removed) {
+      removed.add(track);
+      continue;
+    }
+    if (event.kind != EventKind.added || removed.contains(track)) continue;
+    final cover = '${textKey(event.artist)}|${event.album.isNotEmpty ? textKey(event.album) : track}';
+    if (!covers.add(cover)) continue;
+    result.add(event);
+    if (result.length == count) break;
+  }
+  return result;
+}
+
+/// How many days a playlist card's chart of changes covers
+const activityDays = 30;
+
+/// One day of a playlist card's chart: the tracks added and removed that day
+class DayChanges {
+  final DateTime day;
+  final int added;
+  final int removed;
+
+  const DayChanges(this.day, this.added, this.removed);
+}
+
+/// A playlist's tracks added and removed per day over the last 30 days, oldest first, or null when nothing changed
+List<DayChanges>? dailyChanges(Iterable<PlaylistEvent> events, DateTime now) {
+  final today = DateTime(now.year, now.month, now.day);
+  final first = DateTime(today.year, today.month, today.day - (activityDays - 1));
+  final added = List.filled(activityDays, 0);
+  final removed = List.filled(activityDays, 0);
+  var any = false;
+  for (final event in events) {
+    if (event.kind != EventKind.added && event.kind != EventKind.removed) continue;
+    final at = event.checkedAt;
+    final index = (DateTime(at.year, at.month, at.day).difference(first).inHours / 24).round();
+    if (index < 0 || index >= activityDays) continue;
+    (event.kind == EventKind.added ? added : removed)[index]++;
+    any = true;
+  }
+  if (!any) return null;
+  return [
+    for (var i = 0; i < activityDays; i++)
+      DayChanges(DateTime(first.year, first.month, first.day + i), added[i], removed[i]),
+  ];
+}
+
 /// The summary of the previous period to compare with, as the desktop app's tiles: while the current period
 /// still runs, only the same stretch of the previous one. Nothing for all time.
 Summary? previousSummary(List<Play> all, Period period, int offset, DateTime now) {

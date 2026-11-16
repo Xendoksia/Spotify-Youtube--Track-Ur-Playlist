@@ -98,6 +98,9 @@ class PlaylistEvent {
   final String artist;
   final String album;
 
+  /// The track's Spotify address or YouTube video id
+  final String uri;
+
   PlaylistEvent({
     required this.uid,
     required this.service,
@@ -107,6 +110,7 @@ class PlaylistEvent {
     required this.name,
     required this.artist,
     required this.album,
+    this.uri = '',
   });
 
   /// The first check stores "`count` tracks recorded" as the name
@@ -125,6 +129,7 @@ class PlaylistEvent {
       name: row['name'] as String? ?? '',
       artist: row['artist'] as String? ?? '',
       album: row['album'] as String? ?? '',
+      uri: row['uri'] as String? ?? '',
     );
   }
 }
