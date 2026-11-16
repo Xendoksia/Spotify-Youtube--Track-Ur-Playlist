@@ -96,8 +96,11 @@ class NowPlaying extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Send the plays recorded on the phone (PlayRecorder.kt) to Supabase, as the desktop app sends its own;
-  /// return how many. A play whose listening time grew since it was sent is sent again with the new time.
-  Future<int> sendPlays() async {
+  /// return how many. A play whose listening time grew since it was sent is sent again with the new time. Also
+  /// run while the app is closed (PlaySender.kt, backgroundSend).
+  Future<int> sendPlays() => send();
+
+  static Future<int> send() async {
     final client = Supabase.instance.client;
     final user = client.auth.currentUser;
     if (user == null) return 0;

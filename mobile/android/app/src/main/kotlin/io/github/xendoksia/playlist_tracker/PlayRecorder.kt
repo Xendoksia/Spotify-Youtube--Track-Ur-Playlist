@@ -21,12 +21,13 @@ import java.util.UUID
 /**
  * Records what Spotify plays on the phone, by the desktop app's rules (music/nowplaying.py): a song counts as
  * played once it has been listened to for 30 seconds, and the time actually listened is stored. Runs in
- * MediaListener, so it goes on while the app is closed; the app sends the plays to Supabase (PlayStore).
+ * MediaListener, so it goes on while the app is closed; the app, or PlaySender while it is closed, sends the plays
+ * to Supabase (PlayStore).
  *
  * The time listened is how far the song moved on while playing, so the hours Android keeps the app asleep are
  * counted once it wakes, and seeking forward counts only as the time that passed.
  */
-class PlayRecorder(context: Context, private val listener: ComponentName) {
+class PlayRecorder(private val context: Context, private val listener: ComponentName) {
     companion object {
         const val MIN_PLAY_MS = 30_000L
         // A tick while playing, so a play is stored at 30 seconds and its time saved now and then
@@ -154,6 +155,7 @@ class PlayRecorder(context: Context, private val listener: ComponentName) {
         if (current.ms >= MIN_PLAY_MS && current.uid == null) {
             current.uid = UUID.randomUUID().toString()
             store.add(current.uid!!, current.playedAt, current.artist, current.name, current.album, current.ms)
+            PlaySender.schedule(context)
             current.savedMs = current.ms
             recordedKey = current.key
             onRecorded?.invoke()
@@ -187,7 +189,10 @@ class PlayRecorder(context: Context, private val listener: ComponentName) {
     }
 
     private fun save(current: Play) {
-        current.uid?.let { store.update(it, current.ms) }
+        current.uid?.let {
+            store.update(it, current.ms)
+            PlaySender.schedule(context)
+        }
         current.savedMs = current.ms
     }
 

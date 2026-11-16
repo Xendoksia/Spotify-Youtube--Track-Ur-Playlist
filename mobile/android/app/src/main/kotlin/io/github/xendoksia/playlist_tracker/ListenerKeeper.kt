@@ -57,6 +57,8 @@ class ListenerKeeper : JobService() {
     override fun onStartJob(params: JobParameters?): Boolean {
         revive(this)
         WrappedNotice.check(this)
+        // Plays left unsent (the phone was offline, or a send failed) go when the network is there
+        if (PlayStore(this).unsynced().isNotEmpty()) PlaySender.schedule(this)
         return false
     }
 

@@ -24,6 +24,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        PlaySender.screens++
         NowPlaying(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
         wrapped = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "playlist_tracker/wrapped").apply {
             setMethodCallHandler { call, result ->
@@ -47,6 +48,11 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        PlaySender.screens--
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     /** The notification tapped while the app was open */

@@ -53,6 +53,11 @@
             android:name=".ListenerKeeper"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
+        <!-- Sends the phone's plays while the app is closed (PlaySender.kt) -->
+        <service
+            android:name=".PlaySender"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
