@@ -6,6 +6,8 @@ import { get, post } from "../api";
 import { useDialogs } from "../components/Dialog";
 import Icon from "../components/Icon";
 import Picture from "../components/Picture";
+import { ListSkeleton } from "../components/Skeleton";
+import Marker from "../components/Marker";
 import { useTexts } from "../i18n";
 import History from "./History";
 import { useOpenSettings } from "./Settings";
@@ -153,7 +155,9 @@ function ServicePanel({ name, busy, checking, hidden }: {
     }
   }), [name, load, dialogs, start, t]);
 
-  if (!page) return null;
+  if (!page) {
+    return <div className="page" hidden={hidden}><ListSkeleton days={1} rows={4} /></div>;
+  }
   const change = (body: Promise<Page>) => body.then(setPage, () => {});
 
   return (
@@ -299,6 +303,7 @@ export default function Playlists() {
   return (
     <>
       <nav className="tabs">
+        <Marker watch={tab} underline />
         {tabs.map((name) => (
           <button key={name} className={tab === name ? "selected" : ""} onClick={() => setTab(name)}>
             {name === "history" ? t("tab.history") : name}

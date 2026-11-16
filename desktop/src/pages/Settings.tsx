@@ -6,6 +6,7 @@ import { get, post } from "../api";
 import Card from "../components/Card";
 import { useDialogs } from "../components/Dialog";
 import Icon from "../components/Icon";
+import Marker from "../components/Marker";
 import { useTexts } from "../i18n";
 
 type Tab = "spotify" | "youtube" | "general";
@@ -121,6 +122,7 @@ export default function Settings({ tab, setTab, hidden }: { tab: Tab; setTab: (t
     <div className="page" hidden={hidden}>
       <header className="toolbar"><h1 className="period-title">{t("settings.title")}</h1></header>
       <nav className="tabs inline">
+        <Marker watch={tab} underline />
         {(["spotify", "youtube", "general"] as Tab[]).map((name) => (
           <button key={name} className={tab === name ? "selected" : ""} onClick={() => setTab(name)}>
             {name === "spotify" ? "Spotify" : name === "youtube" ? "YouTube" : t("settings.general")}

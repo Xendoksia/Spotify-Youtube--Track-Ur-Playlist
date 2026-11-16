@@ -11,6 +11,7 @@ import Icon from "../components/Icon";
 import Picture from "../components/Picture";
 import Tile, { TileData } from "../components/Tile";
 import TrackGrid from "../components/TrackGrid";
+import { DetailSkeleton } from "../components/Skeleton";
 import { useTexts } from "../i18n";
 import type { Mood } from "../mood";
 import { Column, useOpenDetail } from "../navigation";
@@ -92,7 +93,7 @@ export default function Detail({ visit, onLoaded }: {
 
   const empty = t("stats.empty");
   if (missing) return <p className="empty">{empty}</p>;
-  if (!data) return null;
+  if (!data) return <DetailSkeleton />;
   const link = data.hero.subtitle_link;
   const tracks = data.tracks && (
     <Card icon="tracks" title={data.tracks.title}>

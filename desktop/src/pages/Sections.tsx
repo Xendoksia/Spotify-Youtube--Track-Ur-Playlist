@@ -6,6 +6,7 @@ import Card from "../components/Card";
 import Picture from "../components/Picture";
 import { Column, useOpenDetail } from "../navigation";
 import StackedColumns, { Series, seriesClass, StackedColumn } from "../components/StackedColumns";
+import { CardSkeleton } from "../components/Skeleton";
 
 export interface SectionsData {
   discoveries: {
@@ -89,7 +90,7 @@ export function Diversity({ data }: { data: SectionsData["diversity"] }) {
 }
 
 export function GenreShift({ data }: { data: GenresData["shift"] | null }) {
-  if (!data) return <section className="card" />;
+  if (!data) return <CardSkeleton />;
   return (
     <Card icon="area" title={data.title} summary={data.summary}>
       {data.legend.length > 0 && (
@@ -141,7 +142,7 @@ export function Milestones({ data }: { data: SectionsData["milestones"] }) {
 }
 
 export function Genres({ data }: { data: GenresData["genres"] | null }) {
-  if (!data) return <section className="card" />;
+  if (!data) return <CardSkeleton />;
   return (
     <Card icon="tag" title={data.title} summary={data.summary}>
       <BarList rows={data.rows} empty={data.empty} />

@@ -9,6 +9,7 @@ import Listening, { OpenRequest } from "./pages/Listening";
 import Playlists from "./pages/Playlists";
 import Account, { AccountContext, LoginScreen, useAccountState } from "./pages/Account";
 import { DialogProvider } from "./components/Dialog";
+import Marker from "./components/Marker";
 import Help from "./pages/Help";
 import Settings, { OpenSettingsContext } from "./pages/Settings";
 
@@ -96,6 +97,7 @@ export default function App() {
       <div className="title-bar" />
       <div className="shell">
         <nav className="sidebar">
+          <Marker watch={section} />
           <div className="brand">
             <Logo size={30} />
             {t("app.title")}

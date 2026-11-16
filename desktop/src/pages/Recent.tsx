@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { get, post } from "../api";
 import Picture from "../components/Picture";
+import { ListSkeleton } from "../components/Skeleton";
 import { useTexts } from "../i18n";
 import { useOpenDetail } from "../navigation";
 import { useNowPlaying } from "../nowPlaying";
@@ -86,6 +87,7 @@ export default function Recent({ hidden }: { hidden: boolean }) {
           <span className="muted">{data?.info}</span>
         </div>
         <NowCard />
+        {!data && <ListSkeleton />}
         {data && data.days.length === 0 && <p className="empty">{data.empty}</p>}
         {data?.days.map((day) => (
           <section key={day.date} className="recent-day">

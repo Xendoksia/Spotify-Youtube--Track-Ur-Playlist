@@ -7,6 +7,7 @@ import Hero, { HeroData } from "../components/Hero";
 import Icon from "../components/Icon";
 import Inbox from "../components/Inbox";
 import Tile, { TileData } from "../components/Tile";
+import { OverviewSkeleton } from "../components/Skeleton";
 import { useTexts } from "../i18n";
 import { Mood, moodStyle } from "../mood";
 import { useOpenDetail } from "../navigation";
@@ -122,6 +123,7 @@ export default function Overview({ hidden, openSummary, inboxVersion }: {
       </header>
 
       {error && <p className="error">{error}</p>}
+      {!data && !error && <OverviewSkeleton />}
       {data && (
         <div className="overview">
           <div className="tiles">

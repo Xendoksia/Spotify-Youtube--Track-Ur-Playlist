@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { get } from "../api";
+import Marker from "../components/Marker";
 import { useTexts } from "../i18n";
 import { Mood, moodStyle } from "../mood";
 import { Column, OpenDetailContext } from "../navigation";
@@ -111,6 +112,7 @@ export default function Listening({ request }: { request: OpenRequest | null }) 
     <OpenDetailContext.Provider value={openDetail}>
       {!layer && (
         <nav className="tabs">
+          <Marker watch={tab} underline />
           {(["stats", "recent"] as Tab[]).map((name) => (
             <button key={name} className={tab === name ? "selected" : ""} onClick={() => setTab(name)}>
               {t(name === "stats" ? "stats.tab" : "listening.recent_tab")}
