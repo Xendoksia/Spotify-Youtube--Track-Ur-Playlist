@@ -320,4 +320,36 @@ void main() {
       expect(yearBack(DateTime(2028, 2, 29)), DateTime(2027, 2, 28));
     });
   });
+
+  group('trend', () {
+    test('a month is split into its days up to today', () {
+      final now = DateTime(2026, 11, 16, 12);
+      final range = periodRange(Period.month, 0, now);
+      final plays = [
+        play('A', 'One', DateTime(2026, 11, 1, 9)),
+        play('A', 'Two', DateTime(2026, 11, 1, 23)),
+        play('B', 'Three', DateTime(2026, 11, 16, 8)),
+      ];
+      final days = trend(Period.month, range, plays, now);
+      expect(days.unit, TrendUnit.day);
+      expect(days.starts.length, 16);
+      expect(days.values.first.plays, 2);
+      expect(days.values.first.tracks, 2);
+      expect(days.values.last.artists, 1);
+      expect(days.values[5].plays, 0);
+    });
+
+    test('all time goes by month from the first play, by year past three years', () {
+      final now = DateTime(2026, 11, 16);
+      final range = periodRange(Period.all, 0, now);
+      final months = trend(Period.all, range, [play('A', 'One', DateTime(2026, 3, 5))], now);
+      expect(months.unit, TrendUnit.month);
+      expect(months.starts.first, DateTime(2026, 3));
+      expect(months.starts.length, 9);
+      final years = trend(Period.all, range, [play('A', 'One', DateTime(2021, 3, 5))], now);
+      expect(years.unit, TrendUnit.year);
+      expect(years.starts.length, 6);
+      expect(years.values.first.plays, 1);
+    });
+  });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/mood.dart';
 import '../../data/stats.dart';
 import '../../l10n/strings.dart';
 import '../../widgets/format.dart';
@@ -42,6 +43,7 @@ class PeriodBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mood = MoodColor.of(context);
     return Column(
       children: [
         Row(
@@ -50,9 +52,18 @@ class PeriodBar extends StatelessWidget {
               child: SegmentedButton<Period>(
                 showSelectedIcon: false,
                 // Tighter than by default, so "All time" stays on one line beside the bell
-                style: const ButtonStyle(
-                  padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 4)),
+                style: ButtonStyle(
+                  padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 4)),
                   visualDensity: VisualDensity.compact,
+                  // The selected period in the color of the number one's cover
+                  backgroundColor: mood == null
+                      ? null
+                      : WidgetStateProperty.resolveWith(
+                          (states) => states.contains(WidgetState.selected) ? mood : null),
+                  foregroundColor: mood == null
+                      ? null
+                      : WidgetStateProperty.resolveWith(
+                          (states) => states.contains(WidgetState.selected) ? Colors.white : null),
                 ),
                 segments: [
                   for (final p in Period.values) ButtonSegment(value: p, label: Text(context.t('period.${p.name}'))),

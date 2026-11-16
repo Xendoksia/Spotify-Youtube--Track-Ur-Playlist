@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../data/mood.dart';
 import '../data/stats.dart';
 import '../l10n/strings.dart';
 import '../theme/palette.dart';
 import 'format.dart';
+import 'sparkline.dart';
 
 /// A card with a title, the building block of every page
 class SectionCard extends StatelessWidget {
@@ -46,10 +48,16 @@ class StatTile extends StatelessWidget {
   /// The change against the previous period, under the number
   final String? note;
 
-  const StatTile({super.key, required this.label, required this.value, this.note}) : count = null, format = null;
+  /// The value per day (or month) of the period, drawn as a line under it
+  final List<TrendPoint>? trend;
+
+  const StatTile({super.key, required this.label, required this.value, this.note})
+      : count = null,
+        format = null,
+        trend = null;
 
   const StatTile.count(
-      {super.key, required this.label, required int this.count, required this.format, this.note})
+      {super.key, required this.label, required int this.count, required this.format, this.note, this.trend})
       : value = '';
 
   @override
@@ -76,6 +84,7 @@ class StatTile extends StatelessWidget {
               const SizedBox(height: 2),
               Text(note!, style: TextStyle(color: Palette.of(context).muted, fontSize: 12)),
             ],
+            if (trend != null) Sparkline(points: trend!),
           ],
         ),
       ),
@@ -101,18 +110,6 @@ class RankedList extends StatelessWidget {
 
   const RankedList({super.key, required this.rows, this.change, this.image, this.onTap, this.firstRank = 1});
 
-  Widget? _change(BuildContext context, Palette palette, RankChange? change) {
-    if (change == null) return null;
-    final (text, color) = switch (change.kind) {
-      ChangeKind.up => ('▲${change.count}', palette.added),
-      ChangeKind.down => ('▼${change.count}', palette.removed),
-      ChangeKind.same => ('=', palette.muted),
-      ChangeKind.fresh => (context.t('stats.change.new'), palette.playable),
-      ChangeKind.back => ('↺', palette.muted),
-    };
-    return Text(text, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600));
-  }
-
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
@@ -135,7 +132,8 @@ class RankedList extends StatelessWidget {
                       children: [
                         Text('${index + firstRank}',
                             style: TextStyle(color: palette.muted, fontWeight: FontWeight.w600)),
-                        ?_change(context, palette, change?.call(row.key, index + firstRank)),
+                        if (change?.call(row.key, index + firstRank) case final moved?)
+                          Padding(padding: const EdgeInsets.only(top: 2), child: ChangePill(change: moved)),
                       ],
                     ),
                   ),
@@ -216,24 +214,62 @@ class MessageView extends StatelessWidget {
   }
 }
 
-/// A rank change written out, as on the desktop app's number one cards, in the list arrows' color
-(String, Color)? changeText(BuildContext context, RankChange? change, int rank) {
-  final palette = Palette.of(context);
-  return switch (change?.kind) {
-    null => null,
-    ChangeKind.same => (context.t('stats.change.same'), palette.muted),
-    ChangeKind.fresh => (context.t('stats.change.new_long'), palette.playable),
-    ChangeKind.back => (context.t('stats.change.back_long'), palette.muted),
-    ChangeKind.up || ChangeKind.down => (
-        context.t('stats.change.moved', {
-          'arrow': change!.kind == ChangeKind.up ? '▲' : '▼',
-          'count': change.count,
-          'rank': rank + (change.kind == ChangeKind.up ? change.count : -change.count),
-        }),
-        change.kind == ChangeKind.up ? palette.added : palette.removed,
-      ),
-  };
+/// A rank change as a small pill tinted in its color, with a chevron or a return arrow and the count, as the
+/// desktop app's Change
+class ChangePill extends StatelessWidget {
+  final RankChange change;
+
+  const ChangePill({super.key, required this.change});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Palette.of(context);
+    final color = switch (change.kind) {
+      ChangeKind.up => palette.added,
+      ChangeKind.down => palette.removed,
+      ChangeKind.fresh => palette.playable,
+      ChangeKind.same || ChangeKind.back => palette.muted,
+    };
+    final icon = switch (change.kind) {
+      ChangeKind.up => Icons.keyboard_arrow_up_rounded,
+      ChangeKind.down => Icons.keyboard_arrow_down_rounded,
+      ChangeKind.back => Icons.replay_rounded,
+      _ => null,
+    };
+    final label = switch (change.kind) {
+      ChangeKind.up || ChangeKind.down => '${change.count}',
+      ChangeKind.same => '–',
+      ChangeKind.fresh => context.t('stats.change.new'),
+      ChangeKind.back => '',
+    };
+    return Container(
+      height: 18,
+      constraints: const BoxConstraints(minWidth: 24),
+      padding: EdgeInsets.symmetric(horizontal: icon == null ? 6 : 5),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(9)),
+      child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+        if (icon != null) Icon(icon, size: 13, color: color),
+        if (label.isNotEmpty)
+          Text(label,
+              style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  height: 1,
+                  fontFeatures: const [FontFeature.tabularFigures()])),
+      ]),
+    );
+  }
 }
+
+/// What a number one's rank change means, beside its pill ("#3 in the previous period")
+String changeNote(BuildContext context, RankChange change, int rank) => switch (change.kind) {
+      ChangeKind.same => context.t('stats.change.same'),
+      ChangeKind.fresh => context.t('stats.change.new_long'),
+      ChangeKind.back => context.t('stats.change.back_long'),
+      ChangeKind.up || ChangeKind.down => context.t('stats.change.was',
+          {'rank': rank + (change.kind == ChangeKind.up ? change.count : -change.count)}),
+    };
 
 /// The number one track or artist of the period, large with its picture, as the desktop app's hero cards
 class HeroCard extends StatelessWidget {
@@ -242,8 +278,8 @@ class HeroCard extends StatelessWidget {
   final String subtitle;
   final String detail;
 
-  /// The rank change and its color (changeText)
-  final (String, Color)? change;
+  /// The move against the previous period, shown as a pill with what it means
+  final RankChange? change;
   final Widget image;
   final VoidCallback onTap;
 
@@ -262,8 +298,16 @@ class HeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
     final theme = Theme.of(context);
+    final mood = MoodColor.of(context);
     return Card(
       clipBehavior: Clip.antiAlias,
+      // The edge takes the color of the number one's cover
+      shape: mood == null
+          ? null
+          : RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Color.lerp(palette.border, mood, 0.45)!),
+            ),
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -289,8 +333,19 @@ class HeroCard extends StatelessWidget {
                           style: TextStyle(color: palette.muted)),
                     const SizedBox(height: 4),
                     Text(detail, style: const TextStyle(fontSize: 13)),
-                    if (change case (final text, final color))
-                      Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+                    if (change case final moved?)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(children: [
+                          ChangePill(change: moved),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(changeNote(context, moved, 1),
+                                maxLines: 2,
+                                style: TextStyle(color: palette.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+                          ),
+                        ]),
+                      ),
                   ],
                 ),
               ),

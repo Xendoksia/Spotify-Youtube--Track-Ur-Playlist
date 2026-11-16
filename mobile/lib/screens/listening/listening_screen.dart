@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../data/artwork.dart';
 import '../../data/models.dart';
+import '../../data/mood.dart';
 import '../../data/stats.dart';
 import '../../l10n/strings.dart';
 import '../../state/data_store.dart';
@@ -8,6 +10,7 @@ import '../../theme/palette.dart';
 import '../../widgets/artwork_image.dart';
 import '../../widgets/cards.dart';
 import '../../widgets/format.dart';
+import '../../widgets/sparkline.dart';
 import 'collage_card.dart';
 import 'detail_screen.dart';
 import 'discoveries.dart';
@@ -36,6 +39,10 @@ class _ListeningScreenState extends State<ListeningScreen> {
 
   /// The plays the summaries waiting behind the bell were last looked for in
   List<Play>? _inboxOf;
+
+  /// The color of the period's number one cover (else of the number one artist's photo), and whose it is
+  Mood? _mood;
+  String? _moodOf;
 
   /// Where the next period's content comes from: -1 from the left (an earlier period), 1 from the right, 0 rising
   /// (another kind of period)
@@ -111,13 +118,35 @@ class _ListeningScreenState extends State<ListeningScreen> {
           _inboxOf = store.plays;
           WrappedInbox.instance.update(store.plays, DateTime.now());
         }
-        return RefreshIndicator(
+        final list = RefreshIndicator(
           onRefresh: widget.onRefresh,
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: store.plays.isEmpty
                 ? [MessageView(icon: Icons.headphones, text: context.t('stats.none_yet'))]
                 : _content(context, store.plays),
+          ),
+        );
+        final theme = Theme.of(context);
+        final background = theme.colorScheme.surface;
+        final dark = theme.brightness == Brightness.dark;
+        // The page's accents glide to the new number one's color; a soft wash of it comes down from the top
+        return TweenAnimationBuilder<Color?>(
+          // Without a vivid cover the usual accent, as on the desktop app
+          tween: ColorTween(end: _mood?.color(theme.brightness) ?? theme.colorScheme.primary),
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.ease,
+          child: list,
+          builder: (context, mood, child) => DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0, 0.6],
+                colors: [Color.lerp(background, mood, dark ? 0.14 : 0.12)!, background],
+              ),
+            ),
+            child: MoodColor(color: mood, child: child!),
           ),
         );
       },
@@ -134,6 +163,8 @@ class _ListeningScreenState extends State<ListeningScreen> {
     final artists = topArtists(plays);
     final trackChange = rankChanges(all, _period, _offset, now, trackKeyOf);
     final artistChange = rankChanges(all, _period, _offset, now, artistKeyOf);
+    final days = trend(_period, range, plays, now);
+    _findMood(tracks.firstOrNull, artists.firstOrNull);
     const gap = SizedBox(height: 12);
     return [
       PeriodBar(
@@ -154,15 +185,19 @@ class _ListeningScreenState extends State<ListeningScreen> {
       gap,
       // Rows rather than a grid with a fixed aspect ratio, so the tiles grow with the phone's font size
       Row(children: [
-        Expanded(child: _tile(context, 'stats.plays', summary.plays, previous?.plays, context.number)),
+        Expanded(child: _tile(context, 'stats.plays', summary.plays, previous?.plays, context.number, days, (s) => s.plays)),
         const SizedBox(width: 8),
-        Expanded(child: _tile(context, 'stats.time', summary.minutes, previous?.minutes, context.minutes)),
+        Expanded(
+            child: _tile(context, 'stats.time', summary.minutes, previous?.minutes, context.minutes, days, (s) => s.minutes)),
       ]),
       const SizedBox(height: 8),
       Row(children: [
-        Expanded(child: _tile(context, 'stats.tracks', summary.tracks, previous?.tracks, context.number)),
+        Expanded(
+            child: _tile(context, 'stats.tracks', summary.tracks, previous?.tracks, context.number, days, (s) => s.tracks)),
         const SizedBox(width: 8),
-        Expanded(child: _tile(context, 'stats.artists', summary.artists, previous?.artists, context.number)),
+        Expanded(
+            child:
+                _tile(context, 'stats.artists', summary.artists, previous?.artists, context.number, days, (s) => s.artists)),
       ]),
       gap,
       // The tiles count to the new numbers; everything under them changes with the period as a whole
@@ -261,14 +296,50 @@ class _ListeningScreenState extends State<ListeningScreen> {
     ];
   }
 
-  StatTile _tile(BuildContext context, String label, int value, int? before, String Function(int) format) {
+  StatTile _tile(BuildContext context, String label, int value, int? before, String Function(int) format, Trend days,
+      int Function(Summary) of) {
     final change = before == null ? null : percentChange(value, before);
     String? note;
     if (change != null) {
       final arrow = change > 0 ? '▲' : change < 0 ? '▼' : '=';
       note = '$arrow ${context.t('stats.percent', {'value': change.abs()})}  ${context.t('stats.vs.${_period.name}')}';
     }
-    return StatTile.count(label: context.t(label), count: value, format: format, note: note);
+    final when = context.dateFormat(switch (days.unit) {
+      TrendUnit.day => 'd MMM',
+      TrendUnit.month => 'MMM y',
+      TrendUnit.year => 'y',
+    });
+    return StatTile.count(
+      label: context.t(label),
+      count: value,
+      format: format,
+      note: note,
+      trend: [
+        for (final (index, start) in days.starts.indexed)
+          TrendPoint(of(days.values[index]), '${when.format(start)}  ·  ${format(of(days.values[index]))}'),
+      ],
+    );
+  }
+
+  /// Looks up the color of the number one's cover once per number one; grey covers keep the usual colors
+  void _findMood(Ranked? track, Ranked? artist) {
+    final which = track != null ? 'track|${track.key}' : artist != null ? 'artist|${artist.key}' : null;
+    if (which == _moodOf) return;
+    _moodOf = which;
+    if (which == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? setState(() => _mood = null) : null);
+      return;
+    }
+    () async {
+      Mood? found;
+      final cover = track == null ? null : await Artwork.instance.cover(track.artist, track.album, track.title);
+      if (cover != null) found = await moodOf(cover);
+      if (found == null && artist != null) {
+        final photo = await Artwork.instance.artistPhoto(artist.artist);
+        if (photo != null) found = await moodOf(photo);
+      }
+      if (mounted && _moodOf == which) setState(() => _mood = found);
+    }();
   }
 
   String _detail(BuildContext context, Ranked row) =>
@@ -279,7 +350,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
         title: top.title,
         subtitle: top.artist,
         detail: _detail(context, top),
-        change: changeText(context, change(top.key, 1), 1),
+        change: change(top.key, 1),
         image: ArtworkImage.cover(
             artist: top.artist, album: top.album, name: top.title, size: 88, hero: heroTag(DetailKind.track, top.key, 1)),
         onTap: () => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.track, top)),
@@ -294,7 +365,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
           ? context.t('stats.different_tracks_one')
           : context.t('stats.different_tracks', {'count': context.number(tracks)}),
       detail: _detail(context, top),
-      change: changeText(context, change(top.key, 1), 1),
+      change: change(top.key, 1),
       image: ArtworkImage.artist(artist: top.artist, size: 88, hero: heroTag(DetailKind.artist, top.key, 1)),
       onTap: () => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.artist, top)),
     );

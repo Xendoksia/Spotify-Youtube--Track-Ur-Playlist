@@ -304,6 +304,61 @@ List<Bucket> buckets(Period period, DateRange range, List<Play> plays) {
   ];
 }
 
+/// How a tile's trend line is split: by day, month or year
+enum TrendUnit { day, month, year }
+
+/// The tiles' values per day, month or year of the period up to now, for their trend lines
+class Trend {
+  final TrendUnit unit;
+  final List<DateTime> starts;
+  final List<Summary> values;
+
+  const Trend(this.unit, this.starts, this.values);
+}
+
+/// As the desktop app's trend_points: days for a week, a month or under two months, else months, years past three
+/// years. All time starts at the first play.
+Trend trend(Period period, DateRange range, List<Play> plays, DateTime now) {
+  var start = range.start;
+  if (period == Period.all && plays.isNotEmpty) {
+    final first = plays.map((p) => p.playedAt).reduce((a, b) => a.isBefore(b) ? a : b);
+    start = DateTime(first.year, first.month, first.day);
+  }
+  final last = (now.isBefore(range.end) ? now : range.end).subtract(const Duration(seconds: 1));
+  final starts = <DateTime>[];
+  TrendUnit unit;
+  if (period == Period.week || period == Period.month || last.difference(start).inDays < 62) {
+    unit = TrendUnit.day;
+    for (var d = start; !d.isAfter(last); d = DateTime(d.year, d.month, d.day + 1)) {
+      starts.add(d);
+    }
+  } else {
+    unit = TrendUnit.month;
+    for (var m = DateTime(start.year, start.month); !m.isAfter(last); m = DateTime(m.year, m.month + 1)) {
+      starts.add(m);
+    }
+    if (starts.length > 36) {
+      unit = TrendUnit.year;
+      starts
+        ..clear()
+        ..addAll([for (var y = start.year; y <= last.year; y++) DateTime(y)]);
+    }
+  }
+  final groups = List.generate(starts.length, (_) => <Play>[]);
+  for (final play in plays) {
+    if (play.playedAt.isBefore(start) || play.playedAt.isAfter(last)) continue;
+    final at = play.playedAt;
+    final index = switch (unit) {
+      // Rounded, as days across a clock change are 23 or 25 hours long
+      TrendUnit.day => (DateTime(at.year, at.month, at.day).difference(start).inHours / 24).round(),
+      TrendUnit.month => (at.year - start.year) * 12 + at.month - start.month,
+      TrendUnit.year => at.year - start.year,
+    };
+    if (index >= 0 && index < groups.length) groups[index].add(play);
+  }
+  return Trend(unit, starts, [for (final group in groups) Summary.of(group)]);
+}
+
 /// The latest plays grouped by their local day, newest first
 List<MapEntry<DateTime, List<Play>>> byDay(List<Play> plays, {int limit = 50}) {
   final days = <DateTime, List<Play>>{};
