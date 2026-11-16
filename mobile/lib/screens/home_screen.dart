@@ -7,6 +7,7 @@ import '../data/now_playing.dart';
 import '../state/app_controller.dart';
 import '../state/data_store.dart';
 import '../widgets/mini_player.dart';
+import '../widgets/sliding.dart';
 import 'account_screen.dart';
 import 'listening/listening_screen.dart';
 import 'playlists/playlists_screen.dart';
@@ -89,20 +90,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       ),
       bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
         MiniPlayer(nowPlaying: _nowPlaying, store: _store),
-        NavigationBar(
-          selectedIndex: _page,
-          onDestinationSelected: (page) {
+        SlidingNavigationBar(
+          selected: _page,
+          onSelected: (page) {
             if (page == _page) return;
             setState(() => _page = page);
             _shown.forward(from: 0);
           },
-          destinations: [
-            NavigationDestination(icon: const Icon(Icons.headphones_outlined), selectedIcon: const Icon(Icons.headphones),
-                label: context.t('nav.listening')),
-            NavigationDestination(icon: const Icon(Icons.queue_music_outlined),
-                selectedIcon: const Icon(Icons.queue_music), label: context.t('nav.playlists')),
-            NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person),
-                label: context.t('nav.account')),
+          items: [
+            BarItem(Icons.headphones_outlined, Icons.headphones, context.t('nav.listening')),
+            BarItem(Icons.queue_music_outlined, Icons.queue_music, context.t('nav.playlists')),
+            BarItem(Icons.person_outline, Icons.person, context.t('nav.account')),
           ],
         ),
       ]),

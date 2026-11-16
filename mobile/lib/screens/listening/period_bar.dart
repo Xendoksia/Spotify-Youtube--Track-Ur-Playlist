@@ -4,6 +4,7 @@ import '../../data/mood.dart';
 import '../../data/stats.dart';
 import '../../l10n/strings.dart';
 import '../../widgets/format.dart';
+import '../../widgets/sliding.dart';
 
 /// Week, month, year or all time, with arrows to go back and forward by one period
 class PeriodBar extends StatelessWidget {
@@ -49,27 +50,13 @@ class PeriodBar extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: SegmentedButton<Period>(
-                showSelectedIcon: false,
-                // Tighter than by default, so "All time" stays on one line beside the bell
-                style: ButtonStyle(
-                  padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 4)),
-                  visualDensity: VisualDensity.compact,
-                  // The selected period in the color of the number one's cover
-                  backgroundColor: mood == null
-                      ? null
-                      : WidgetStateProperty.resolveWith(
-                          (states) => states.contains(WidgetState.selected) ? mood : null),
-                  foregroundColor: mood == null
-                      ? null
-                      : WidgetStateProperty.resolveWith(
-                          (states) => states.contains(WidgetState.selected) ? Colors.white : null),
-                ),
-                segments: [
-                  for (final p in Period.values) ButtonSegment(value: p, label: Text(context.t('period.${p.name}'))),
-                ],
-                selected: {period},
-                onSelectionChanged: (selected) => onPeriod(selected.first),
+              // The selected period in the color of the number one's cover, its mark sliding to a new one
+              child: SlidingSegments<Period>(
+                values: Period.values,
+                selected: period,
+                label: (p) => context.t('period.${p.name}'),
+                onChanged: onPeriod,
+                color: mood,
               ),
             ),
             ?trailing,

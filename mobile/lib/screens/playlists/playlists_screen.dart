@@ -9,6 +9,7 @@ import '../../widgets/artwork_image.dart';
 import '../../widgets/cards.dart';
 import '../../widgets/event_badge.dart';
 import '../../widgets/format.dart';
+import '../../widgets/skeleton.dart';
 import 'playlist_history_screen.dart';
 
 /// The playlists tracked in the desktop app, by service, with the changes its last check found
@@ -24,15 +25,16 @@ class PlaylistsScreen extends StatelessWidget {
       listenable: store,
       builder: (context, _) {
         if (!store.loaded) {
+          if (store.error == null) {
+            return ListView(padding: const EdgeInsets.all(16), children: const [PlaylistsSkeleton()]);
+          }
           return Center(
-            child: store.error != null
-                ? MessageView(
-                    icon: Icons.cloud_off,
-                    text: context.t('load.failed', {'error': store.error!}),
-                    action: context.t('load.retry'),
-                    onAction: onRefresh,
-                  )
-                : const CircularProgressIndicator(),
+            child: MessageView(
+              icon: Icons.cloud_off,
+              text: context.t('load.failed', {'error': store.error!}),
+              action: context.t('load.retry'),
+              onAction: onRefresh,
+            ),
           );
         }
         final now = DateTime.now();

@@ -10,6 +10,7 @@ import '../../theme/palette.dart';
 import '../../widgets/artwork_image.dart';
 import '../../widgets/cards.dart';
 import '../../widgets/format.dart';
+import '../../widgets/skeleton.dart';
 import '../../widgets/sparkline.dart';
 import 'collage_card.dart';
 import 'detail_screen.dart';
@@ -101,15 +102,16 @@ class _ListeningScreenState extends State<ListeningScreen> {
       builder: (context, _) {
         final store = widget.store;
         if (!store.loaded) {
+          if (store.error == null) {
+            return ListView(padding: const EdgeInsets.all(16), children: const [ListeningSkeleton()]);
+          }
           return Center(
-            child: store.error != null
-                ? MessageView(
-                    icon: Icons.cloud_off,
-                    text: context.t('load.failed', {'error': store.error!}),
-                    action: context.t('load.retry'),
-                    onAction: widget.onRefresh,
-                  )
-                : const CircularProgressIndicator(),
+            child: MessageView(
+              icon: Icons.cloud_off,
+              text: context.t('load.failed', {'error': store.error!}),
+              action: context.t('load.retry'),
+              onAction: widget.onRefresh,
+            ),
           );
         }
         if (store.plays.isNotEmpty) _checkWrapped();
