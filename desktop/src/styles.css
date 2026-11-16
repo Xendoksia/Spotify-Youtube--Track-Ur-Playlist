@@ -1401,15 +1401,16 @@ img.picture.loaded {
   background: var(--grid);
 }
 
+/* Stretched rather than widened, so it moves on the compositor without laying the page out again */
 .mini-progress-fill {
   height: 100%;
-  border-radius: 0 2px 2px 0;
   background: var(--mood, var(--chart));
+  transform-origin: left;
 }
 
 /* Moves on smoothly between two asks for the position (every half second) */
 .mini-progress-fill.moving {
-  transition: width 500ms linear;
+  transition: transform 500ms linear;
 }
 
 .mini-body {
@@ -1480,11 +1481,14 @@ img.picture.loaded {
   height: 12px;
 }
 
+/* The bars grow by scaling, not by height, which would lay the page out again on every frame */
 .equalizer span {
   width: 3px;
-  height: 4px;
+  height: 12px;
   border-radius: 1px;
   background: currentColor;
+  transform: scaleY(0.33);
+  transform-origin: bottom;
 }
 
 .equalizer.playing span {
@@ -1503,10 +1507,10 @@ img.picture.loaded {
 
 @keyframes bounce {
   from {
-    height: 3px;
+    transform: scaleY(0.25);
   }
   to {
-    height: 12px;
+    transform: scaleY(1);
   }
 }
 
@@ -1520,16 +1524,36 @@ img.picture.loaded {
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: color-mix(in srgb, var(--mood) 18%, var(--bg));
-  animation: fade-in 200ms ease-out;
 }
 
+/* Each part fades on its own (MiniPlayer.tsx PARTS) */
+.now-view-shade {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--mood) 18%, var(--bg));
+  animation: fade-in 120ms ease-out;
+}
+
+.now-view-close {
+  animation: fade-in 250ms ease-out;
+}
+
+.now-view.leaving {
+  pointer-events: none;
+}
+
+/* A 48 px canvas stretched over the window, smooth because it is blurred already */
 .now-view-backdrop {
   position: absolute;
-  inset: -80px;
-  background-position: center;
-  background-size: cover;
-  filter: blur(70px) saturate(1.3);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  /* After the shade, so two see-through layers over the whole window never fade at once */
+  transition: opacity 300ms 120ms ease-out;
+}
+
+.now-view-backdrop.drawn {
   opacity: 0.4;
 }
 
@@ -1547,7 +1571,11 @@ img.picture.loaded {
   gap: 14px;
   width: min(420px, calc(100vw - 48px));
   text-align: center;
-  animation: rise 350ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+/* The cover flies in from the strip (MiniPlayer.tsx), the rest rises after it */
+.now-view-body > :not(.now-view-cover) {
+  animation: rise 380ms 90ms cubic-bezier(0.33, 1, 0.68, 1) both;
 }
 
 @keyframes rise {
@@ -1574,6 +1602,19 @@ img.picture.loaded {
   border-radius: 14px;
   box-shadow: 0 18px 50px rgb(0 0 0 / 0.45);
   font-size: 80px;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.now-view-cover > .picture {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+/* A song that starts while the view is open */
+.now-view-cover.next {
   animation: song-in 450ms cubic-bezier(0.33, 1, 0.68, 1) both;
 }
 
@@ -1582,7 +1623,6 @@ img.picture.loaded {
   flex-direction: column;
   gap: 2px;
   max-width: 100%;
-  animation: song-in 450ms 60ms cubic-bezier(0.33, 1, 0.68, 1) both;
 }
 
 .now-view-text span {
