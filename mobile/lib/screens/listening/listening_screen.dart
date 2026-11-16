@@ -42,7 +42,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
   List<Play>? _inboxOf;
 
   /// The color of the period's number one cover (else of the number one artist's photo), and whose it is
-  Mood? _mood;
+  final _mood = ValueNotifier<Mood?>(null);
   String? _moodOf;
 
   /// Where the next period's content comes from: -1 from the left (an earlier period), 1 from the right, 0 rising
@@ -59,6 +59,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
   @override
   void dispose() {
     WrappedNotice.tapped.removeListener(_noticeTapped);
+    _mood.dispose();
     super.dispose();
   }
 
@@ -309,7 +310,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
     if (which == _moodOf) return;
     _moodOf = which;
     if (which == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? setState(() => _mood = null) : null);
+      _mood.value = null;
       return;
     }
     () async {
@@ -320,7 +321,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
         final photo = await Artwork.instance.artistPhoto(artist.artist);
         if (photo != null) found = await moodOf(photo);
       }
-      if (mounted && _moodOf == which) setState(() => _mood = found);
+      if (mounted && _moodOf == which) _mood.value = found;
     }();
   }
 

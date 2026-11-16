@@ -39,7 +39,7 @@ class _DetailScreenState extends State<DetailScreen> {
 
   /// The page's picture, for the blurred copy behind it, and its color for the page
   String? _picture;
-  Mood? _mood;
+  final _mood = ValueNotifier<Mood?>(null);
 
   DetailTarget get target => widget.target;
 
@@ -60,7 +60,13 @@ class _DetailScreenState extends State<DetailScreen> {
     if (url == null || !mounted) return;
     setState(() => _picture = url);
     final mood = await moodOf(url);
-    if (mood != null && mounted) setState(() => _mood = mood);
+    if (mood != null && mounted) _mood.value = mood;
+  }
+
+  @override
+  void dispose() {
+    _mood.dispose();
+    super.dispose();
   }
 
   int get _next => widget.depth + 1;
@@ -254,7 +260,9 @@ class _Header extends StatelessWidget {
       ),
       child: Stack(children: [
         if (picture != null) Positioned.fill(child: Opacity(opacity: blur, child: BlurredPicture(url: picture!))),
-        Padding(
+        // As wide as the card, so the picture and the name sit in its middle
+        Container(
+          width: double.infinity,
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
           child: Column(children: [
             DecoratedBox(
