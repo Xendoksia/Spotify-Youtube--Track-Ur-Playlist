@@ -7,7 +7,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 class Mood {
   final double hue;
@@ -142,4 +142,55 @@ class MoodColor extends InheritedWidget {
 
   @override
   bool updateShouldNotify(MoodColor old) => old.color != color;
+}
+
+/// A soft wash of [mood]'s color from the top of a page, which also gives the page its accents (MoodColor). Without
+/// a mood the page stays plain; the wash fades in and out with the color, so a page does not flash while it gets
+/// its color.
+class MoodWash extends StatefulWidget {
+  final Mood? mood;
+  final Widget child;
+
+  /// How far down the wash reaches, as a share of the page
+  final double reach;
+
+  const MoodWash({super.key, required this.mood, required this.child, this.reach = 0.6});
+
+  @override
+  State<MoodWash> createState() => _MoodWashState();
+}
+
+class _MoodWashState extends State<MoodWash> {
+  /// The last color, kept to fade out from when the mood goes
+  Color _last = const Color(0x00000000);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final color = widget.mood?.color(theme.brightness);
+    if (color != null) _last = color;
+    final background = theme.colorScheme.surface;
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: color ?? _last.withAlpha(0)),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.ease,
+      child: widget.child,
+      builder: (context, shown, child) {
+        final wash = shown ?? const Color(0x00000000);
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: [0, widget.reach],
+              colors: [Color.alphaBlend(wash.withValues(alpha: wash.a * (dark ? 0.15 : 0.12)), background), background],
+            ),
+          ),
+          // The accents glide from one mood to the next, and take a first one at once
+          child: MoodColor(color: color == null ? null : (wash.a > 0.99 ? wash : color), child: child!),
+        );
+      },
+    );
+  }
 }

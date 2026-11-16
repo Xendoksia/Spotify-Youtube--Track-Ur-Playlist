@@ -129,28 +129,8 @@ class _ListeningScreenState extends State<ListeningScreen> {
                 : _content(context, store.plays),
           ),
         );
-        final theme = Theme.of(context);
-        final background = theme.colorScheme.surface;
-        final dark = theme.brightness == Brightness.dark;
         // The page's accents glide to the new number one's color; a soft wash of it comes down from the top
-        return TweenAnimationBuilder<Color?>(
-          // Without a vivid cover the usual accent, as on the desktop app
-          tween: ColorTween(end: _mood?.color(theme.brightness) ?? theme.colorScheme.primary),
-          duration: const Duration(milliseconds: 800),
-          curve: Curves.ease,
-          child: list,
-          builder: (context, mood, child) => DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                stops: const [0, 0.6],
-                colors: [Color.lerp(background, mood, dark ? 0.14 : 0.12)!, background],
-              ),
-            ),
-            child: MoodColor(color: mood, child: child!),
-          ),
-        );
+        return MoodWash(mood: _mood, child: list);
       },
     );
   }

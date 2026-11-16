@@ -72,23 +72,10 @@ class _DetailScreenState extends State<DetailScreen> {
     final plays = target.playsIn(widget.store.plays);
     final detail = Detail.of(plays);
     const gap = SizedBox(height: 12);
-    final theme = Theme.of(context);
-    final background = theme.colorScheme.surface;
     // The whole page in the color of its picture, as the statistics take their number one's
-    return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: _mood?.color(theme.brightness) ?? theme.colorScheme.primary),
-      duration: const Duration(milliseconds: 600),
-      builder: (context, mood, child) => DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            stops: const [0, 0.7],
-            colors: [Color.lerp(background, mood, theme.brightness == Brightness.dark ? 0.16 : 0.13)!, background],
-          ),
-        ),
-        child: MoodColor(color: mood, child: child!),
-      ),
+    return MoodWash(
+      mood: _mood,
+      reach: 0.7,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(backgroundColor: Colors.transparent),
@@ -208,8 +195,11 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
-    final mood = MoodColor.of(context) ?? palette.chart;
-    final surface = Theme.of(context).colorScheme.surfaceContainer;
+    final mood = MoodColor.of(context);
+    final theme = Theme.of(context);
+    final surface = theme.colorScheme.surfaceContainer;
+    // Light pages keep the blurred picture fainter, so the text over it stays readable
+    final blur = theme.brightness == Brightness.dark ? 0.45 : 0.28;
     const size = 200.0;
     final image = switch (target.kind) {
       DetailKind.track =>
@@ -237,7 +227,8 @@ class _Header extends StatelessWidget {
         if (target.kind != DetailKind.artist)
           TextButton(
             onPressed: onArtist,
-            child: Text(target.artist, style: TextStyle(color: mood, fontSize: 17, fontWeight: FontWeight.w600)),
+            child: Text(target.artist,
+                style: TextStyle(color: mood ?? palette.chart, fontSize: 17, fontWeight: FontWeight.w600)),
           ),
         if (tracklist != null)
           FutureBuilder<List<(String, int)>?>(
@@ -257,12 +248,12 @@ class _Header extends StatelessWidget {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Color.lerp(surface, mood, 0.14),
+        color: mood == null ? surface : Color.lerp(surface, mood, 0.14),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Color.lerp(palette.border, mood, 0.4)!),
+        border: Border.all(color: mood == null ? palette.border : Color.lerp(palette.border, mood, 0.4)!),
       ),
       child: Stack(children: [
-        if (picture != null) Positioned.fill(child: Opacity(opacity: 0.45, child: BlurredPicture(url: picture!))),
+        if (picture != null) Positioned.fill(child: Opacity(opacity: blur, child: BlurredPicture(url: picture!))),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
           child: Column(children: [
