@@ -172,6 +172,8 @@ class MoodWash extends StatelessWidget {
           color: color,
           child: DecoratedBox(
             decoration: BoxDecoration(
+              // Pages over it are see-through, so without a mood it still paints the plain background
+              color: color == null ? background : null,
               gradient: color == null
                   ? null
                   : LinearGradient(
