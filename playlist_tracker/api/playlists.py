@@ -187,11 +187,12 @@ class Playlists:
         self.emit("task", status=text, busy=self.busy, checking=checking)
 
     def _run(self, name: str, task: Callable[[], object], on_success: Callable[[object], None],
-             status: str = "") -> dict:
+             status: str = "", keyless: bool = False) -> dict:
         """Start network work for a service unless some is running; its end comes as a "task" event with
-        state "done", "error" (message) or "login" (logging in is needed again; message)."""
+        state "done", "error" (message) or "login" (logging in is needed again; message). keyless: the work can
+        run without keys on a service that reads links from their page."""
         service = service_of(name)
-        if not service.has_credentials(load_config()):
+        if not (keyless and service.keyless_links) and not service.has_credentials(load_config()):
             return {"started": False, "reason": "credentials"}
         with self._lock:
             if self.busy:
@@ -262,7 +263,8 @@ class Playlists:
             self.loaded[service.name][playlist_id] = {**existing, "name": playlist_name}
             history.set_tracked(playlist_id, playlist_name, True, service.db_path)
             self.status = t("status.now_tracked", name=playlist_name)
-        return self._run(name, lambda: service.connect().playlist_name(playlist_id), done, t("status.fetching"))
+        return self._run(name, lambda: service.connect().playlist_name(playlist_id), done, t("status.fetching"),
+                         keyless=True)
 
     def check(self, name: str) -> dict:
         service = service_of(name)
@@ -284,7 +286,7 @@ class Playlists:
                 except TrackerError as error:
                     results.append({"name": playlist_name, "error": str(error)})
             return results
-        return self._run(name, task, lambda results: self.show_results(service.name, results))
+        return self._run(name, task, lambda results: self.show_results(service.name, results), keyless=True)
 
     def show_results(self, name: str, results: list[dict], automatic: bool = False) -> None:
         """Keep a check's result for its tab, from the Check button or the automatic check."""

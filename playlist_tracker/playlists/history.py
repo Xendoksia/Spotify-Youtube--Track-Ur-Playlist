@@ -298,6 +298,22 @@ def check_playlist(client, playlist_id: str, db_path: Path) -> dict:
         return _check_playlist(client, playlist_id, db_path)
 
 
+def _match_loose_keys(current: list[dict], previous: dict[str, dict]) -> None:
+    """A YouTube playlist read from its page has only video ids as keys (loose_key). Its entries take the key of
+    the same video read before, through the API or the page, so changing how it is read finds no changes."""
+    loose = [track for track in current if track.pop("loose_key", False)]
+    if not loose:
+        return
+    taken = {track["key"] for track in current}
+    free: dict[str, list[str]] = {}
+    for key, old in previous.items():
+        if key not in taken:
+            free.setdefault(old["uri"], []).append(key)
+    for track in loose:
+        if track["key"] not in previous and free.get(track["uri"]):
+            track["key"] = free[track["uri"]].pop(0)
+
+
 def _check_playlist(client, playlist_id: str, db_path: Path) -> dict:
     name = client.playlist_name(playlist_id)
     current = client.playlist_tracks(playlist_id)
@@ -316,6 +332,7 @@ def _check_playlist(client, playlist_id: str, db_path: Path) -> dict:
             r["key"]: dict(r)
             for r in db.execute("SELECT * FROM tracks WHERE playlist_id = ? AND in_playlist = 1", (playlist_id,))
         }
+        _match_loose_keys(current, previous)
         current_by_key = {track["key"]: track for track in current}
         for k, track in current_by_key.items():
             # Unavailable items may lose their metadata (YouTube shows "Deleted video"), keep the last known one

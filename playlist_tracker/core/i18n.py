@@ -346,8 +346,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "help.setup.why": "Playlists can only be read through Spotify's and YouTube's official APIs, and every app "
                           "that uses them needs its own keys. Spotify lets an app in development mode be used only "
                           "by a few users added by hand, so a ready key cannot be built into this app: everyone "
-                          "creates their own (Client ID / Client Secret) and logs in once. YouTube works the same "
-                          "way with an API key or a Google login.",
+                          "creates their own (Client ID / Client Secret) and logs in once. YouTube needs nothing "
+                          "for public and unlisted playlists, and a private one needs a Google login.",
         "help.setup.todo": "You set it up once and the keys and the login are remembered. The steps are in Settings. "
                            "The listening statistics need none of this.",
         "help.own_lists.title": "Why only my own Spotify playlists",
@@ -362,7 +362,8 @@ STRINGS: dict[str, dict[str, str]] = {
                          "the limits above. Spotify's public embedded player shows a playlist without a login, but "
                          "only its first 100 tracks. Reading more through the Spotify website's internal keys is not "
                          "official and is against Spotify's terms, so the app does not do it.",
-        "help.link.todo": "",
+        "help.link.todo": "On YouTube a link is enough: a public or unlisted playlist is read from its page "
+                          "without a key or a login.",
         "help.unplayable.title": "What \"unplayable\" means",
         "help.unplayable.why": "On Spotify: the track is still in the playlist but cannot be played in your country, "
                                "usually because its rights expired or it was replaced by another version. On "
@@ -462,7 +463,6 @@ STRINGS: dict[str, dict[str, str]] = {
                                "own or collaborate on can be checked.",
         "spotify.invalid_link": "Not a valid Spotify playlist link: {link}",
 
-        "youtube.no_credentials": "No YouTube API key or OAuth client is set. Add one in Settings.",
         "youtube.invalid_client": "Invalid Google OAuth Client ID / Client Secret. Check them in Settings.",
         "youtube.session_expired": "Your Google session has expired. Please log in again.",
         "youtube.login_failed_code": "Google login failed ({code}): {body}",
@@ -485,6 +485,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "youtube.playlist_not_found": "Playlist not found. Is the link correct? Private playlists can only be "
                                       "read after logging in with the Google account that owns them.",
         "youtube.private": "This playlist is private. Log in with the Google account that owns it.",
+        "youtube.private_or_missing": "This playlist is private or was deleted. A private playlist can be read "
+                                      "after logging in with the Google account that owns it.",
         "youtube.watch_later": "“Watch later” cannot be read through the YouTube API.",
         "youtube.mix": "YouTube Mixes are generated automatically and cannot be tracked.",
         "youtube.invalid_link": "Not a valid YouTube playlist link: {link}",
@@ -821,8 +823,8 @@ STRINGS: dict[str, dict[str, str]] = {
                           "kullanan her uygulamanın kendi anahtarı olmalı. Spotify, geliştirme modundaki bir "
                           "uygulamayı yalnızca elle eklenen birkaç kişinin kullanmasına izin veriyor. Bu yüzden "
                           "uygulamaya hazır bir anahtar konamıyor: herkes kendi anahtarını (Client ID / Client "
-                          "Secret) oluşturup bir kez giriş yapıyor. YouTube da API anahtarı ya da Google girişiyle "
-                          "aynı şekilde çalışıyor.",
+                          "Secret) oluşturup bir kez giriş yapıyor. YouTube'da herkese açık ve liste dışı listeler için "
+                          "hiçbir şey gerekmez, gizli bir liste için Google girişi yeterli.",
         "help.setup.todo": "Bir kez yapılır ve anahtarlar ile giriş hatırlanır. Adımlar Ayarlar'da. Dinleme "
                            "istatistikleri bunların hiçbirine ihtiyaç duymaz.",
         "help.own_lists.title": "Neden yalnızca kendi Spotify listelerim?",
@@ -837,7 +839,8 @@ STRINGS: dict[str, dict[str, str]] = {
                          "gelmek zorunda. Spotify'ın herkese açık gömülü oynatıcısı listeyi girişsiz gösteriyor ama "
                          "yalnızca ilk 100 şarkısını. Fazlasını Spotify sitesinin iç anahtarlarıyla okumak resmi "
                          "değil ve Spotify'ın kullanım şartlarına aykırı, bu yüzden uygulama bunu yapmıyor.",
-        "help.link.todo": "",
+        "help.link.todo": "YouTube'da link yeterli: herkese açık ya da liste dışı bir liste, anahtar ya da giriş "
+                          "olmadan sayfasından okunur.",
         "help.unplayable.title": "\"Çalınamıyor\" ne demek?",
         "help.unplayable.why": "Spotify'da: şarkı hâlâ listede ama senin ülkende çalınamıyor. Genelde hakları bitmiş "
                                "ya da başka bir sürümüyle değiştirilmiştir. YouTube'da: video silinmiş, gizlenmiş "
@@ -938,7 +941,6 @@ STRINGS: dict[str, dict[str, str]] = {
                                "çalıştığın listeler kontrol edilebilir.",
         "spotify.invalid_link": "Geçerli bir Spotify liste linki değil: {link}",
 
-        "youtube.no_credentials": "YouTube API anahtarı veya OAuth istemcisi ayarlanmamış. Ayarlar'dan ekle.",
         "youtube.invalid_client": "Google OAuth Client ID / Client Secret geçersiz. Ayarlar'dan kontrol et.",
         "youtube.session_expired": "Google oturumunun süresi doldu. Lütfen tekrar giriş yap.",
         "youtube.login_failed_code": "Google girişi başarısız ({code}): {body}",
@@ -961,6 +963,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "youtube.playlist_not_found": "Liste bulunamadı. Link doğru mu? Gizli listeler yalnızca sahibi olan "
                                       "Google hesabıyla giriş yapıldıktan sonra okunabilir.",
         "youtube.private": "Bu liste gizli. Listenin sahibi olan Google hesabıyla giriş yap.",
+        "youtube.private_or_missing": "Bu liste gizli ya da silinmiş. Gizli bir liste, sahibi olan Google "
+                                      "hesabıyla giriş yapınca okunabilir.",
         "youtube.watch_later": "“Daha sonra izle” listesi YouTube API üzerinden okunamıyor.",
         "youtube.mix": "YouTube Mix'leri otomatik oluşturulur ve takip edilemez.",
         "youtube.invalid_link": "Geçerli bir YouTube liste linki değil: {link}",

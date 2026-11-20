@@ -70,8 +70,6 @@ def _is_available(video: dict | None, region: str) -> int:
 
 class YouTubeClient:
     def __init__(self, api_key: str | None, client_id: str | None, client_secret: str | None):
-        if not api_key and not (client_id and client_secret):
-            raise YouTubeError(t("youtube.no_credentials"))
         self.api_key = api_key
         self.client_id = client_id
         self.client_secret = client_secret
@@ -210,13 +208,21 @@ class YouTubeClient:
         } for item in self._pages("/playlists", {"part": "snippet,contentDetails", "mine": "true"})]
         return playlists, []
 
+    def _keyless(self) -> bool:
+        """Neither an API key nor a login: playlists are read from their page (PageReader)."""
+        return not self.api_key and not self._access_token()
+
     def playlist_name(self, playlist_id: str) -> str:
+        if self._keyless():
+            return PageReader().playlist_name(playlist_id)
         items = self.get("/playlists", {"part": "snippet", "id": playlist_id}).get("items") or []
         if not items:
             raise YouTubeError(t("youtube.playlist_not_found"), 404)
         return items[0]["snippet"].get("title") or playlist_id
 
     def playlist_tracks(self, playlist_id: str) -> list[dict]:
+        if self._keyless():
+            return PageReader().playlist_tracks(playlist_id)
         try:
             items = list(self._pages("/playlistItems", {"part": "snippet", "playlistId": playlist_id}))
         except YouTubeError as error:
@@ -253,6 +259,104 @@ class YouTubeClient:
                 "playable": _is_available(videos.get(video_id), region),
             })
         return tracks
+
+
+BROWSE_URL = "https://www.youtube.com/youtubei/v1/browse?prettyPrint=false"
+# The website's own client; an older version keeps working for a long time
+WEB_CLIENT = {"clientName": "WEB", "clientVersion": "2.20261119.07.00", "hl": "en"}
+# Asks the playlist page to list unavailable videos too, which it otherwise hides
+SHOW_UNAVAILABLE = "wgYCCAA%3D"
+
+
+class PageReader:
+    """Reads a public or unlisted playlist without an API key or a login, the way the YouTube website does. Used
+    when neither is set up. The website gives no id per entry, so the video id is the key (a video in the playlist
+    twice gets "#2"), and history.py matches it with the entries read through the API before."""
+
+    def _browse(self, body: dict) -> dict:
+        request = urllib.request.Request(
+            BROWSE_URL, data=json.dumps({"context": {"client": {**WEB_CLIENT, "gl": market()}}, **body}).encode(),
+            headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"})
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as error:
+            raise YouTubeError(t("youtube.api_error", code=error.code, message=error.reason), error.code)
+        except urllib.error.URLError as error:
+            raise YouTubeError(t("youtube.connect_failed", reason=error.reason))
+
+    def _first_page(self, playlist_id: str) -> dict:
+        data = self._browse({"browseId": f"VL{playlist_id}", "params": SHOW_UNAVAILABLE})
+        if not (data.get("metadata") or {}).get("playlistMetadataRenderer"):
+            # A private or deleted playlist comes back without its details, only an error alert
+            raise YouTubeError(t("youtube.private_or_missing"), 404)
+        return data
+
+    def playlist_name(self, playlist_id: str) -> str:
+        return self._first_page(playlist_id)["metadata"]["playlistMetadataRenderer"].get("title") or playlist_id
+
+    def playlist_tracks(self, playlist_id: str) -> list[dict]:
+        data = self._first_page(playlist_id)
+        try:
+            items = (data["contents"]["twoColumnBrowseResultsRenderer"]["tabs"][0]["tabRenderer"]["content"]
+                     ["sectionListRenderer"]["contents"][0]["itemSectionRenderer"]["contents"])
+        except (KeyError, IndexError):
+            items = []
+        tracks: list[dict] = []
+        seen: dict[str, int] = {}
+        while items:
+            following = None
+            for item in items:
+                if "continuationItemViewModel" in item or "continuationItemRenderer" in item:
+                    following = _continuation_token(item)
+                    continue
+                track = _page_track(item.get("lockupViewModel") or {})
+                if track is None:
+                    continue
+                seen[track["uri"]] = seen.get(track["uri"], 0) + 1
+                if seen[track["uri"]] > 1:
+                    track["key"] += f"#{seen[track['uri']]}"
+                tracks.append(track)
+            if not following:
+                break
+            more = self._browse({"continuation": following})
+            items = [entry for action in more.get("onResponseReceivedActions") or []
+                     for entry in (action.get("appendContinuationItemsAction") or {}).get("continuationItems") or []]
+        return tracks
+
+
+def _continuation_token(item) -> str | None:
+    """The token for the next 100 videos, wherever the page puts its continuationCommand."""
+    if isinstance(item, dict):
+        command = item.get("continuationCommand")
+        if isinstance(command, dict) and command.get("token"):
+            return command["token"]
+        children = item.values()
+    elif isinstance(item, list):
+        children = item
+    else:
+        return None
+    for child in children:
+        token = _continuation_token(child)
+        if token:
+            return token
+    return None
+
+
+def _page_track(lockup: dict) -> dict | None:
+    """A video of the playlist page; one without a title is unavailable (deleted, private or blocked here)."""
+    if lockup.get("contentType") != "LOCKUP_CONTENT_TYPE_VIDEO" or not lockup.get("contentId"):
+        return None
+    metadata = (lockup.get("metadata") or {}).get("lockupMetadataViewModel") or {}
+    title = (metadata.get("title") or {}).get("content") or ""
+    rows = ((metadata.get("metadata") or {}).get("contentMetadataViewModel") or {}).get("metadataRows") or []
+    parts = [part["text"].get("content", "") for row in rows for part in row.get("metadataParts") or []
+             if "text" in part]
+    return {
+        "key": lockup["contentId"], "uri": lockup["contentId"], "name": title or "(unavailable)",
+        "artist": (parts[0] if parts and title else "").strip(), "album": "", "added_at": "", "added_by": "",
+        "playable": int(bool(title)), "loose_key": True,
+    }
 
 
 def connect() -> YouTubeClient:

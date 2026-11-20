@@ -31,6 +31,8 @@ class Service:
     has_credentials: Callable[[dict], bool]
     session_user: Callable[[dict], "str | None"]
     account: str
+    # Reads a playlist added by link without keys or a login (YouTube, from the playlist's page)
+    keyless_links: bool = False
 
     @property
     def key(self) -> str:
@@ -49,6 +51,6 @@ YOUTUBE = Service(
     playlist_url=youtube.PLAYLIST_URL, items="videos", login_required=youtube.LoginRequired,
     has_credentials=youtube.has_credentials,
     session_user=lambda c: c.get("YOUTUBE_USER", "") if c.get("YOUTUBE_REFRESH_TOKEN") else None,
-    account="Google",
+    account="Google", keyless_links=True,
 )
 SERVICES = (SPOTIFY, YOUTUBE)

@@ -221,3 +221,55 @@ class PlaylistCardsTest(DatabaseTestCase):
         self.assertEqual([(card["id"], card["tracked"]) for card in page["playlists"]], [("p1", False)])
         page = self.api.Playlists(lambda *args, **kwargs: None).toggle("Spotify", "p1")
         self.assertEqual([(card["id"], card["tracked"]) for card in page["playlists"]], [("p1", True)])
+
+
+def lockup(video_id: str, title: str | None, channel: str = "Channel") -> dict:
+    metadata = {"metadata": {"contentMetadataViewModel": {"metadataRows": [
+        {"metadataParts": [{"text": {"content": channel}}, {"text": {"content": "1M views"}}]}]}}}
+    if title is not None:
+        metadata["title"] = {"content": title}
+    return {"lockupViewModel": {"contentId": video_id, "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+                                "metadata": {"lockupMetadataViewModel": metadata}}}
+
+
+def continuation(token: str) -> dict:
+    return {"continuationItemViewModel": {"continuationCommand": {"innertubeCommand": {
+        "continuationCommand": {"token": token}}}}}
+
+
+class YouTubePageTest(DatabaseTestCase):
+    """A YouTube playlist read from its page without a key or a login."""
+
+    def setUp(self):
+        super().setUp()
+        self.pages = {
+            None: {"metadata": {"playlistMetadataRenderer": {"title": "Page list"}},
+                   "contents": {"twoColumnBrowseResultsRenderer": {"tabs": [{"tabRenderer": {"content": {
+                       "sectionListRenderer": {"contents": [{"itemSectionRenderer": {"contents": [
+                           lockup("v1", "One"), lockup("v2", None), continuation("next")]}}]}}}}]}}},
+            "next": {"onResponseReceivedActions": [{"appendContinuationItemsAction": {"continuationItems": [
+                lockup("v3", "Three"), lockup("v1", "One again")]}}]},
+        }
+        patch = mock.patch.object(youtube.PageReader, "_browse",
+                                  lambda reader, body: self.pages[body.get("continuation")])
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_all_pages_with_unavailable_videos_and_repeats(self):
+        tracks = youtube.PageReader().playlist_tracks("PL1")
+        self.assertEqual([(t["key"], t["artist"], t["playable"]) for t in tracks],
+                         [("v1", "Channel", 1), ("v2", "", 0), ("v3", "Channel", 1), ("v1#2", "Channel", 1)])
+        self.assertEqual(youtube.PageReader().playlist_name("PL1"), "Page list")
+
+    def test_a_private_playlist(self):
+        self.pages[None] = {"alerts": []}
+        with self.assertRaises(youtube.YouTubeError):
+            youtube.PageReader().playlist_name("PL1")
+
+    def test_entries_read_through_the_api_before_keep_their_keys(self):
+        self.client.tracks = [{**track("api-1"), "uri": "v1"}, {**track("api-2"), "uri": "v2"}]
+        self.check()
+        result = history.check_playlist(youtube.PageReader(), "p1", self.db)
+        self.assertEqual([t["name"] for t in result["added"]], ["Three", "One again"])
+        self.assertEqual(result["removed"], [])
+        self.assertEqual([t["name"] for t in result["unplayable"]], ["API-2"])
