@@ -39,7 +39,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "listening.card.paused": "❚❚  Paused  ·  {listened} heard",
         "listening.today": "Today",
         "listening.yesterday": "Yesterday",
-        "listening.empty": "No plays recorded yet. Play something in the Spotify app; a song counts after 30 seconds.",
+        "listening.empty": "No plays recorded yet. Play something in the Spotify app, and a song counts after 30 seconds.",
         "listening.now.error": "Could not read the Spotify app: {error}",
         "stats.tab": "Statistics",
         "stats.hero.track": "Most played track",
@@ -107,7 +107,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "wrapped.genre": "Genre of the month",
         "wrapped.closing.caption": "{month} at a glance",
         "stats.collage": "Album collage",
-        "stats.collage.summary": "The most played albums of this period; click a cover for the album",
+        "stats.collage.summary": "The most played albums of this period. Click a cover for the album",
         "stats.diversity": "Diversity",
         "stats.diversity.top5": "Top 5 artists' share",
         "stats.diversity.variety": "Different tracks",
@@ -125,7 +125,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "stats.milestones.total": "Your {count}th play",
         "stats.milestones.artist": "{count}th play of {name}",
         "stats.milestones.track": "{name} ({artist}) played for the {count}th time",
-        "stats.milestones.met": "First time you heard {name}; {plays} since",
+        "stats.milestones.met": "First time you heard {name}, and {plays} since",
         "stats.milestones.start": "Recording began",
         "stats.year_ago": "A year ago",
         "stats.genre_shift": "Genres over time",
@@ -348,7 +348,7 @@ STRINGS: dict[str, dict[str, str]] = {
                           "by a few users added by hand, so a ready key cannot be built into this app: everyone "
                           "creates their own (Client ID / Client Secret) and logs in once. YouTube works the same "
                           "way with an API key or a Google login.",
-        "help.setup.todo": "You set it up once; the keys and the login are remembered. The steps are in Settings. "
+        "help.setup.todo": "You set it up once and the keys and the login are remembered. The steps are in Settings. "
                            "The listening statistics need none of this.",
         "help.own_lists.title": "Why only my own Spotify playlists",
         "help.own_lists.why": "Spotify has tightened its API: it gives the tracks only of playlists you own or "
@@ -358,7 +358,7 @@ STRINGS: dict[str, dict[str, str]] = {
                                "Add to playlist, New playlist). Keep in mind that the copy is then checked, not the "
                                "original, so changes to the original do not show up.",
         "help.link.title": "Why a link alone is not enough",
-        "help.link.why": "A link only tells which playlist it is; the tracks still have to come from the API, with "
+        "help.link.why": "A link only tells which playlist it is, but the tracks still have to come from the API, with "
                          "the limits above. Spotify's public embedded player shows a playlist without a login, but "
                          "only its first 100 tracks. Reading more through the Spotify website's internal keys is not "
                          "official and is against Spotify's terms, so the app does not do it.",
@@ -367,12 +367,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "help.unplayable.why": "On Spotify: the track is still in the playlist but cannot be played in your country, "
                                "usually because its rights expired or it was replaced by another version. On "
                                "YouTube: the video was deleted, made private or is blocked in your region.",
-        "help.unplayable.todo": "Such a track often comes back by itself; it is then shown as playable again.",
+        "help.unplayable.todo": "Such a track often comes back by itself, and it is then shown as playable again.",
         "help.auto_check.title": "What the automatic check sees",
         "help.auto_check.why": "Each check compares the playlist with the previous check. A track added and removed "
                                "again between two checks is not seen. The check runs only while the app is running "
-                               "(in the tray too); when it was closed, the next check catches up. The daily YouTube "
-                               "quota can run out with many large playlists; it resets the next day.",
+                               "(in the tray too), and when it was closed, the next check catches up. The daily YouTube "
+                               "quota can run out with many large playlists, but it resets the next day.",
         "help.auto_check.todo": "",
         "help.listening.title": "Where the listening statistics come from",
         "help.listening.why": "They do not use the Spotify API: the app reads what the Spotify desktop app plays "
@@ -398,7 +398,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "settings.close_to_tray": "Keep running in the system tray when the window is closed",
         "settings.autostart": "Start with Windows (in the tray)",
         "settings.auto_check": "Check tracked playlists:",
-        "settings.auto_check_note": "Also in the tray; removed and unplayable tracks are reported in a notification.",
+        "settings.auto_check_note": "Also in the tray, and removed and unplayable tracks are reported in a notification.",
         "auto_check.off": "Only when I click Check",
         "auto_check.6h": "Every 6 hours",
         "auto_check.12h": "Every 12 hours",
@@ -513,7 +513,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "listening.card.paused": "❚❚  Duraklatıldı  ·  {listened} dinlendi",
         "listening.today": "Bugün",
         "listening.yesterday": "Dün",
-        "listening.empty": "Henüz kayıtlı dinleme yok. Spotify uygulamasında bir şey çal; şarkı 30 saniye sonra sayılır.",
+        "listening.empty": "Henüz kayıtlı dinleme yok. Spotify uygulamasında bir şey çal, şarkı 30 saniye sonra sayılır.",
         "listening.now.error": "Spotify uygulaması okunamadı: {error}",
         "stats.tab": "İstatistikler",
         "stats.hero.track": "En çok dinlenen şarkı",
@@ -581,7 +581,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "wrapped.genre": "Ayın türü",
         "wrapped.closing.caption": "Bir bakışta {month}",
         "stats.collage": "Albüm kolajı",
-        "stats.collage.summary": "Bu dönemin en çok dinlenen albümleri; kapağa tıklayınca albüm sayfası açılır",
+        "stats.collage.summary": "Bu dönemin en çok dinlenen albümleri. Kapağa tıklayınca albüm sayfası açılır",
         "stats.diversity": "Çeşitlilik",
         "stats.diversity.top5": "İlk 5 sanatçının payı",
         "stats.diversity.variety": "Farklı şarkı oranı",
@@ -599,7 +599,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "stats.milestones.total": "{count}. dinlemen",
         "stats.milestones.artist": "{name}: {count}. dinleme",
         "stats.milestones.track": "{name} ({artist}) {count}. kez dinlendi",
-        "stats.milestones.met": "{name} ile tanıştın; o günden beri {plays}",
+        "stats.milestones.met": "{name} ile tanıştın ve o günden beri {plays}",
         "stats.milestones.start": "Kayıt başladı",
         "stats.year_ago": "Bir yıl önce bu zaman",
         "stats.genre_shift": "Türlerin değişimi",
@@ -819,11 +819,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "help.setup.title": "Neden bu kadar şey girmek gerekiyor?",
         "help.setup.why": "Listeler yalnızca Spotify'ın ve YouTube'un resmi API'leriyle okunabiliyor ve bunları "
                           "kullanan her uygulamanın kendi anahtarı olmalı. Spotify, geliştirme modundaki bir "
-                          "uygulamayı yalnızca elle eklenen birkaç kişinin kullanmasına izin veriyor; bu yüzden "
+                          "uygulamayı yalnızca elle eklenen birkaç kişinin kullanmasına izin veriyor. Bu yüzden "
                           "uygulamaya hazır bir anahtar konamıyor: herkes kendi anahtarını (Client ID / Client "
                           "Secret) oluşturup bir kez giriş yapıyor. YouTube da API anahtarı ya da Google girişiyle "
                           "aynı şekilde çalışıyor.",
-        "help.setup.todo": "Bir kez yapılır; anahtarlar ve giriş hatırlanır. Adımlar Ayarlar'da. Dinleme "
+        "help.setup.todo": "Bir kez yapılır ve anahtarlar ile giriş hatırlanır. Adımlar Ayarlar'da. Dinleme "
                            "istatistikleri bunların hiçbirine ihtiyaç duymaz.",
         "help.own_lists.title": "Neden yalnızca kendi Spotify listelerim?",
         "help.own_lists.why": "Spotify API'sini kısıtladı: şarkıları yalnızca sahibi olduğun ya da ortak çalıştığın "
@@ -831,30 +831,30 @@ STRINGS: dict[str, dict[str, str]] = {
                               "(editoryal, sana özel) listede görünür ama şarkıları okunamaz.",
         "help.own_lists.todo": "Böyle bir listeyi takip etmek için Spotify'da kendi hesabına kopyala (tüm şarkıları "
                                "seç, Çalma listesine ekle, Yeni çalma listesi). Ancak o zaman orijinal değil kopya "
-                               "kontrol edilir; orijinaldeki değişiklikler görünmez.",
+                               "kontrol edilir, bu yüzden orijinaldeki değişiklikler görünmez.",
         "help.link.title": "Neden sadece link yetmiyor?",
-        "help.link.why": "Link yalnızca hangi liste olduğunu söyler; şarkılar yine yukarıdaki sınırlarla API'den "
+        "help.link.why": "Link yalnızca hangi liste olduğunu söyler, şarkılar ise yine yukarıdaki sınırlarla API'den "
                          "gelmek zorunda. Spotify'ın herkese açık gömülü oynatıcısı listeyi girişsiz gösteriyor ama "
                          "yalnızca ilk 100 şarkısını. Fazlasını Spotify sitesinin iç anahtarlarıyla okumak resmi "
                          "değil ve Spotify'ın kullanım şartlarına aykırı, bu yüzden uygulama bunu yapmıyor.",
         "help.link.todo": "",
         "help.unplayable.title": "\"Çalınamıyor\" ne demek?",
-        "help.unplayable.why": "Spotify'da: şarkı hâlâ listede ama senin ülkende çalınamıyor; genelde hakları bitmiş "
+        "help.unplayable.why": "Spotify'da: şarkı hâlâ listede ama senin ülkende çalınamıyor. Genelde hakları bitmiş "
                                "ya da başka bir sürümüyle değiştirilmiştir. YouTube'da: video silinmiş, gizlenmiş "
                                "ya da bölgende engellenmiş.",
-        "help.unplayable.todo": "Böyle bir şarkı çoğu zaman kendiliğinden geri gelir; o zaman yeniden çalınabilir "
+        "help.unplayable.todo": "Böyle bir şarkı çoğu zaman kendiliğinden geri gelir ve o zaman yeniden çalınabilir "
                                 "olarak gösterilir.",
         "help.auto_check.title": "Otomatik kontrol neyi görür?",
         "help.auto_check.why": "Her kontrol listeyi bir önceki kontrolle karşılaştırır. İki kontrol arasında "
                                "eklenip yeniden çıkarılan bir şarkı görülmez. Kontrol yalnızca uygulama çalışırken "
-                               "(tepside de) yapılır; kapalıyken kaçırılan, bir sonraki kontrolde yakalanır. Çok "
-                               "sayıda büyük listede günlük YouTube kotası dolabilir; ertesi gün sıfırlanır.",
+                               "(tepside de) yapılır. Kapalıyken kaçırılan, bir sonraki kontrolde yakalanır. Çok "
+                               "sayıda büyük listede günlük YouTube kotası dolabilir, ama ertesi gün sıfırlanır.",
         "help.auto_check.todo": "",
         "help.listening.title": "Dinleme istatistikleri nereden geliyor?",
         "help.listening.why": "Spotify API'sini kullanmazlar: uygulama, bu bilgisayardaki Spotify masaüstü "
                               "uygulamasının çaldığını Windows'un medya denetimlerinden okur. Bir şarkı 30 saniye "
                               "çaldıktan sonra sayılır. Telefonda ya da başka bir cihazda dinlediklerin ve uygulama "
-                              "kurulmadan önceki dinlemeler bilinmez; bu yüzden sayılar Spotify Wrapped'tan farklıdır.",
+                              "kurulmadan önceki dinlemeler bilinmez. Bu yüzden sayılar Spotify Wrapped'tan farklıdır.",
         "help.listening.todo": "Hiçbir şey kaçmasın diye uygulamayı tepside çalışır bırak. YENİ gibi etiketler "
                                "yalnızca kayıt, karşılaştırılan dönemin tamamını kapsıyorsa gösterilir.",
 
@@ -874,7 +874,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "settings.close_to_tray": "Pencere kapatılınca sistem tepsisinde çalışmaya devam et",
         "settings.autostart": "Windows ile başlat (tepside)",
         "settings.auto_check": "Takip edilen listeleri kontrol et:",
-        "settings.auto_check_note": "Tepsideyken de; silinen ve çalınamaz olan şarkılar bildirimle haber verilir.",
+        "settings.auto_check_note": "Tepsideyken de çalışır. Silinen ve çalınamaz olan şarkılar bildirimle haber verilir.",
         "auto_check.off": "Yalnızca Kontrol et'e basınca",
         "auto_check.6h": "6 saatte bir",
         "auto_check.12h": "12 saatte bir",
