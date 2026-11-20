@@ -18,7 +18,8 @@ class Repository {
         .order('played_at', ascending: false)
         .order('uid')
         .range(from, to));
-    return rows.map(Play.fromRow).toList();
+    // A play the computer and the phone both recorded counts once, as on the desktop app
+    return withoutDuplicates(rows.map(Play.fromRow).toList());
   }
 
   Future<List<TrackedPlaylist>> trackedPlaylists() async {

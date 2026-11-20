@@ -60,6 +60,30 @@ class Play {
       );
 }
 
+/// Plays of a track closer than its length plus this are one play recorded by two sources, as the desktop app's
+/// listening.MATCH_MARGIN
+const matchMargin = Duration(minutes: 3);
+
+/// The plays without those another source recorded too (a song playing on the computer may also show on the
+/// phone), as the desktop app keeps them: the computer's play stays and the phone's of the same track within its
+/// length plus [matchMargin] is left out. The order is kept.
+List<Play> withoutDuplicates(List<Play> plays) {
+  // The phone's ("android") come last, so the computer's are the ones kept
+  final ordered = [...plays.where((p) => p.source != 'android'), ...plays.where((p) => p.source == 'android')];
+  final kept = <String, List<Play>>{};
+  final dropped = <String>{};
+  for (final play in ordered) {
+    final window = matchMargin + Duration(milliseconds: play.msPlayed);
+    final same = kept.putIfAbsent(play.trackKey, () => []);
+    if (same.any((other) => other.source != play.source && other.playedAt.difference(play.playedAt).abs() <= window)) {
+      dropped.add(play.uid);
+    } else {
+      same.add(play);
+    }
+  }
+  return dropped.isEmpty ? plays : [for (final play in plays) if (!dropped.contains(play.uid)) play];
+}
+
 class TrackedPlaylist {
   final String service;
   final String playlistId;

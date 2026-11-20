@@ -27,6 +27,22 @@ PlaylistEvent event(EventKind kind, DateTime at, {String name = 'Song', String a
     );
 
 void main() {
+  test('a play both the computer and the phone recorded counts once, keeping the computer play', () {
+    Play at(String uid, String source, String name, int minute) => Play(
+        uid: uid, deviceId: source, playedAt: DateTime(2026, 11, 21, 12, minute), artist: 'Band', name: name,
+        album: '', msPlayed: 200000, source: source);
+    final plays = [
+      at('phone', 'android', 'Song', 1),
+      at('pc', 'local', 'Song', 0),
+      // Too far apart (more than the length plus three minutes): two plays
+      at('later', 'android', 'Song', 20),
+      // Another song at the same time, and the same song twice on one device
+      at('other', 'android', 'Other', 0),
+      at('again', 'local', 'Song', 2),
+    ];
+    expect(withoutDuplicates(plays).map((p) => p.uid), ['pc', 'later', 'other', 'again']);
+  });
+
   group('keys', () {
     test('case and spacing do not make a different track', () {
       expect(play('The  Band', 'Song', DateTime(2026)).trackKey, play('the band', 'SONG ', DateTime(2026)).trackKey);
