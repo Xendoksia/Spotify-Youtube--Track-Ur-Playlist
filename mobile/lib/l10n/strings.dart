@@ -192,6 +192,8 @@ const _strings = <String, Map<String, String>>{
         'let Playlist Tracker start and run in the background.',
     'phone.allow': 'Give access',
     'phone.allowed': 'Access given',
+    'phone.ask': 'Record the songs played on this phone?',
+    'phone.later': 'Later',
   },
   'tr': {
     'app.title': 'Playlist Tracker',
@@ -377,6 +379,8 @@ const _strings = <String, Map<String, String>>{
         'Playlist Tracker\'ın kendiliğinden başlamasına ve arka planda çalışmasına izin ver.',
     'phone.allow': 'Erişim ver',
     'phone.allowed': 'Erişim verildi',
+    'phone.ask': 'Bu telefonda çalınan şarkılar kaydedilsin mi?',
+    'phone.later': 'Sonra',
   },
 };
 

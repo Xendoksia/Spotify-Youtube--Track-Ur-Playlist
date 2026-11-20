@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/strings.dart';
 import '../data/now_playing.dart';
@@ -42,6 +43,30 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _sending = Timer.periodic(const Duration(minutes: 1), (_) => _sendPlays());
     _nowPlaying.addListener(_songChanged);
     refresh();
+    _askAccess();
+  }
+
+  /// On the first login, offer Android's notification access page, without which nothing played on the phone is
+  /// recorded in the background; asked once, later it is in the account page
+  Future<void> _askAccess() async {
+    await _nowPlaying.checked;
+    final prefs = await SharedPreferences.getInstance();
+    if (_nowPlaying.hasAccess || (prefs.getBool('ACCESS_ASKED') ?? false) || !mounted) return;
+    await prefs.setBool('ACCESS_ASKED', true);
+    if (!mounted) return;
+    final allow = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.notifications_active_outlined),
+        title: Text(context.t('phone.ask')),
+        content: Text('${context.t('phone.lead')}\n\n${context.t('phone.battery')}'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.t('phone.later'))),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.t('phone.allow'))),
+        ],
+      ),
+    );
+    if (allow ?? false) await _nowPlaying.openSettings();
   }
 
   /// Send the phone's plays, then load the data and the settings chosen on other devices

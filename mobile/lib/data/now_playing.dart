@@ -70,6 +70,9 @@ class NowPlaying extends ChangeNotifier with WidgetsBindingObserver {
 
   bool hasAccess = false;
   Song? song;
+
+  /// Done once the first look at the access is over, so hasAccess can be trusted
+  late final Future<void> checked;
   StreamSubscription<dynamic>? _subscription;
 
   NowPlaying() {
@@ -78,7 +81,7 @@ class NowPlaying extends ChangeNotifier with WidgetsBindingObserver {
       song = event == null ? null : Song.fromMap(event as Map<Object?, Object?>);
       notifyListeners();
     }, onError: (_) {});
-    _checkAccess();
+    checked = _checkAccess();
   }
 
   Future<void> _checkAccess() async {
