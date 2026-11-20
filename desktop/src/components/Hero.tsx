@@ -10,7 +10,7 @@ export interface HeroData {
   detail: string;
   change?: RankChange | null;
   image: string;
-  /** A sentence or two about the artist, or the album's length and the first styles, on detail pages */
+  /** A sentence or two about the artist or the album's length, on detail pages */
   about?: string;
 }
 

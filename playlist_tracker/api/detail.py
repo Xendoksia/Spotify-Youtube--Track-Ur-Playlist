@@ -13,7 +13,7 @@ from typing import Callable
 from playlist_tracker.api.overview import artist_url, cover_url
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import format_length
-from playlist_tracker.music import artist_info, artwork, listening, styles
+from playlist_tracker.music import artist_info, artwork, listening
 from playlist_tracker.music.text import date_text, duration_text, hour_buckets, month_name, plays_text, summary_text, tracks_text
 
 ARTIST_TRACKS = 15
@@ -168,11 +168,6 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
                          else t("detail.album_heard_unknown", heard=number(heard)),
                 "open": t("detail.album_open"),
             }
-    if kind != "artist":
-        # Its first styles on Discogs, after the album's length
-        found = styles.request(info["artist"], info["artist_key"], info["album"] or None, info["name"], arrived)
-        if found:
-            hero["about"] = "  ·  ".join(part for part in (hero["about"], ", ".join(found[:styles.SHOWN])) if part)
     page["tiles"] = tiles
     # The page takes the color of its picture, as the statistics take their number one's
     picture = artwork.fetch_artist(title) if kind == "artist" else         artwork.fetch_cover(info["artist"], info["album"], info["name"])

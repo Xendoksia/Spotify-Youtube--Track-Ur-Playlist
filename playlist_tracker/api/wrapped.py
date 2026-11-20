@@ -13,7 +13,7 @@ from datetime import datetime
 
 from playlist_tracker.api.overview import artist_url, cover_url
 from playlist_tracker.core.i18n import number, t
-from playlist_tracker.music import artist_info, listening, styles
+from playlist_tracker.music import artist_info, listening
 from playlist_tracker.music import wrapped
 from playlist_tracker.music.text import duration_text, month_name, period_title, plays_text
 
@@ -93,12 +93,10 @@ def summary(value: str) -> dict:
     first_month = first is not None and first >= start
     total = sum(a["plays"] for a in artists_all)
     genre_plays: dict[str, int] = {}
-    genre_names: dict[str, str] = {}
-    for release in listening.release_plays(start, end):
-        genre, _ = styles.genre(release)
-        if genre:
-            genre = genre_names.setdefault(genre.lower(), genre)
-            genre_plays[genre] = genre_plays.get(genre, 0) + release["plays"]
+    for artist in artists_all:
+        facts = artist_info.cached(artist["key"])
+        if facts and facts["genres"]:
+            genre_plays[facts["genres"][0]] = genre_plays.get(facts["genres"][0], 0) + artist["plays"]
     genres = sorted(((name, plays * 100 / total) for name, plays in genre_plays.items()),
                     key=lambda item: -item[1])[:3] if total else []
     days = listening.timeline(start, end, "day")
