@@ -85,11 +85,11 @@ const _strings = <String, Map<String, String>>{
     'stats.milestones.total': 'Your {count}th play',
     'stats.milestones.artist': '{count}th play of {name}',
     'stats.milestones.track': '{name} ({artist}) played for the {count}th time',
-    'stats.milestones.met': 'First time you heard {name}; {plays} since',
+    'stats.milestones.met': 'First time you heard {name}, and {plays} since',
     'stats.milestones.start': 'Recording began',
     'stats.year_ago': 'A year ago',
     'stats.collage': 'Album collage',
-    'stats.collage.summary': 'The most played albums of this period; tap a cover for the album',
+    'stats.collage.summary': 'The most played albums of this period. Tap a cover for the album',
     'wrapped.inbox.item': 'Your {name} in review is ready',
     'wrapped.inbox.detail': 'The song and artist of the month and more',
     'wrapped.inbox.detail.year': 'The song and artist of the year and more',
@@ -153,7 +153,7 @@ const _strings = <String, Map<String, String>>{
     'hours': '{hours} h {minutes} min',
     'day.today': 'Today',
     'day.yesterday': 'Yesterday',
-    'playlists.empty': 'No tracked playlists yet. Track playlists in the desktop app; they appear here after it '
+    'playlists.empty': 'No tracked playlists yet. Track playlists in the desktop app and they appear here after it '
         'syncs.',
     'playlists.no_changes': 'No changes found yet',
     'playlists.latest': 'Latest changes, {date}',
@@ -186,13 +186,15 @@ const _strings = <String, Map<String, String>>{
     'mini.open_page': "Open the song's page",
     'phone.title': 'Playing on this phone',
     'phone.lead': 'The song Spotify plays on this phone shows above the bottom bar, and songs listened to for 30 '
-        'seconds are recorded, also while the app is closed; they are sent to your account when you open it. '
+        'seconds are recorded, also while the app is closed, and they are sent to your account when you open it. '
         'Android lets the app see them only with notification access.',
     'phone.battery': 'Some phones (Honor, Huawei, Xiaomi…) stop apps in the background: in the battery settings, '
         'let Playlist Tracker start and run in the background.',
     'phone.allow': 'Give access',
     'phone.allowed': 'Access given',
     'phone.ask': 'Record the songs played on this phone?',
+    'phone.ask_text': 'To record your songs even while the app is closed, give it notification access. On some '
+        'phones also allow it to run in the background in the battery settings.',
     'phone.later': 'Later',
   },
   'tr': {
@@ -272,11 +274,11 @@ const _strings = <String, Map<String, String>>{
     'stats.milestones.total': '{count}. dinlemen',
     'stats.milestones.artist': '{name}: {count}. dinleme',
     'stats.milestones.track': '{name} ({artist}) {count}. kez dinlendi',
-    'stats.milestones.met': '{name} ile tanıştın; o günden beri {plays}',
+    'stats.milestones.met': '{name} ile tanıştın ve o günden beri {plays}',
     'stats.milestones.start': 'Kayıt başladı',
     'stats.year_ago': 'Bir yıl önce bu zaman',
     'stats.collage': 'Albüm kolajı',
-    'stats.collage.summary': 'Bu dönemin en çok dinlenen albümleri; kapağa dokununca albüm sayfası açılır',
+    'stats.collage.summary': 'Bu dönemin en çok dinlenen albümleri. Kapağa dokununca albüm sayfası açılır',
     'wrapped.inbox.item': '{name} özetin hazır',
     'wrapped.inbox.detail': 'Ayın şarkısı, sanatçısı ve daha fazlası',
     'wrapped.inbox.detail.year': 'Yılın şarkısı, sanatçısı ve daha fazlası',
@@ -340,7 +342,7 @@ const _strings = <String, Map<String, String>>{
     'hours': '{hours} sa {minutes} dk',
     'day.today': 'Bugün',
     'day.yesterday': 'Dün',
-    'playlists.empty': 'Henüz takip edilen liste yok. Listeleri masaüstü uygulamada takip et; eşitlendikten sonra '
+    'playlists.empty': 'Henüz takip edilen liste yok. Listeleri masaüstü uygulamada takip et, eşitlendikten sonra '
         'burada görünürler.',
     'playlists.no_changes': 'Henüz değişiklik bulunmadı',
     'playlists.latest': 'Son değişiklikler, {date}',
@@ -372,7 +374,7 @@ const _strings = <String, Map<String, String>>{
     'mini.now': 'Şu an çalıyor',
     'mini.open_page': 'Şarkının sayfasını aç',
     'phone.title': 'Bu telefonda çalan',
-    'phone.lead': 'Spotify\'ın bu telefonda çaldığı şarkı alt çubuğun üstünde görünür; 30 saniye dinlenen şarkılar '
+    'phone.lead': 'Spotify\'ın bu telefonda çaldığı şarkı alt çubuğun üstünde görünür ve 30 saniye dinlenen şarkılar '
         'uygulama kapalıyken de kaydedilir ve uygulamayı açınca hesabına gönderilir. Android bunları uygulamaya '
         'yalnızca bildirim erişimiyle gösterir.',
     'phone.battery': 'Bazı telefonlar (Honor, Huawei, Xiaomi…) arka plandaki uygulamaları durdurur: pil ayarlarında '
@@ -380,6 +382,8 @@ const _strings = <String, Map<String, String>>{
     'phone.allow': 'Erişim ver',
     'phone.allowed': 'Erişim verildi',
     'phone.ask': 'Bu telefonda çalınan şarkılar kaydedilsin mi?',
+    'phone.ask_text': 'Şarkıların uygulama kapalıyken de kaydedilmesi için bildirim erişimi ver. Bazı telefonlarda '
+        'pil ayarlarından arka planda çalışmasına da izin vermen gerekir.',
     'phone.later': 'Sonra',
   },
 };

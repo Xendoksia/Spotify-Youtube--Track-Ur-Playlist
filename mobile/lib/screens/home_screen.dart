@@ -46,8 +46,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _askAccess();
   }
 
-  /// On the first login, offer Android's notification access page, without which nothing played on the phone is
-  /// recorded in the background; asked once, later it is in the account page
+  /// After logging in, offer Android's notification access page, without which nothing played on the phone is
+  /// recorded in the background; asked once per login, later it is in the account page
   Future<void> _askAccess() async {
     await _nowPlaying.checked;
     final prefs = await SharedPreferences.getInstance();
@@ -59,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.notifications_active_outlined),
         title: Text(context.t('phone.ask')),
-        content: Text('${context.t('phone.lead')}\n\n${context.t('phone.battery')}'),
+        content: Text(context.t('phone.ask_text')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.t('phone.later'))),
           FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.t('phone.allow'))),

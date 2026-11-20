@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config.dart';
@@ -54,7 +55,11 @@ class Repository {
   Future<void> logIn() => _db.auth.signInWithOAuth(OAuthProvider.google,
       redirectTo: Config.loginRedirect, authScreenLaunchMode: LaunchMode.externalApplication);
 
-  Future<void> logOut() => _db.auth.signOut();
+  /// Log out; the next login asks for the notification access again if it is still not given
+  Future<void> logOut() async {
+    await (await SharedPreferences.getInstance()).remove('ACCESS_ASKED');
+    await _db.auth.signOut();
+  }
 
   Future<List<Map<String, dynamic>>> _all(
       PostgrestTransformBuilder<List<Map<String, dynamic>>> Function(int from, int to) page) async {
