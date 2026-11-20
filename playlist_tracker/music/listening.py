@@ -333,12 +333,16 @@ def diversity(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
     return row
 
 
-def artist_days(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list[tuple[str, str, int]]:
-    """Plays per local day ('%Y-%m-%d') and artist in the period: (day, artist_key, plays)."""
+def release_plays(start: datetime, end: datetime, by_day: bool = False, db_path: Path = DB_PATH) -> list[dict]:
+    """Plays per album in the period, or per track when it has no album name (its genre comes from them, see
+    music/styles.py): artist_key, artist, album, name, plays, and day ('%Y-%m-%d') with by_day."""
+    day = "strftime('%Y-%m-%d', played_at, 'localtime')" if by_day else "''"
     with open_db(db_path) as db:
-        return [tuple(r) for r in db.execute(
-            "SELECT strftime('%Y-%m-%d', played_at, 'localtime') AS day, artist_key, COUNT(*) FROM listens "
-            "WHERE played_at >= ? AND played_at < ? GROUP BY day, artist_key ORDER BY day", _range(start, end))]
+        return [dict(r) for r in db.execute(
+            f"SELECT {day} AS day, artist_key, MAX(artist) AS artist, MAX(album) AS album, MAX(name) AS name, "
+            "COUNT(*) AS plays FROM listens WHERE played_at >= ? AND played_at < ? "
+            "GROUP BY day, artist_key, LOWER(CASE WHEN COALESCE(album, '') = '' THEN '~' || name ELSE album END) "
+            "ORDER BY day, plays DESC", _range(start, end))]
 
 
 # Counts worth marking: of all plays, of one artist's plays and of one track's plays

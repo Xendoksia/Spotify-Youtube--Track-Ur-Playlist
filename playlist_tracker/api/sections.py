@@ -12,7 +12,7 @@ from typing import Callable
 from playlist_tracker.api.overview import artist_url, cover_url
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.core.text import format_date
-from playlist_tracker.music import artist_info, artwork, collage, listening
+from playlist_tracker.music import artist_info, artwork, collage, listening, styles
 from playlist_tracker.music.listening import key, name_variants
 from playlist_tracker.music.text import month_name, plays_text, summary_text, tracks_text
 
@@ -242,24 +242,25 @@ def genres(period: str, offset: int, arrived: Callable[[], None]) -> dict:
 
 
 def genre_share(start: datetime, end: datetime, arrived: Callable[[], None]) -> dict:
-    """Share of the period's plays per genre; an artist's plays count for its main genre."""
-    artists = listening.top_artists(start, end, -1)
-    total = sum(a["plays"] for a in artists)
+    """Share of the period's plays per genre. A track's plays count for the first style of its album (or
+    single) on Discogs, else for its artist's main genre (music/styles.py)."""
+    releases = listening.release_plays(start, end)
+    total = sum(r["plays"] for r in releases)
     found: dict[str, dict] = {}
     waiting = 0
-    for artist in artists:
-        facts = artist_info.request(artist["name"], artist["key"], arrived, priority=artist_info.LATER)
-        if facts and facts["genres"]:
-            genre = found.setdefault(facts["genres"][0], {"plays": 0, "artists": []})
-            genre["plays"] += artist["plays"]
+    for release in releases:
+        name, looking = styles.genre(release, arrived)
+        if name:
+            genre = found.setdefault(name.lower(), {"name": name, "plays": 0, "artists": []})
+            genre["plays"] += release["plays"]
             # A collaboration is listed by its main artist, once
-            name = name_variants(artist["name"])[-1]
-            if all(key(name) != key(other) for other in genre["artists"]):
-                genre["artists"].append(name)
-        elif artist_info.waiting(artist["key"]):
+            artist = name_variants(release["artist"])[-1]
+            if all(key(artist) != key(other) for other in genre["artists"]):
+                genre["artists"].append(artist)
+        elif looking:
             waiting += 1
-    ordered = sorted(found.items(), key=lambda item: -item[1]["plays"])
-    names = [capitalized(name) for name, _ in ordered]
+    ordered = sorted(found.values(), key=lambda genre: -genre["plays"])
+    names = [capitalized(genre["name"]) for genre in ordered]
     parts = []
     if names:
         parts.append(t(f"stats.genres.summary.{min(len(names), 3)}", first=names[0],
@@ -271,24 +272,18 @@ def genre_share(start: datetime, end: datetime, arrived: Callable[[], None]) -> 
         "title": t("stats.genres"), "summary": "  ·  ".join(parts), "empty": t("stats.genres.none"),
         "waiting": waiting,
         "rows": [{
-            "key": name, "title": capitalized(name), "subtitle": ", ".join(genre["artists"][:3]),
+            "key": genre["name"].lower(), "title": capitalized(genre["name"]), "subtitle": ", ".join(genre["artists"][:3]),
             "value": genre["plays"], "value_text": percent(share(genre["plays"], total)),
             "detail": f"{plays_text(genre['plays'])}\n" + t("stats.genres.artists", names=", ".join(genre["artists"][:5])),
-        } for name, genre in ordered[:GENRE_COUNT]],
+        } for genre in ordered[:GENRE_COUNT]],
     }
 
 
-def main_genre(artist_key: str) -> str | None:
-    """An artist's main genre once it is known (the genre share looks them up)."""
-    facts = artist_info.cached(artist_key)
-    return facts["genres"][0] if facts and facts["genres"] else None
-
-
-def yearly_shift(period: str, days: list) -> bool:
+def yearly_shift(period: str, first_day: str | None) -> bool:
     """All time past three years goes by year."""
-    if period != "all" or not days:
+    if period != "all" or not first_day:
         return False
-    first = datetime.strptime(days[0][0], "%Y-%m-%d")
+    first = datetime.strptime(first_day, "%Y-%m-%d")
     today = datetime.now()
     return (today.year - first.year) * 12 + today.month - first.month >= GENRE_SHIFT_MAX_MONTHS
 
@@ -354,22 +349,25 @@ def shift_column(label: str, counts: dict[str, int], top: list[str]) -> dict:
 def genre_shift(period: str, start: datetime, end: datetime) -> dict:
     """How the share of the period's main genres changed over it: per day of a week, per week of a month, per
     month of a year (or of all time, per year past three years). The biggest genres get a color (series 0-3),
-    the rest is "other"; plays by artists of unknown genre are left out."""
-    days = listening.artist_days(start, end)
-    yearly = yearly_shift(period, days)
+    the rest is "other". Genres are those the genre share found, and plays of unknown genre are left out."""
+    days = listening.release_plays(start, end, by_day=True)
+    yearly = yearly_shift(period, days[0]["day"] if days else None)
     buckets: dict[str, dict[str, int]] = {}
     totals: dict[str, int] = {}
+    names: dict[str, str] = {}
     known = 0
-    for day, artist_key, plays in days:
-        genre = main_genre(artist_key)
+    for release in days:
+        day, plays = release["day"], release["plays"]
+        genre, _ = styles.genre(release)
         if genre is None:
             continue
+        genre = names.setdefault(genre.lower(), genre)
         known += plays
         counts = buckets.setdefault(shift_bucket(period, day, yearly), {})
         counts[genre] = counts.get(genre, 0) + plays
         totals[genre] = totals.get(genre, 0) + plays
     top = [name for name, _ in sorted(totals.items(), key=lambda item: -item[1])[:GENRE_SHIFT_COUNT]]
-    keys = shift_buckets(period, start, end, days[0][0] if days else None, yearly)
+    keys = shift_buckets(period, start, end, days[0]["day"] if days else None, yearly)
     columns = [shift_column(shift_label(period, key, yearly), buckets.get(key, {}), top) for key in keys]
     others = known - sum(totals[name] for name in top)
     legend = [{"series": index, "text": f"{capitalized(name)}  {percent(share(totals[name], known))}"}
