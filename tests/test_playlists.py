@@ -198,3 +198,26 @@ class AutoCheckTest(DatabaseTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlaylistCardsTest(DatabaseTestCase):
+    """The playlists page of the desktop app (api/playlists.py)."""
+
+    def setUp(self):
+        super().setUp()
+        import dataclasses
+        from playlist_tracker.api import playlists as api
+        from playlist_tracker.playlists.services import SPOTIFY
+        service = dataclasses.replace(SPOTIFY, db_path=self.db)
+        for patch in (mock.patch.object(api, "SERVICES", (service,)), mock.patch.object(api, "load_config", dict)):
+            patch.start()
+            self.addCleanup(patch.stop)
+        self.api = api
+
+    def test_a_playlist_added_by_link_keeps_its_card_untracked_after_a_restart(self):
+        history.set_tracked("p1", "My list", True, self.db)
+        # A new run has loaded nothing from the account: the playlist is known only from the database
+        page = self.api.Playlists(lambda *args, **kwargs: None).toggle("Spotify", "p1")
+        self.assertEqual([(card["id"], card["tracked"]) for card in page["playlists"]], [("p1", False)])
+        page = self.api.Playlists(lambda *args, **kwargs: None).toggle("Spotify", "p1")
+        self.assertEqual([(card["id"], card["tracked"]) for card in page["playlists"]], [("p1", True)])

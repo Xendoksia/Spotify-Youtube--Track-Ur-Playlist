@@ -100,6 +100,12 @@ def tracked_playlists(db_path: Path) -> list[dict]:
         return [dict(r) for r in db.execute("SELECT * FROM playlists WHERE tracked = 1 ORDER BY name")]
 
 
+def known_playlists(db_path: Path) -> list[dict]:
+    """Every playlist tracked here or on another device at some time, tracked now or not."""
+    with open_db(db_path) as db:
+        return [dict(r) for r in db.execute("SELECT * FROM playlists ORDER BY name")]
+
+
 def set_tracked(playlist_id: str, name: str, tracked: bool, db_path: Path) -> None:
     with open_db(db_path) as db:
         db.execute(

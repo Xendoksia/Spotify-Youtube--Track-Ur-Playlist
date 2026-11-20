@@ -102,7 +102,8 @@ class Playlists:
         service = service_of(name)
         config = load_config()
         user = service.session_user(config)
-        tracked = {p["playlist_id"]: p for p in history.tracked_playlists(service.db_path)}
+        stored = history.known_playlists(service.db_path)
+        tracked = {p["playlist_id"]: p for p in stored if p["tracked"]}
         summaries = history.playlist_summaries(service.db_path)
         latest = history.latest_tracks(service.db_path)
         today = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -111,8 +112,10 @@ class Playlists:
         cards = {}
         for playlist_id, p in self.loaded[service.name].items():
             cards[playlist_id] = {"name": p["name"], "owner": p.get("owner", ""), "count": p.get("track_count")}
-        for playlist_id, p in tracked.items():
-            cards.setdefault(playlist_id, {"name": p["name"], "owner": "", "count": None})
+        # Playlists added by link are not loaded again after a restart: from the database they keep their card even
+        # when tracking is switched off, so it can be switched on again
+        for p in stored:
+            cards.setdefault(p["playlist_id"], {"name": p["name"], "owner": "", "count": None})
         items = t(f"items.{service.items}")
         result = []
         for playlist_id, card in cards.items():
@@ -166,7 +169,7 @@ class Playlists:
 
     def _card_names(self, service) -> dict[str, str]:
         names = {pid: p["name"] for pid, p in self.loaded[service.name].items()}
-        for p in history.tracked_playlists(service.db_path):
+        for p in history.known_playlists(service.db_path):
             names.setdefault(p["playlist_id"], p["name"])
         return names
 
