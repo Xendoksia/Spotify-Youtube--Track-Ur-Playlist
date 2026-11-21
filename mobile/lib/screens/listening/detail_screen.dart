@@ -13,8 +13,8 @@ import '../../widgets/format.dart';
 import 'listening_chart.dart';
 
 /// Opens the page of a track, artist or album
-void openDetail(BuildContext context, DataStore store, DetailTarget target, {int depth = 1}) {
-  Navigator.of(context)
+Future<void> openDetail(BuildContext context, DataStore store, DetailTarget target, {int depth = 1}) {
+  return Navigator.of(context)
       .push(MaterialPageRoute(builder: (_) => DetailScreen(store: store, target: target, depth: depth)));
 }
 

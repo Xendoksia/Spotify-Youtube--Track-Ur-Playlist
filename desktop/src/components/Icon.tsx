@@ -6,7 +6,7 @@ const GLYPHS = {
   star: "", tag: "", history: "", disc: "",
   layers: "", area: "", flag: "", bell: "",
   list: "", account: "", sync: "", device: "", help: "", settings: "",
-  music: "", check: "", link: "", add: "", download: "", play: "",
+  music: "", check: "", link: "", add: "", download: "", play: "", pause: "",
 } as const;
 
 export type IconName = keyof typeof GLYPHS;

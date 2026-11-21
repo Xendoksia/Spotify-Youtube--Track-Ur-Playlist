@@ -1825,29 +1825,6 @@ img.picture.loaded {
 
 /* Summary */
 
-.dots {
-  display: flex;
-  gap: 6px;
-  margin-right: 16px;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: var(--border);
-  cursor: pointer;
-  transition: width 200ms, background 200ms;
-}
-
-.dot.selected {
-  width: 22px;
-  border-radius: 4px;
-  background: var(--focus);
-}
-
 .wrapped-stage {
   display: grid;
   place-items: center;
@@ -1932,19 +1909,160 @@ img.picture.loaded {
   text-align: left;
 }
 
-.wrapped-tiles {
-  display: grid;
-  grid-template-columns: repeat(2, 300px);
-  gap: 16px;
-  text-align: left;
+/* The summary as stories: a stage in the slide's color (--stage-h, set per slide), with two still lights on it.
+ * Only the small fill of the story bar moves, and the stage changes color at once while the slide is faded out,
+ * since a gliding window-sized background stutters on the laptop's graphics */
+.page.wrapped {
+  --text: #fff;
+  --muted: rgb(255 255 255 / 0.72);
+  --chart: #fff;
+  --chart-hover: rgb(255 255 255 / 0.85);
+  --added: rgb(255 255 255 / 0.88);
+  --border: rgb(255 255 255 / 0.22);
+  --surface: rgb(255 255 255 / 0.1);
+  --hover: rgb(255 255 255 / 0.12);
+  --grid: rgb(255 255 255 / 0.14);
+  --shadow: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--title-bar) - 24px);
+  margin: 12px auto;
+  padding-top: 16px;
+  border-radius: 24px;
+  overflow: hidden;
+  color: var(--text);
+  background: oklch(0.2 0.07 var(--stage-h));
 }
 
-.wrapped-tile-value {
+/* The stage under the slide: one layer per hue, the new one fading in over the old (opacity only), with lights
+ * that drift by transform alone, so nothing is painted again while they move */
+.stage-back {
+  position: absolute;
+  inset: 0;
   overflow: hidden;
-  font-size: 22px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  pointer-events: none;
+}
+
+.stage-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(135deg, oklch(0.42 0.13 var(--stage-h)), oklch(0.2 0.07 calc(var(--stage-h) + 30)));
+}
+
+.stage-layer.fade {
+  animation: stage-in 700ms ease-in-out both;
+}
+
+@keyframes stage-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.stage-light {
+  position: absolute;
+  width: 90vmax;
+  height: 90vmax;
+  border-radius: 50%;
+  will-change: transform;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.stage-light.one {
+  left: -25vmax;
+  top: -35vmax;
+  background: radial-gradient(closest-side, oklch(0.64 0.17 calc(var(--stage-h) + 50) / 0.55), transparent);
+  animation-name: drift-one;
+}
+
+.stage-light.two {
+  right: -30vmax;
+  bottom: -40vmax;
+  background: radial-gradient(closest-side, oklch(0.56 0.16 calc(var(--stage-h) - 60) / 0.45), transparent);
+  animation-name: drift-two;
+}
+
+.stage-light.three {
+  left: 20%;
+  top: 10%;
+  width: 60vmax;
+  height: 60vmax;
+  background: radial-gradient(closest-side, oklch(0.72 0.12 calc(var(--stage-h) + 150) / 0.22), transparent);
+  animation-name: drift-three;
+}
+
+@keyframes drift-one {
+  25% { transform: translate(30vmax, 10vmax); }
+  50% { transform: translate(45vmax, 35vmax); }
+  75% { transform: translate(10vmax, 30vmax); }
+}
+
+@keyframes drift-two {
+  25% { transform: translate(-25vmax, -5vmax); }
+  50% { transform: translate(-40vmax, -30vmax); }
+  75% { transform: translate(-5vmax, -25vmax); }
+}
+
+@keyframes drift-three {
+  33% { transform: translate(-25vmax, 15vmax); }
+  66% { transform: translate(15vmax, 20vmax); }
+}
+
+.page.wrapped .toolbar {
+  position: static;
+  margin: 0 -28px;
+  padding: 10px 28px 0;
+  background: transparent;
+}
+
+.page.wrapped .icon-button {
+  color: #fff;
+}
+
+.page.wrapped .wrapped-stage {
+  flex: 1;
+  min-height: 0;
+  cursor: pointer;
+}
+
+.story-bars {
+  display: flex;
+  gap: 4px;
+}
+
+.story-bar {
+  flex: 1;
+  height: 12px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.story-fill {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(#fff, #fff) left / 100% 100% no-repeat, rgb(255 255 255 / 0.28);
+  animation: story-fill linear both;
+}
+
+.story-fill.done,
+.story-fill.waiting {
+  animation: none;
+}
+
+.story-fill.waiting {
+  background-size: 0 100%;
+}
+
+@keyframes story-fill {
+  from {
+    background-size: 0 100%;
+  }
 }
 
 /* Controls */
@@ -3231,4 +3349,864 @@ select.field {
   .bone::after {
     animation: none;
   }
+}
+
+/* The summary's pictures (pages/Wrapped.tsx). Continuous motion is kept to small elements and to transform and
+ * opacity, which the graphics card moves without painting; the rest grows in once */
+
+.page.wrapped .story-bars,
+.page.wrapped .toolbar,
+.page.wrapped .wrapped-stage {
+  position: relative;
+  z-index: 1;
+}
+
+.wrapped-wall {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.wrapped-wall::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.82) 20%, rgb(0 0 0 / 0.45) 75%);
+}
+
+.wall-tilt {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transform: translate(-50%, -50%) rotate(-11deg);
+}
+
+.wall-row {
+  display: flex;
+  gap: 14px;
+}
+
+.wall-cover {
+  flex: none;
+  width: 150px;
+  height: 150px;
+  border-radius: 14px;
+}
+
+.wrapped-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 7px 16px;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+  font-weight: 600;
+}
+
+.wrapped-chip-arrow {
+  font-size: 16px;
+}
+
+/* The record slides out from behind its cover and turns */
+.wrapped-record {
+  position: relative;
+  width: 290px;
+  height: 210px;
+  margin: 0 auto 20px;
+}
+
+.record-cover {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 210px;
+  height: 210px;
+  border-radius: 16px;
+  box-shadow: 6px 10px 28px rgb(0 0 0 / 0.45);
+}
+
+.record-slide {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 198px;
+  height: 198px;
+  animation: record-out 1100ms 450ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+@keyframes record-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(80px);
+  }
+}
+
+.record-disc {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle, rgb(255 255 255 / 0.05) 0 1px, transparent 1px 3.5px),
+    #0e0e10;
+  animation: record-spin 2400ms linear infinite;
+}
+
+@keyframes record-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.record-label {
+  width: 72px;
+  height: 72px;
+  box-shadow: 0 0 0 3px #0e0e10;
+}
+
+/* The light stays still while the record turns under it */
+.record-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 20deg, transparent, rgb(255 255 255 / 0.12) 30deg, transparent 60deg,
+    transparent 180deg, rgb(255 255 255 / 0.09) 210deg, transparent 240deg);
+  pointer-events: none;
+}
+
+/* The artist's photo in a ring as long as their share, with rings beating out of it */
+.wrapped-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 300px;
+  height: 300px;
+  margin: -20px auto 0;
+}
+
+.ring-beat {
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  border: 2px solid rgb(255 255 255 / 0.5);
+  border-radius: 50%;
+  animation: ring-beat 2600ms ease-out infinite;
+}
+
+.ring-beat.late {
+  animation-delay: 1300ms;
+}
+
+@keyframes ring-beat {
+  from {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.36);
+  }
+}
+
+.ring-arc {
+  position: absolute;
+  width: 250px;
+  height: 250px;
+  transform: rotate(-90deg);
+}
+
+.ring-track,
+.ring-fill {
+  fill: none;
+  stroke-width: 6;
+}
+
+.ring-track {
+  stroke: rgb(255 255 255 / 0.18);
+}
+
+.ring-fill {
+  stroke: #fff;
+  stroke-linecap: round;
+  animation: ring-fill 1400ms 350ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+@keyframes ring-fill {
+  from {
+    stroke-dashoffset: var(--ring-length);
+  }
+}
+
+.ring-photo {
+  width: 200px;
+  height: 200px;
+  font-size: 64px;
+}
+
+/* New artists pop up and float */
+.wrapped-bubbles {
+  position: relative;
+  width: 520px;
+  height: 260px;
+  margin: 18px auto 8px;
+}
+
+.bubble {
+  position: absolute;
+  padding: 3px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.85);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+  animation: bubble-pop 700ms cubic-bezier(0.34, 1.8, 0.64, 1) both, bubble-float 5s ease-in-out infinite;
+}
+
+.bubble .picture {
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes bubble-pop {
+  from {
+    scale: 0;
+  }
+}
+
+@keyframes bubble-float {
+  50% {
+    translate: 0 -8px;
+  }
+}
+
+/* The hours round a clock */
+.wrapped-clock {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  margin: 0 auto;
+}
+
+.wrapped-clock svg {
+  width: 100%;
+  height: 100%;
+}
+
+.clock-face {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.2);
+}
+
+.clock-bar {
+  stroke: rgb(255 255 255 / 0.4);
+  stroke-width: 9;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: clock-grow 700ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.clock-bar.peak {
+  stroke: #fff;
+}
+
+@keyframes clock-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+.clock-label {
+  fill: rgb(255 255 255 / 0.6);
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.clock-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.clock-peak {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.clock-caption {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The days as dots as big as their plays */
+.wrapped-calendar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.calendar-headers {
+  display: grid;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.calendar-dot {
+  fill: #fff;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dot-pop 500ms cubic-bezier(0.34, 1.6, 0.64, 1) both;
+}
+
+.calendar-dot.empty {
+  fill: rgb(255 255 255 / 0.16);
+}
+
+.calendar-ring {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+@keyframes dot-pop {
+  from {
+    transform: scale(0);
+  }
+}
+
+/* The top five on a podium: the steps rise from the bottom, the pictures drop onto them */
+.wrapped-podium {
+  width: 600px;
+  margin: 0 auto;
+}
+
+.podium-steps {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.podium-place {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.podium-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding-bottom: 10px;
+  animation: podium-drop 600ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+@keyframes podium-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-40px);
+  }
+}
+
+.podium-crown {
+  font-size: 30px;
+  line-height: 1.2;
+}
+
+.podium-picture {
+  width: 100px;
+  height: 100px;
+  font-size: 36px;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 0.35);
+}
+
+.podium-picture:not(.round) {
+  border-radius: 12px;
+}
+
+.rank-1 .podium-picture {
+  width: 140px;
+  height: 140px;
+  box-shadow: 0 0 34px rgb(255 255 255 / 0.35), 0 8px 22px rgb(0 0 0 / 0.35);
+}
+
+.podium-title {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.rank-1 .podium-title {
+  font-size: 18px;
+}
+
+.podium-subtitle {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.podium-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 80px;
+  border: 1px solid rgb(255 255 255 / 0.3);
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(rgb(255 255 255 / 0.22), rgb(255 255 255 / 0.04));
+  transform-origin: bottom;
+  animation: podium-rise 650ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.rank-1 .podium-step {
+  height: 120px;
+  border-color: rgb(255 255 255 / 0.55);
+  background: linear-gradient(rgb(255 255 255 / 0.36), rgb(255 255 255 / 0.05));
+}
+
+.rank-3 .podium-step {
+  height: 60px;
+}
+
+@keyframes podium-rise {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+.podium-rank {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.rank-1 .podium-rank {
+  font-size: 46px;
+}
+
+.podium-value {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.podium-floor {
+  height: 1px;
+  margin-bottom: 12px;
+  background: rgb(255 255 255 / 0.3);
+}
+
+.podium-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  animation: reveal 380ms ease-out both;
+}
+
+.podium-row:hover {
+  background: var(--hover);
+}
+
+.podium-row-rank {
+  width: 22px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.podium-row-picture {
+  width: 44px;
+  height: 44px;
+  font-size: 18px;
+}
+
+.podium-row-picture:not(.round) {
+  border-radius: 8px;
+}
+
+.podium-row-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.podium-row-title {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The biggest genre in the spotlight */
+.wrapped-spotlight {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 520px;
+}
+
+.spotlight-sigil {
+  animation: bubble-pop 900ms cubic-bezier(0.34, 1.8, 0.64, 1) both;
+}
+
+/* A genre's sigil (components/Sigil.tsx): the ring turns and beats by transform alone */
+.sigil {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+}
+
+.sigil-beat,
+.sigil-middle {
+  grid-area: 1 / 1;
+}
+
+.sigil-beat {
+  width: 100%;
+  height: 100%;
+  animation: sigil-beat ease-in-out infinite alternate;
+}
+
+.sigil-ring {
+  width: 100%;
+  height: 100%;
+  animation: sigil-turn 40s linear infinite;
+}
+
+.sigil.still .sigil-beat,
+.sigil.still .sigil-ring {
+  animation: none;
+}
+
+@keyframes sigil-beat {
+  to {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes sigil-turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.sigil-middle {
+  width: 66%;
+  height: 66%;
+}
+
+.sigil-middle button {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.sigil-middle .picture {
+  width: 100%;
+  height: 100%;
+}
+
+.spotlight-name {
+  margin-top: 14px;
+  font-size: 46px;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.spotlight-share {
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.spotlight-photos {
+  display: flex;
+  margin-top: 14px;
+}
+
+.spotlight-photo {
+  width: 58px;
+  height: 58px;
+  margin-left: -14px;
+  padding: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.85);
+  cursor: pointer;
+  animation: bubble-pop 600ms cubic-bezier(0.34, 1.6, 0.64, 1) both;
+}
+
+.spotlight-photo:first-child {
+  margin-left: 0;
+}
+
+.spotlight-photo .picture {
+  width: 100%;
+  height: 100%;
+}
+
+.spotlight-message {
+  margin-top: 18px;
+  padding: 12px 20px;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.12);
+  font-size: 17px;
+  font-weight: 600;
+  font-style: italic;
+}
+
+.spotlight-other {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.spotlight-other:first-of-type {
+  margin-top: 22px;
+}
+
+.spotlight-other-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.spotlight-other-line {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.spotlight-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.18);
+}
+
+.spotlight-bar span {
+  display: block;
+  height: 100%;
+  background: #fff;
+  transform-origin: left;
+  animation: podium-grow 900ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+@keyframes podium-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* The closing poster, as on the phone: a pane of glass over the stage */
+.wrapped-poster {
+  display: flex;
+  flex-direction: column;
+  width: 520px;
+  padding: 26px 26px 22px;
+  border: 1px solid rgb(255 255 255 / 0.24);
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.16), rgb(0 0 0 / 0.22));
+  text-align: left;
+}
+
+.poster-photos {
+  position: relative;
+  height: 128px;
+}
+
+.poster-photo {
+  position: absolute;
+  left: 50%;
+  padding: 3px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.85);
+  cursor: pointer;
+  animation: bubble-pop 700ms cubic-bezier(0.34, 1.6, 0.64, 1) both;
+}
+
+.poster-photo .picture {
+  width: 100%;
+  height: 100%;
+}
+
+.poster-photo.main {
+  top: 0;
+  width: 124px;
+  height: 124px;
+  margin-left: -62px;
+}
+
+.poster-photo.side {
+  top: 22px;
+  width: 86px;
+  height: 86px;
+  animation-delay: 150ms;
+}
+
+.poster-photo.left {
+  margin-left: -128px;
+}
+
+.poster-photo.right {
+  margin-left: 42px;
+}
+
+.poster-month {
+  margin-top: 14px;
+  font-size: 26px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.poster-caption {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-align: center;
+}
+
+.poster-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.poster-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.poster-label {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.poster-row {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.poster-row:hover .poster-name {
+  text-decoration: underline;
+}
+
+.poster-rank {
+  width: 16px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.poster-row.first .poster-rank {
+  color: #fff;
+}
+
+.poster-name {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.poster-row.first .poster-name {
+  font-weight: 700;
+}
+
+.poster-numbers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.poster-number {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.poster-big {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.poster-genre {
+  overflow: hidden;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+}
+
+.poster-line {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
 }
