@@ -4316,3 +4316,65 @@ select.field {
     radial-gradient(ellipse at center, rgb(0 0 0 / 0.82) 20%, rgb(0 0 0 / 0.45) 75%);
 }
 
+/* The listening streak (pages/Sections.tsx Streak) */
+.streak {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.streak-count {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.streak-value {
+  color: var(--chart);
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.streak-unit {
+  font-size: 15px;
+}
+
+.streak-days {
+  display: flex;
+  gap: 8px;
+}
+
+.streak-day {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.streak-day.played {
+  background: var(--chart);
+}
+
+.streak-day.today {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--text);
+}
+
+.streak-word {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--chart) 40%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--chart) 12%, transparent);
+}
+
+.streak-hint {
+  margin: 12px 0 0;
+  font-size: 13px;
+}

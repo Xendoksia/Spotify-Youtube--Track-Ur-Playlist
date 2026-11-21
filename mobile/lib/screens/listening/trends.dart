@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/genres.dart';
 import '../../data/models.dart';
 import '../../data/stats.dart';
 import '../../l10n/strings.dart';
@@ -198,4 +199,113 @@ class MilestonesCard extends StatelessWidget {
             openDetail(context, store, DetailTarget.track(store.plays.firstWhere((p) => p.trackKey == m.key))),
         _ => null,
       };
+}
+
+/// The days in a row with a play up to today, the longest run, and the last two weeks as dots. Only on a step
+/// (3, 7, 14 days and on) or a new record does it say something more, in the manner of the run's main genre
+class StreakCard extends StatelessWidget {
+  final List<Play> all;
+
+  const StreakCard({super.key, required this.all});
+
+  /// The family of the genre most played during the run, by its artists' main genres
+  static String _family(List<Play> all, DateTime start) {
+    final weights = <String, int>{};
+    for (final play in all) {
+      if (play.playedAt.isBefore(start)) continue;
+      final genre = Genres.instance.mainGenre(play.artistKey);
+      if (genre == null) continue;
+      final family = genreFamily(genre);
+      weights[family] = (weights[family] ?? 0) + 1;
+    }
+    if (weights.isEmpty) return 'other';
+    return weights.entries.reduce((a, b) => b.value > a.value ? b : a).key;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Palette.of(context);
+    final streak = streakOf(all, DateTime.now());
+    final days = streak.current;
+    final big = Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800, color: palette.chart);
+    return SectionCard(
+      title: context.t('stats.streak'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(context.number(days), style: big),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(context.t(days == 1 ? 'stats.streak.day_one' : 'stats.streak.days')),
+                ),
+              ),
+              if (streak.longest > 0)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(context.t('stats.streak.longest', {'days': context.number(streak.longest)}),
+                      style: TextStyle(color: palette.muted, fontSize: 13)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // The last two weeks, today last and ringed
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              for (final (index, played) in streak.recent.indexed)
+                Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: played ? palette.chart : palette.border,
+                    border: index == streak.recent.length - 1
+                        ? Border.all(color: Theme.of(context).colorScheme.onSurface, width: 1.5)
+                        : null,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (streak.special)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: palette.chart.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: palette.chart.withValues(alpha: 0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    streak.record
+                        ? context.t('stats.streak.record', {'days': context.number(days)})
+                        : context.t('stats.streak.step', {'days': context.number(days)}),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(context.t('stats.streak.say.${_family(all, streak.start!)}')),
+                ],
+              ),
+            )
+          else
+            Text(
+              days == 0
+                  ? context.t('stats.streak.none')
+                  : streak.today
+                      ? context.t('stats.streak.going')
+                      : context.t('stats.streak.keep', {'days': context.number(days + 1)}),
+              style: TextStyle(color: palette.muted, fontSize: 13),
+            ),
+        ],
+      ),
+    );
+  }
 }

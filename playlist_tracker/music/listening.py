@@ -10,7 +10,7 @@ import sqlite3
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from playlist_tracker.core.config import BASE_DIR
@@ -502,3 +502,47 @@ def hours(start: datetime, end: datetime, column: str | None = None, key: str | 
                 f"WHERE played_at >= ? AND played_at < ? AND {where} GROUP BY 1", (*_range(start, end), *params)):
             counts_by_hour[hour] = count
     return counts_by_hour
+
+
+# Days in a row worth a word on the streak card; past a year every hundredth day is too (as the phone's streakSteps)
+STREAK_STEPS = {3, 7, 14, 21, 30, 50, 75, 100, 150, 200, 250, 300, 365}
+
+
+def streak(today: date | None = None, db_path: Path = DB_PATH) -> dict:
+    """Days in a row with at least one play, as the phone's streakOf: current (up to today, or up to yesterday
+    while today has no play yet), today (today has a play), longest, before (the longest run that ended before the
+    current one began), start (the current run's first day) and recent (the last 14 days, oldest first)."""
+    today = today or datetime.now().date()
+    with open_db(db_path) as db:
+        days = {date.fromisoformat(r[0]) for r in db.execute(
+            "SELECT DISTINCT date(played_at, 'localtime') FROM listens") if r[0]}
+    played = today in days
+    day = today if played else today - timedelta(days=1)
+    current = 0
+    while day in days:
+        current += 1
+        day -= timedelta(days=1)
+    start = day + timedelta(days=1) if current else None
+    longest = before = run = 0
+    last = None
+    for day in sorted(days):
+        run = run + 1 if last is not None and day == last + timedelta(days=1) else 1
+        last = day
+        longest = max(longest, run)
+        if start is None or day < start:
+            before = max(before, run)
+    return {"current": current, "today": played, "longest": longest, "before": before, "start": start,
+            "recent": [today - timedelta(days=back) in days for back in range(13, -1, -1)]}
+
+
+def streak_special(streak: dict) -> str | None:
+    """"record" the day the current run first beats every earlier one, "step" the day it reaches a count worth a
+    word, else None: the card says something more only then, on purpose rarely."""
+    if not streak["today"]:
+        return None
+    current = streak["current"]
+    if streak["before"] >= 3 and current == streak["before"] + 1:
+        return "record"
+    if current in STREAK_STEPS or (current > 365 and current % 100 == 0):
+        return "step"
+    return None

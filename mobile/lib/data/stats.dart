@@ -635,3 +635,67 @@ DateTime yearBack(DateTime moment) {
   final back = DateTime(moment.year - 1, moment.month, moment.day, moment.hour, moment.minute);
   return back.month == moment.month ? back : DateTime(moment.year - 1, moment.month, 28, moment.hour, moment.minute);
 }
+
+/// Days in a row worth a word on the streak card; past a year every hundredth day is too
+const streakSteps = {3, 7, 14, 21, 30, 50, 75, 100, 150, 200, 250, 300, 365};
+
+/// Days in a row with at least one play, as the desktop app's listening.streak
+class Streak {
+  /// Up to today, or up to yesterday while today has no play yet (the streak is not lost until the day ends)
+  final int current;
+
+  /// Today already has a play
+  final bool today;
+
+  /// The longest run of all, the current one included
+  final int longest;
+
+  /// The longest run that ended before the current one began
+  final int before;
+
+  /// The current run's first day
+  final DateTime? start;
+
+  /// The last 14 days, oldest first: whether each had a play
+  final List<bool> recent;
+
+  const Streak(this.current, this.today, this.longest, this.before, this.start, this.recent);
+
+  /// Today the current run first went past every earlier one (only once there was an earlier one worth beating)
+  bool get record => today && before >= 3 && current == before + 1;
+
+  /// Today the run reached a count worth a word
+  bool get milestone => today && (streakSteps.contains(current) || (current > 365 && current % 100 == 0));
+
+  /// Whether the card has a word for today; it is rare on purpose, only on a step or a new record
+  bool get special => record || milestone;
+}
+
+DateTime _day(DateTime moment) => DateTime(moment.year, moment.month, moment.day);
+
+Streak streakOf(List<Play> all, DateTime now) {
+  final days = {for (final play in all) _day(play.playedAt)};
+  final today = _day(now);
+  final played = days.contains(today);
+  var day = played ? today : DateTime(today.year, today.month, today.day - 1);
+  var current = 0;
+  while (days.contains(day)) {
+    current++;
+    day = DateTime(day.year, day.month, day.day - 1);
+  }
+  final start = current == 0 ? null : DateTime(day.year, day.month, day.day + 1);
+  // Every run of days in order, to find the longest and the longest before the current one
+  var longest = 0, before = 0, run = 0;
+  DateTime? last;
+  for (final day in days.toList()..sort()) {
+    run = last != null && DateTime(last.year, last.month, last.day + 1) == day ? run + 1 : 1;
+    last = day;
+    if (run > longest) longest = run;
+    if (start == null || day.isBefore(start)) {
+      if (run > before) before = run;
+    }
+  }
+  return Streak(current, played, longest, before, start, [
+    for (var back = 13; back >= 0; back--) days.contains(DateTime(today.year, today.month, today.day - back)),
+  ]);
+}

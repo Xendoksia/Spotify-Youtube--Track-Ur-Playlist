@@ -18,6 +18,10 @@ export interface SectionsData {
     title: string; top_title: string; verdict: string;
     values: { label: string; value: number; text: string }[]; artists: BarRow[];
   };
+  streak: {
+    title: string; value: string; unit: string; longest: string; recent: boolean[];
+    headline: string | null; message: string | null; hint?: string;
+  };
   milestones: {
     title: string; summary: string; empty: string; year_ago_title: string;
     items: { date: string; text: string; kind: string; column: Column | null; key: string | null }[];
@@ -104,6 +108,34 @@ export function GenreShift({ data }: { data: GenresData["shift"] | null }) {
         </div>
       )}
       <StackedColumns columns={data.columns} empty={data.empty} />
+    </Card>
+  );
+}
+
+/** The days in a row with a play, the longest run and the last two weeks as dots; a word of its own only on a
+ * step or a new record (api/sections.py streak_card) */
+export function Streak({ data }: { data: SectionsData["streak"] }) {
+  return (
+    <Card icon="calendar" title={data.title} summary={data.longest}>
+      <div className="streak">
+        <div className="streak-count">
+          <span className="streak-value">{data.value}</span>
+          <span className="streak-unit">{data.unit}</span>
+        </div>
+        <div className="streak-days">
+          {data.recent.map((played, index) => (
+            <span key={index} className={`streak-day${played ? " played" : ""}${index === data.recent.length - 1 ? " today" : ""}`} />
+          ))}
+        </div>
+      </div>
+      {data.headline ? (
+        <div className="streak-word">
+          <strong>{data.headline}</strong>
+          <span>{data.message}</span>
+        </div>
+      ) : (
+        <p className="muted streak-hint">{data.hint}</p>
+      )}
     </Card>
   );
 }

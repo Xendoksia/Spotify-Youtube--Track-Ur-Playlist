@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:playlist_tracker/screens/listening/wrapped_visuals.dart';
+import 'package:playlist_tracker/data/genres.dart';
 
 void main() {
   test('genres fall into families by the words in their names', () {

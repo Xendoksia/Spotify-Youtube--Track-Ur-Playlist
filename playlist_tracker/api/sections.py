@@ -59,6 +59,7 @@ def sections(period: str, offset: int) -> dict:
         "discoveries": None if period == "all" else discoveries(start, end),
         "forgotten": forgotten() if period == "all" else None,
         "diversity": diversity(period, offset, start, end),
+        "streak": streak_card(),
         "milestones": milestones(period, start, end),
         "collage": album_collage(start, end),
     }
@@ -206,6 +207,42 @@ def milestones(period: str, start: datetime, end: datetime) -> dict:
                       "text": f"{r['name']}  ·  {r['artist']}  ·  {plays_text(r['plays'])}"}
                      for rank, r in enumerate(tracks, start=1)],
     }
+
+
+# Streak
+
+def streak_family(start: datetime) -> str:
+    """The family of the genre most played since the run began, by its artists' main genres."""
+    from playlist_tracker.api.wrapped import genre_family
+    weights: dict[str, int] = {}
+    for artist in listening.top_artists(start, datetime.now().astimezone() + timedelta(days=1), -1):
+        facts = artist_info.cached(artist["key"])
+        if facts and facts["genres"]:
+            family = genre_family(facts["genres"][0])
+            weights[family] = weights.get(family, 0) + artist["plays"]
+    return max(weights, key=weights.get) if weights else "other"
+
+
+def streak_card() -> dict:
+    """The days in a row with a play up to today, the longest run and the last two weeks; on a step or a new record
+    a headline and a word in the manner of the run's main genre, else a short hint."""
+    streak = listening.streak()
+    days = streak["current"]
+    special = listening.streak_special(streak)
+    card = {
+        "title": t("stats.streak"), "value": number(days),
+        "unit": t("stats.streak.day_one" if days == 1 else "stats.streak.days"),
+        "longest": t("stats.streak.longest", days=number(streak["longest"])) if streak["longest"] else "",
+        "recent": streak["recent"], "headline": None, "message": None,
+    }
+    if special:
+        start = datetime.combine(streak["start"], datetime.min.time()).astimezone()
+        card["headline"] = t(f"stats.streak.{special}", days=number(days))
+        card["message"] = t(f"stats.streak.say.{streak_family(start)}")
+    else:
+        card["hint"] = (t("stats.streak.none") if days == 0 else t("stats.streak.going") if streak["today"]
+                        else t("stats.streak.keep", days=number(days + 1)))
+    return card
 
 
 # Album collage

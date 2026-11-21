@@ -9,6 +9,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../data/genres.dart';
+
 /// A tilted wall of covers behind a slide, its rows gliding slowly in turns, darker in the middle so the text over
 /// it stays readable
 class CoverWall extends StatefulWidget {
@@ -799,56 +801,6 @@ class _PodiumState extends State<Podium> with SingleTickerProviderStateMixin {
       ],
     );
   }
-}
-
-/// A genre's family, by words in its name, for its sigil and its message to the listener; the desktop app's
-/// api/wrapped.py genre_family follows the same list
-String genreFamily(String genre) {
-  final name = genre.toLowerCase();
-  bool has(List<String> words) => words.any(name.contains);
-  if (has(['turkish', 'türk', 'anatolian', 'arabesk'])) return 'turkish';
-  if (has(['metal', 'core', 'djent', 'grind'])) return 'metal';
-  if (has(['hip hop', 'hip-hop', 'rap', 'trap', 'drill'])) return 'hiphop';
-  if (has(['rock', 'grunge', 'punk', 'emo', 'alternative', 'indie'])) return 'rock';
-  if (has(['electro', 'house', 'techno', 'edm', 'trance', 'dubstep', 'synth', 'dance', 'drum and bass'])) {
-    return 'electronic';
-  }
-  if (has(['pop'])) return 'pop';
-  if (has(['jazz', 'blues', 'soul', 'funk', 'r&b'])) return 'jazz';
-  if (has(['classical', 'soundtrack', 'ambient', 'lo-fi', 'lofi', 'piano', 'score'])) return 'calm';
-  if (has(['folk', 'country', 'acoustic', 'singer-songwriter'])) return 'folk';
-  if (has(['latin', 'reggaeton', 'salsa', 'bachata'])) return 'latin';
-  return 'other';
-}
-
-/// Pairs of genres with a word of their own, whichever of the two is bigger
-const _genrePairs = {
-  'metalcore|nu metal': 'metalcore_numetal',
-  'metalcore|post-hardcore': 'metalcore_posthardcore',
-  'alternative rock|nu metal': 'numetal_altrock',
-  'alternative rock|post-grunge': 'altrock_postgrunge',
-  'hard rock|heavy metal': 'hardrock_heavymetal',
-  'hip hop|trap': 'hiphop_trap',
-};
-
-/// Pairs of families with a word of their own (in alphabetical order)
-const _familyPairs = {
-  'metal|rock', 'electronic|metal', 'metal|pop', 'hiphop|metal', 'pop|rock', 'electronic|rock', 'hiphop|rock',
-  'folk|rock', 'electronic|pop', 'hiphop|pop', 'electronic|hiphop', 'hiphop|jazz', 'rock|turkish', 'pop|turkish',
-  'metal|metal', 'rock|rock',
-};
-
-/// The text key of the word to the listener of [first] and [second], the two biggest genres: one for the pair when
-/// there is, else for the first genre's family
-String genreMessage(String first, String? second) {
-  if (second != null) {
-    final names = [first.toLowerCase(), second.toLowerCase()]..sort();
-    if (_genrePairs[names.join('|')] case final pair?) return 'wrapped.genre.combo.$pair';
-    final families = [genreFamily(first), genreFamily(second)]..sort();
-    final key = families.join('|');
-    if (_familyPairs.contains(key)) return 'wrapped.genre.combo.${families.join('_')}';
-  }
-  return 'wrapped.genre.say.${genreFamily(first)}';
 }
 
 /// A number from 0 to 1 that looks random but is the same for the same [i] and [seed], on the phone and the
