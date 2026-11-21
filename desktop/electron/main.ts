@@ -53,6 +53,44 @@ let trayHintShown = false;
 
 const t = (key: string) => info?.strings[key] ?? key;
 
+/** How long a story page may take to load its slide before it is captured as it is */
+const STORY_WAIT_MS = 10000;
+
+async function storyPicture(id: string, slide: number): Promise<string> {
+  // Off screen, so the window is not held to the screen's height and nothing shows
+  const story = new BrowserWindow({
+    width: 400,
+    height: 400,
+    show: false,
+    frame: false,
+    backgroundColor: "#000000",
+    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, offscreen: true },
+  });
+  try {
+    story.setContentSize(1080, 1920);
+    const ready = new Promise<void>((resolve) => {
+      const listener = (event: Electron.IpcMainEvent) => {
+        if (event.sender !== story.webContents) return;
+        ipcMain.removeListener("story-ready", listener);
+        resolve();
+      };
+      ipcMain.on("story-ready", listener);
+      setTimeout(() => {
+        ipcMain.removeListener("story-ready", listener);
+        resolve();
+      }, STORY_WAIT_MS);
+    });
+    const search = `story=${encodeURIComponent(id)}&slide=${slide}`;
+    if (DEV) await story.loadURL(`http://127.0.0.1:5173?${search}`);
+    else await story.loadFile(path.join(__dirname, "..", "dist", "index.html"), { search });
+    story.webContents.setZoomFactor(1.5);
+    await ready;
+    return (await story.webContents.capturePage()).toDataURL();
+  } finally {
+    story.destroy();
+  }
+}
+
 function createWindow(): BrowserWindow {
   const created = new BrowserWindow({
     width: 1440,
@@ -235,9 +273,9 @@ async function start(): Promise<void> {
     });
     return result.canceled ? null : result.filePath;
   });
-  // A part of the window as a PNG (a summary slide to share), at the screen's own sharpness
-  ipcMain.handle("capture", async (_event, rect: Electron.Rectangle) =>
-    (await window!.webContents.capturePage(rect)).toDataURL());
+  // A summary slide as a story picture (1080 x 1920 PNG): the page lays the slide out alone at 720 x 1280 in a
+  // hidden window drawn at one and a half times, says when its pictures are in, and the window is captured
+  ipcMain.handle("story", (_event, id: string, slide: number) => storyPicture(id, slide));
   // A picture saved where the person chooses (true) or not saved (false)
   ipcMain.handle("save-image", async (_event, name: string, filter: string, dataUrl: string) => {
     const result = await dialog.showSaveDialog(window!, { defaultPath: name, filters: [{ name: filter, extensions: ["png"] }] });

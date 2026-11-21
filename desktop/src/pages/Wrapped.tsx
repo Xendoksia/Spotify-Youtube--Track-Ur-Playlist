@@ -3,15 +3,14 @@
  * come in one after another, numbers count up and bars grow, and the old slide fades out before the next. The
  * stage itself does not move: a moving window-sized background stutters on the laptop's graphics. */
 
-import { CSSProperties, MouseEvent, useEffect, useRef, useState } from "react";
+import { CSSProperties, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { get } from "../api";
 import ColumnChart, { Bucket } from "../components/ColumnChart";
 import Icon, { IconName } from "../components/Icon";
 import { useCountUp } from "../components/motion";
 import Picture from "../components/Picture";
 import Sigil from "../components/Sigil";
-import { storyImage } from "../story";
-import { useTexts } from "../i18n";
+import { AppInfo, makeTexts, TextsContext, useTexts } from "../i18n";
 import type { Mood } from "../mood";
 import { Column, useOpenDetail } from "../navigation";
 
@@ -457,7 +456,8 @@ function StageLayer({ hue, fade }: { hue: number; fade: boolean }) {
 
 /** The month's covers as a tilted wall behind the first slide, darker in the middle under its text */
 function CoverWall({ covers }: { covers: string[] }) {
-  const rows = 6;
+  // Enough to reach the corners of the tall story picture too (WrappedStory)
+  const rows = 9;
   const perRow = 9;
   return (
     <div className="wrapped-wall" aria-hidden="true">
@@ -471,6 +471,56 @@ function CoverWall({ covers }: { covers: string[] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/** One slide alone as a story picture, in the hidden window that draws it (electron/main.ts storyPicture): the
+ * stage still, the slide in its final state with nothing moving, the summary's name with the app's under it. It
+ * says when its numbers have counted up and its pictures are in */
+export function WrappedStory({ id, slide }: { id: string; slide: number }) {
+  const [info, setInfo] = useState<AppInfo | null>(null);
+  const [data, setData] = useState<SummaryData | null>(null);
+  useEffect(() => {
+    get<AppInfo>("/api/app").then((loaded) => {
+      document.documentElement.lang = loaded.language;
+      setInfo(loaded);
+    }, () => window.tracker.storyReady());
+    get<SummaryData>("/api/wrapped", { id }).then(setData, () => window.tracker.storyReady());
+  }, [id]);
+  useEffect(() => {
+    if (!info || !data) return;
+    // The parts come in and count up over about two seconds, then the pictures still loading are waited for
+    const timer = window.setTimeout(async () => {
+      await Promise.all(Array.from(document.images, (image) => image.complete ? null
+        : new Promise((resolve) => { image.onload = image.onerror = resolve; })));
+      requestAnimationFrame(() => requestAnimationFrame(() => window.tracker.storyReady()));
+    }, 2400);
+    return () => window.clearTimeout(timer);
+  }, [info, data]);
+  const texts = useMemo(() => (info ? makeTexts(info) : null), [info]);
+  if (!texts || !data) return null;
+  const shown = data.slides[Math.min(slide, data.slides.length - 1)];
+  return (
+    <TextsContext.Provider value={texts}>
+      <div className="page wrapped story" style={{ "--stage-h": slideHue(data, slide) } as CSSProperties}>
+        <div className="stage-back" aria-hidden="true"><StageLayer hue={slideHue(data, slide)} fade={false} /></div>
+        {shown.wall && shown.wall.length > 0 && <CoverWall covers={shown.wall} />}
+        <div className="wrapped-stage">
+          <div className="wrapped-slide">
+            {shown.caption && (
+              <div className="reveal wrapped-caption">
+                {shown.caption.toLocaleUpperCase(document.documentElement.lang || undefined)}
+              </div>
+            )}
+            {shown.parts.map((part, order) => <PartView key={order} part={part} order={order + 1} />)}
+          </div>
+        </div>
+        <footer className="story-footer">
+          <span>{data.title}</span>
+          <strong>Playlist Tracker</strong>
+        </footer>
+      </div>
+    </TextsContext.Provider>
   );
 }
 
@@ -538,8 +588,8 @@ export default function Wrapped({ id, active, onClose, onSeen }: {
     const box = event.currentTarget.getBoundingClientRect();
     step(event.clientX - box.left < box.width / 3 ? -1 : 1);
   };
-  // The slide showing as a story picture, saved or copied; the slide holds meanwhile and the picture is taken
-  // from the window itself once the menu is gone
+  // The slide showing as a story picture (drawn in a hidden window, WrappedStory), saved or copied; the slide
+  // holds meanwhile
   const share = async (kind: "save" | "copy") => {
     setShareOpen(false);
     if (sharing.current) return;
@@ -547,27 +597,7 @@ export default function Wrapped({ id, active, onClose, onSeen }: {
     const wasPaused = paused;
     setPaused(true);
     try {
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const page = document.querySelector(".page.wrapped")!.getBoundingClientRect();
-      const box = document.querySelector(".wrapped-slide")!.getBoundingClientRect();
-      let rect;
-      if (index === 0) {
-        // The first slide with its wall of covers, cut to the story's shape round the slide, to fill the picture
-        const stage = document.querySelector(".wrapped-stage")!.getBoundingClientRect();
-        const width = Math.min(page.width, (stage.height * 9) / 16);
-        const middle = box.left + box.width / 2;
-        rect = { left: Math.min(Math.max(page.left, middle - width / 2), page.right - width), top: stage.top,
-                 right: 0, bottom: stage.bottom };
-        rect.right = rect.left + width;
-      } else {
-        rect = { left: Math.max(page.left, box.left - 32), top: Math.max(page.top, box.top - 32),
-                 right: Math.min(page.right, box.right + 32), bottom: Math.min(page.bottom, box.bottom + 32) };
-      }
-      const shot = await window.tracker.capture({
-        x: Math.round(rect.left), y: Math.round(rect.top),
-        width: Math.round(rect.right - rect.left), height: Math.round(rect.bottom - rect.top),
-      });
-      const story = await storyImage(shot, slideHue(data, index), data.title, index === 0);
+      const story = await window.tracker.story(data.id, index);
       if (kind === "copy") {
         // The picture's bytes from its data address (not fetched, which the page's rules may not allow)
         const bytes = Uint8Array.from(atob(story.split(",")[1]), (char) => char.charCodeAt(0));

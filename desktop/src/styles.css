@@ -4261,3 +4261,58 @@ select.field {
   font-size: 13px;
   font-weight: 600;
 }
+
+/* A slide alone as a story picture (pages/Wrapped.tsx WrappedStory), 720 x 1280 drawn at one and a half times:
+ * everything in its final state at once, the stage's lights still */
+.page.wrapped.story {
+  width: 720px;
+  height: 1280px;
+  min-height: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0 24px;
+  border-radius: 0;
+}
+
+.page.wrapped.story *,
+.page.wrapped.story *::before,
+.page.wrapped.story *::after {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition: none !important;
+}
+
+.page.wrapped.story .wrapped-stage {
+  padding: 48px 0 0;
+  cursor: default;
+}
+
+.story-footer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 72px;
+}
+
+.story-footer span {
+  color: rgb(255 255 255 / 0.75);
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.story-footer strong {
+  font-size: 27px;
+  font-weight: 800;
+}
+
+/* The first slide's wall reaches under the names, darker there so they stay readable */
+.page.wrapped.story .wrapped-wall::after {
+  background:
+    linear-gradient(transparent 70%, oklch(0.2 0.07 calc(var(--stage-h) + 30) / 0.95)),
+    radial-gradient(ellipse at center, rgb(0 0 0 / 0.82) 20%, rgb(0 0 0 / 0.45) 75%);
+}
+

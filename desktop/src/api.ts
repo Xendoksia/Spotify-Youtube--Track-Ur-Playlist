@@ -16,7 +16,8 @@ declare global {
     tracker: {
       backend: () => Promise<Connection>;
       savePath: (name: string, filter: string) => Promise<string | null>;
-      capture: (rect: { x: number; y: number; width: number; height: number }) => Promise<string>;
+      story: (id: string, slide: number) => Promise<string>;
+      storyReady: () => void;
       saveImage: (name: string, filter: string, dataUrl: string) => Promise<boolean>;
       onEvent: (listener: (message: BackendEvent) => void) => () => void;
     };
