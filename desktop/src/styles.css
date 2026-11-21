@@ -3361,6 +3361,11 @@ select.field {
   z-index: 1;
 }
 
+/* Over the slide, so the share menu reaching down from it takes its own clicks */
+.page.wrapped .toolbar {
+  z-index: 2;
+}
+
 .wrapped-wall {
   position: absolute;
   inset: 0;
@@ -4209,4 +4214,50 @@ select.field {
   color: var(--muted);
   font-size: 13px;
   text-align: center;
+}
+
+/* Sharing a slide: a small menu under the share button, and a word once it is saved or copied */
+.wrapped-share {
+  position: relative;
+}
+
+.wrapped-share-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 6px;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  border-radius: 14px;
+  background: rgb(20 20 24 / 0.92);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.4);
+}
+
+.wrapped-share-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.wrapped-share-menu button:hover {
+  background: rgb(255 255 255 / 0.12);
+}
+
+.wrapped-shared {
+  margin-right: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
 }

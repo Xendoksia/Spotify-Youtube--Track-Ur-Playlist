@@ -3,7 +3,9 @@
  * so recording goes on after the window is closed. Quitting is done from the tray menu.
  */
 
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, Notification, shell, Tray } from "electron";
+import {
+  app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, shell, Tray,
+} from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { Backend, BackendEvent, developmentLaunch, installedLaunch } from "./backend";
@@ -232,6 +234,16 @@ async function start(): Promise<void> {
       filters: [{ name: filter, extensions: [path.extname(name).slice(1)] }],
     });
     return result.canceled ? null : result.filePath;
+  });
+  // A part of the window as a PNG (a summary slide to share), at the screen's own sharpness
+  ipcMain.handle("capture", async (_event, rect: Electron.Rectangle) =>
+    (await window!.webContents.capturePage(rect)).toDataURL());
+  // A picture saved where the person chooses (true) or not saved (false)
+  ipcMain.handle("save-image", async (_event, name: string, filter: string, dataUrl: string) => {
+    const result = await dialog.showSaveDialog(window!, { defaultPath: name, filters: [{ name: filter, extensions: ["png"] }] });
+    if (result.canceled || !result.filePath) return false;
+    await fs.promises.writeFile(result.filePath, nativeImage.createFromDataURL(dataUrl).toPNG());
+    return true;
   });
   tray = new Tray(ICON);
   tray.setToolTip(t("app.title"));

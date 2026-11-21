@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Supabase -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Saving a summary picture to the gallery: needed only up to Android 10, later the gallery takes it freely -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>
     <!-- ListenerKeeper's job goes on after the phone restarts -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <!-- The monthly summary notification (WrappedNotice.kt) -->

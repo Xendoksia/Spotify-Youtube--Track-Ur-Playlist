@@ -3,6 +3,8 @@
 library;
 
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -176,4 +178,66 @@ ThemeData stageTheme(ThemeData dark) {
       ),
     ],
   );
+}
+
+/// A slide as a story picture (1080 x 1920) to share: the stage in the slide's hue with its lights held still, the
+/// slide in the middle and the summary's name with the app's under it. A slide with a picture behind it ([fill],
+/// the first one's wall of covers) covers the whole picture instead, darker under the names so they stay readable
+Future<Uint8List?> storyImage(ui.Image slide, double hue, String title, {bool fill = false}) async {
+  const size = Size(1080, 1920);
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder, Offset.zero & size);
+  final colors = _StageColors.of(hue);
+  final rect = Offset.zero & size;
+  canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [colors.top, colors.bottom])
+            .createShader(rect));
+  for (final (index, color) in colors.lights.indexed) {
+    final center = Offset(size.width * const [0.2, 0.85, 0.55][index], size.height * const [0.15, 0.8, 0.45][index]);
+    final radius = size.height * 0.5;
+    canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..shader = RadialGradient(colors: [color, color.withValues(alpha: 0)])
+              .createShader(Rect.fromCircle(center: center, radius: radius)));
+  }
+  // The slide as big as it fits between a margin and the footer, or over all of it, cut at the edges
+  final area = fill ? rect : Rect.fromLTWH(48, 120, size.width - 96, size.height - 120 - 260);
+  final scale = (fill ? math.max : math.min)(area.width / slide.width, area.height / slide.height);
+  final drawn = Size(slide.width * scale, slide.height * scale);
+  canvas.drawImageRect(
+    slide,
+    Rect.fromLTWH(0, 0, slide.width.toDouble(), slide.height.toDouble()),
+    Rect.fromCenter(center: area.center, width: drawn.width, height: drawn.height),
+    Paint()..filterQuality = FilterQuality.high,
+  );
+  if (fill) {
+    final shade = Rect.fromLTWH(0, size.height - 420, size.width, 420);
+    canvas.drawRect(
+        shade,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [colors.bottom.withValues(alpha: 0), colors.bottom.withValues(alpha: 0.95)],
+          ).createShader(shade));
+  }
+  var bottom = size.height - 110;
+  for (final (text, style) in [
+    ('Playlist Tracker', const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w800)),
+    (title, TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 32, fontWeight: FontWeight.w600)),
+  ]) {
+    final painter = TextPainter(text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr)
+      ..layout(maxWidth: size.width - 96);
+    bottom -= painter.height;
+    painter.paint(canvas, Offset((size.width - painter.width) / 2, bottom));
+    bottom -= 10;
+  }
+  final image = await recorder.endRecording().toImage(size.width.toInt(), size.height.toInt());
+  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  return bytes?.buffer.asUint8List();
 }

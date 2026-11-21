@@ -10,6 +10,7 @@ import Icon, { IconName } from "../components/Icon";
 import { useCountUp } from "../components/motion";
 import Picture from "../components/Picture";
 import Sigil from "../components/Sigil";
+import { storyImage } from "../story";
 import { useTexts } from "../i18n";
 import type { Mood } from "../mood";
 import { Column, useOpenDetail } from "../navigation";
@@ -481,6 +482,10 @@ export default function Wrapped({ id, active, onClose, onSeen }: {
   const [index, setIndex] = useState(0);
   const [leaving, setLeaving] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  // "Saved" or "Copied" for a moment after sharing
+  const [shared, setShared] = useState<string | null>(null);
+  const sharing = useRef(false);
   // The slide shown before, whose stage stays under the new one while that fades in
   const [below, setBelow] = useState(0);
   const last = useRef(0);
@@ -533,8 +538,52 @@ export default function Wrapped({ id, active, onClose, onSeen }: {
     const box = event.currentTarget.getBoundingClientRect();
     step(event.clientX - box.left < box.width / 3 ? -1 : 1);
   };
-  // A page opened from the summary over it holds the slide too
-  const holding = paused || !active;
+  // The slide showing as a story picture, saved or copied; the slide holds meanwhile and the picture is taken
+  // from the window itself once the menu is gone
+  const share = async (kind: "save" | "copy") => {
+    setShareOpen(false);
+    if (sharing.current) return;
+    sharing.current = true;
+    const wasPaused = paused;
+    setPaused(true);
+    try {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const page = document.querySelector(".page.wrapped")!.getBoundingClientRect();
+      const box = document.querySelector(".wrapped-slide")!.getBoundingClientRect();
+      let rect;
+      if (index === 0) {
+        // The first slide with its wall of covers, cut to the story's shape round the slide, to fill the picture
+        const stage = document.querySelector(".wrapped-stage")!.getBoundingClientRect();
+        const width = Math.min(page.width, (stage.height * 9) / 16);
+        const middle = box.left + box.width / 2;
+        rect = { left: Math.min(Math.max(page.left, middle - width / 2), page.right - width), top: stage.top,
+                 right: 0, bottom: stage.bottom };
+        rect.right = rect.left + width;
+      } else {
+        rect = { left: Math.max(page.left, box.left - 32), top: Math.max(page.top, box.top - 32),
+                 right: Math.min(page.right, box.right + 32), bottom: Math.min(page.bottom, box.bottom + 32) };
+      }
+      const shot = await window.tracker.capture({
+        x: Math.round(rect.left), y: Math.round(rect.top),
+        width: Math.round(rect.right - rect.left), height: Math.round(rect.bottom - rect.top),
+      });
+      const story = await storyImage(shot, slideHue(data, index), data.title, index === 0);
+      if (kind === "copy") {
+        // The picture's bytes from its data address (not fetched, which the page's rules may not allow)
+        const bytes = Uint8Array.from(atob(story.split(",")[1]), (char) => char.charCodeAt(0));
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": new Blob([bytes], { type: "image/png" }) })]);
+        setShared(t("wrapped.share.copied"));
+      } else if (await window.tracker.saveImage(`playlist-tracker-${index + 1}.png`, t("wrapped.share.filetype"), story)) {
+        setShared(t("wrapped.share.saved"));
+      }
+      window.setTimeout(() => setShared(null), 2000);
+    } finally {
+      sharing.current = false;
+      setPaused(wasPaused);
+    }
+  };
+  // A page opened from the summary over it holds the slide too, and so does the share menu
+  const holding = paused || !active || shareOpen;
   return (
     <div className="page wrapped" style={{ "--stage-h": slideHue(data, index) } as CSSProperties}>
       <div className="stage-back" aria-hidden="true">
@@ -556,6 +605,18 @@ export default function Wrapped({ id, active, onClose, onSeen }: {
         <button className="icon-button" disabled={index >= count - 1} onClick={() => step(1)}><Icon name="forward" /></button>
         <h1 className="period-title">{data.title}</h1>
         <span className="spacer" />
+        {shared && <span className="wrapped-shared">{shared}</span>}
+        <div className="wrapped-share">
+          <button className="icon-button" title={t("wrapped.share")} onClick={() => setShareOpen(!shareOpen)}>
+            <Icon name="share" />
+          </button>
+          {shareOpen && (
+            <div className="wrapped-share-menu">
+              <button onClick={() => share("save")}><Icon name="download" />{t("wrapped.share.save")}</button>
+              <button onClick={() => share("copy")}><Icon name="layers" />{t("wrapped.share.copy")}</button>
+            </div>
+          )}
+        </div>
         <button className="icon-button" title={t(paused ? "wrapped.play" : "wrapped.pause")}
                 onClick={() => setPaused(!paused)}><Icon name={paused ? "play" : "pause"} /></button>
         <button className="icon-button" onClick={onClose}><Icon name="close" /></button>

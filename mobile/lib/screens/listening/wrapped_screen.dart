@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:gal/gal.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/artwork.dart';
@@ -394,6 +397,77 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
 
   double _hue(int index) => _hues[index] ?? slideHue(_baseHue, index);
 
+  /// Each slide's drawing, to turn the one showing into a picture to share
+  final _slideKeys = <int, GlobalKey>{};
+  var _sharing = false;
+
+  /// Asks whether to save the slide showing to the gallery or share it; the slide holds meanwhile
+  Future<void> _chooseShare(String title) async {
+    final wasPaused = _paused.value;
+    _pause(true);
+    final save = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.download),
+              title: Text(context.t('wrapped.share.save')),
+              onTap: () => Navigator.of(sheet).pop(true),
+            ),
+            ListTile(
+              leading: const Icon(Icons.ios_share),
+              title: Text(context.t('wrapped.share.send')),
+              onTap: () => Navigator.of(sheet).pop(false),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (save != null) await _share(title, save: save);
+    if (mounted && !wasPaused) _pause(false);
+  }
+
+  void _tell(String key) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.t(key))));
+  }
+
+  /// The slide showing as a story picture, saved to the gallery or handed to the phone's share sheet
+  Future<void> _share(String title, {required bool save}) async {
+    if (_sharing) return;
+    _sharing = true;
+    try {
+      final index = _index.value;
+      final boundary = _slideKeys[index]?.currentContext?.findRenderObject();
+      if (boundary is! RenderRepaintBoundary) return;
+      final slide = await boundary.toImage(pixelRatio: 3);
+      // The first slide's wall of covers fills the whole picture
+      final bytes = await storyImage(slide, _hue(index), title, fill: index == 0);
+      slide.dispose();
+      if (bytes == null) return;
+      final name = 'playlist-tracker-${widget.month.start.year}-${widget.month.start.month}-${index + 1}';
+      if (save) {
+        try {
+          if (!await Gal.hasPermission()) await Gal.requestPermission();
+          await Gal.putImageBytes(bytes, name: name);
+          _tell('wrapped.share.saved');
+        } on GalException {
+          _tell('wrapped.share.failed');
+        }
+      } else {
+        await SharePlus.instance.share(ShareParams(
+          files: [XFile.fromData(bytes, mimeType: 'image/png')],
+          fileNameOverrides: ['$name.png'],
+        ));
+      }
+    } finally {
+      _sharing = false;
+    }
+  }
+
   void _go(int index) {
     if (index < 0 || index >= _count) return;
     _pages.animateToPage(index, duration: const Duration(milliseconds: 350), curve: Curves.easeOutCubic);
@@ -477,6 +551,11 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
                             ),
                           ),
                           IconButton(
+                            tooltip: context.t('wrapped.share'),
+                            icon: const Icon(Icons.ios_share, color: Colors.white),
+                            onPressed: () => _chooseShare(context.t('wrapped.title', {'month': month})),
+                          ),
+                          IconButton(
                             icon: const Icon(Icons.close, color: Colors.white),
                             onPressed: () => Navigator.of(context).pop(),
                           ),
@@ -516,6 +595,7 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
                               // Scaling and fading the slide reuses its last drawing instead of painting it again
                               // every frame
                               child: RepaintBoundary(
+                                key: _slideKeys.putIfAbsent(index, GlobalKey.new),
                                 child: _Slide(
                                 key: ValueKey(index),
                                 entrance: slides[index].$1,
