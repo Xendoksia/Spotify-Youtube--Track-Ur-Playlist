@@ -203,25 +203,32 @@ class MilestonesCard extends StatelessWidget {
       };
 }
 
-/// The days in a row with a play up to today, the longest run, and the last two weeks as dots. Only on a step
-/// (3, 7, 14 days and on) or a new record does it say something more, in the manner of the run's main genre
+/// Two streaks on one card: days in a row with any play (with the longest run and the song and artist that
+/// carried it), and below it, apart, days in a row of one genre, which earns titles in its manner at 3, 7, 14, 30
+/// and 100 days with a road to the next one
 class StreakCard extends StatelessWidget {
   final DataStore store;
 
   const StreakCard({super.key, required this.store});
 
-  /// The family of the genre most played during the run, by its artists' main genres
-  static String _family(List<Play> all, DateTime start) {
-    final weights = <String, int>{};
+  /// The genre family with the longest run going on now, by its artists' main genres (most plays in the run if
+  /// two are as long); null without a genre run
+  static GenreStreak? _genreStreak(List<Play> all, DateTime now) {
+    final days = <String, Set<DateTime>>{};
     for (final play in all) {
-      if (play.playedAt.isBefore(start)) continue;
       final genre = Genres.instance.mainGenre(play.artistKey);
       if (genre == null) continue;
-      final family = genreFamily(genre);
-      weights[family] = (weights[family] ?? 0) + 1;
+      days.putIfAbsent(genreFamily(genre), () => {}).add(DateTime(play.playedAt.year, play.playedAt.month, play.playedAt.day));
     }
-    if (weights.isEmpty) return 'other';
-    return weights.entries.reduce((a, b) => b.value > a.value ? b : a).key;
+    GenreStreak? best;
+    for (final MapEntry(key: family, value: played) in days.entries) {
+      final run = currentRun(played, now);
+      if (run.current == 0) continue;
+      if (best == null || run.current > best.days || (run.current == best.days && family != 'other' && best.family == 'other')) {
+        best = GenreStreak(family, run.current, run.today);
+      }
+    }
+    return best;
   }
 
   /// The run's most played song or artist, with its picture, opening its page
@@ -255,49 +262,77 @@ class StreakCard extends StatelessWidget {
     );
   }
 
-  /// The run's title in the manner of its genre, with the genre's sigil and a line; on the day of a new title or
-  /// a new record it stands out with a word for the day
-  Widget _level(BuildContext context, Streak streak, String family) {
+  /// The genre's run: how long it has gone on, its title with the genre's sigil and a line, and the road to the
+  /// next title; on the day of a new title it stands out
+  Widget _genre(BuildContext context, GenreStreak genre) {
     final palette = Palette.of(context);
-    final level = streakLevel(streak.current);
-    final card = Row(
-      children: [
-        ColorFiltered(
-          colorFilter: ColorFilter.mode(palette.chart, BlendMode.srcIn),
-          child: GenreSigil(family: family, size: 56),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (streak.special)
-                Text(
-                  streak.record
-                      ? context.t('stats.streak.record', {'days': context.number(streak.current)})
-                      : context.t('stats.streak.level_up'),
-                  style: TextStyle(color: palette.chart, fontWeight: FontWeight.w800, fontSize: 13),
-                ),
-              Text(context.t('stats.streak.level', {'level': level}),
-                  style: TextStyle(color: palette.muted, fontSize: 12, fontWeight: FontWeight.w600)),
-              Text(context.t('stats.streak.$family.$level'),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 2),
-              Text(context.t('stats.streak.$family.$level.say')),
-            ],
-          ),
-        ),
-      ],
-    );
+    final level = streakLevel(genre.days);
+    final next = streakNextLevel(genre.days);
+    final levelUp = genre.today && streakLevels.contains(genre.days);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: palette.chart.withValues(alpha: streak.special ? 0.16 : 0.07),
+        color: palette.chart.withValues(alpha: levelUp ? 0.16 : 0.07),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: palette.chart.withValues(alpha: streak.special ? 0.55 : 0.2)),
+        border: Border.all(color: palette.chart.withValues(alpha: levelUp ? 0.55 : 0.2)),
       ),
-      child: card,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              ColorFiltered(
+                colorFilter: ColorFilter.mode(palette.chart, BlendMode.srcIn),
+                child: GenreSigil(family: genre.family, size: 56),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.t('stats.streak.genre', {
+                        'days': context.number(genre.days),
+                        'genre': context.t('stats.streak.genre.${genre.family}'),
+                      }),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
+                    if (levelUp)
+                      Text(context.t('stats.streak.level_up'),
+                          style: TextStyle(color: palette.chart, fontWeight: FontWeight.w800, fontSize: 13)),
+                    if (level > 0) ...[
+                      const SizedBox(height: 4),
+                      Text('${context.t('stats.streak.level', {'level': level})}  ·  '
+                          '${context.t('stats.streak.${genre.family}.$level')}',
+                          style: TextStyle(color: palette.chart, fontWeight: FontWeight.w700)),
+                      Text(context.t('stats.streak.${genre.family}.$level.say')),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (next != null) ...[
+            const SizedBox(height: 14),
+            StreakRoad(days: genre.days),
+            const SizedBox(height: 4),
+          ],
+          Text(
+            next == null
+                ? context.t('stats.streak.top')
+                : level == 0
+                    ? context.t('stats.streak.first')
+                    : next - genre.days == 1
+                        ? context.t('stats.streak.next_tomorrow')
+                        : context.t('stats.streak.next', {
+                            'days': context.number(next),
+                            'left': context.number(next - genre.days),
+                          }),
+            style: TextStyle(color: palette.muted, fontSize: 13),
+          ),
+        ],
+      ),
     );
   }
 
@@ -305,19 +340,20 @@ class StreakCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
     final all = store.plays;
-    final streak = streakOf(all, DateTime.now());
+    final now = DateTime.now();
+    final streak = streakOf(all, now);
+    final days = streak.current;
+    final genre = days == 0 ? null : _genreStreak(all, now);
     final during = streak.start == null ? const <Play>[] : all.where((p) => !p.playedAt.isBefore(streak.start!)).toList();
     final song = topTracks(during, limit: 1);
     final artist = topArtists(during, limit: 1);
-    final days = streak.current;
-    final next = streakNextLevel(days);
-    final family = days == 0 ? 'other' : _family(all, streak.start!);
     final big = Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800, color: palette.chart);
     return SectionCard(
       title: context.t('stats.streak'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Days in a row with any play
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -337,44 +373,39 @@ class StreakCard extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 14),
-          if (days >= streakLevels.first) _level(context, streak, family),
-          const SizedBox(height: 14),
-          if (next != null) ...[
-            StreakRoad(days: days),
-            const SizedBox(height: 8),
-          ],
+          const SizedBox(height: 6),
           Text(
-            next == null
-                ? context.t('stats.streak.top')
-                : days < streakLevels.first
-                    ? context.t('stats.streak.first')
-                    : next - days == 1
-                        ? context.t('stats.streak.next_tomorrow')
-                        : context.t('stats.streak.next', {
-                            'days': context.number(next),
-                            'left': context.number(next - days),
-                          }),
-            style: TextStyle(color: palette.muted, fontSize: 13),
+            streak.record
+                ? context.t('stats.streak.record', {'days': context.number(days)})
+                : context.t(days == 0
+                    ? 'stats.streak.none'
+                    : streak.today
+                        ? 'stats.streak.going'
+                        : 'stats.streak.keep'),
+            style: TextStyle(fontWeight: FontWeight.w600, color: streak.record ? palette.chart : null),
           ),
+          // Days in a row of one genre, apart
+          if (genre != null) ...[
+            const SizedBox(height: 16),
+            _genre(context, genre),
+          ],
           const SizedBox(height: 8),
           // What carried the run
           if (song.isNotEmpty) _star(context, context.t('stats.streak.song'), song.first, DetailKind.track),
           if (artist.isNotEmpty) _star(context, context.t('stats.streak.artist'), artist.first, DetailKind.artist),
-          const SizedBox(height: 8),
-          if (!streak.special)
-            Text(
-              context.t(days == 0
-                  ? 'stats.streak.none'
-                  : streak.today
-                      ? 'stats.streak.going'
-                      : 'stats.streak.keep'),
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
         ],
       ),
     );
   }
+}
+
+/// A genre family's run going on now
+class GenreStreak {
+  final String family;
+  final int days;
+  final bool today;
+
+  const GenreStreak(this.family, this.days, this.today);
 }
 
 /// The run as a road between the level behind it, the next one and the one after, with a flame that slides to

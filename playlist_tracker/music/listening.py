@@ -518,6 +518,25 @@ def streak_next_level(days: int) -> int | None:
     return next((step for step in STREAK_LEVELS if step > days), None)
 
 
+def current_run(days: set[date], today: date) -> tuple[int, bool, date | None]:
+    """The run of days going on now (up to today, or up to yesterday while today is not among them yet): its
+    length, whether today is in it, and its first day."""
+    played = today in days
+    day = today if played else today - timedelta(days=1)
+    current = 0
+    while day in days:
+        current += 1
+        day -= timedelta(days=1)
+    return current, played, (day + timedelta(days=1) if current else None)
+
+
+def artist_days(db_path: Path = DB_PATH) -> list[tuple[date, str]]:
+    """Each local day with each artist played on it, for runs of one genre."""
+    with open_db(db_path) as db:
+        return [(date.fromisoformat(r[0]), r[1]) for r in db.execute(
+            "SELECT DISTINCT date(played_at, 'localtime'), artist_key FROM listens") if r[0]]
+
+
 def streak(today: date | None = None, db_path: Path = DB_PATH) -> dict:
     """Days in a row with at least one play, as the phone's streakOf: current (up to today, or up to yesterday
     while today has no play yet), today (today has a play), longest, before (the longest run that ended before the
@@ -526,13 +545,7 @@ def streak(today: date | None = None, db_path: Path = DB_PATH) -> dict:
     with open_db(db_path) as db:
         days = {date.fromisoformat(r[0]) for r in db.execute(
             "SELECT DISTINCT date(played_at, 'localtime') FROM listens") if r[0]}
-    played = today in days
-    day = today if played else today - timedelta(days=1)
-    current = 0
-    while day in days:
-        current += 1
-        day -= timedelta(days=1)
-    start = day + timedelta(days=1) if current else None
+    current, played, start = current_run(days, today)
     longest = before = run = 0
     last = None
     for day in sorted(days):

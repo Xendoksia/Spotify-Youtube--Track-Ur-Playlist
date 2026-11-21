@@ -21,9 +21,11 @@ export interface SectionsData {
   };
   streak: {
     title: string; value: string; unit: string; longest: string;
-    level: { family: string; label: string; name: string; say: string; special: string | null } | null;
-    road: { labels: string[]; share: number } | null;
-    next: string; hint: string | null;
+    hint: string; record: boolean;
+    genre: {
+      family: string; headline: string; level_up: string | null; level: string | null; say: string | null;
+      road: { labels: string[]; share: number } | null; next: string;
+    } | null;
     stars: { label: string; column: Column; key: string; title: string; plays: string; image: string; round: boolean }[];
   };
   milestones: {
@@ -118,7 +120,7 @@ export function GenreShift({ data }: { data: GenresData["shift"] | null }) {
 
 /** The run as a road between the step behind it, the next one and the one after, with a flame that slides to
  * the day the run is on (the next step is where the card says something more) */
-function StreakRoad({ road }: { road: NonNullable<SectionsData["streak"]["road"]> }) {
+function StreakRoad({ road }: { road: { labels: string[]; share: number } }) {
   // The stops sit evenly, and the flame between the first two as far as the run has come
   const gap = road.labels.length === 3 ? 50 : 100;
   const reached = road.share * gap;
@@ -149,21 +151,24 @@ export function Streak({ data }: { data: SectionsData["streak"] }) {
           <span className="streak-unit">{data.unit}</span>
         </div>
       </div>
-      {data.level && (
-        <div className={`streak-level${data.level.special ? " special" : ""}`}>
-          <span className="streak-sigil"><Sigil family={data.level.family} size={60} /></span>
-          <span className="streak-level-text">
-            {data.level.special && <strong className="streak-special">{data.level.special}</strong>}
-            <span className="muted">{data.level.label}</span>
-            <strong className="streak-title">{data.level.name}</strong>
-            <span>{data.level.say}</span>
-          </span>
+      <p className={`streak-hint${data.record ? " record" : ""}`}>{data.hint}</p>
+      {data.genre && (
+        <div className={`streak-level${data.genre.level_up ? " special" : ""}`}>
+          <div className="streak-level-head">
+            <span className="streak-sigil"><Sigil family={data.genre.family} size={60} /></span>
+            <span className="streak-level-text">
+              <strong className="streak-title">{data.genre.headline}</strong>
+              {data.genre.level_up && <strong className="streak-special">{data.genre.level_up}</strong>}
+              {data.genre.level && <span className="streak-rank">{data.genre.level}</span>}
+              {data.genre.say && <span>{data.genre.say}</span>}
+            </span>
+          </div>
+          <div className="streak-road">
+            {data.genre.road && <StreakRoad road={data.genre.road} />}
+            <p className="muted road-text">{data.genre.next}</p>
+          </div>
         </div>
       )}
-      <div className="streak-road">
-        {data.road && <StreakRoad road={data.road} />}
-        <p className="muted road-text">{data.next}</p>
-      </div>
       {data.stars.length > 0 && (
         <div className="streak-stars">
           {data.stars.map((star) => (
@@ -178,7 +183,6 @@ export function Streak({ data }: { data: SectionsData["streak"] }) {
           ))}
         </div>
       )}
-      {data.hint && <p className="streak-hint">{data.hint}</p>}
     </Card>
   );
 }

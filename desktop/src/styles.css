@@ -4483,8 +4483,7 @@ select.field {
 /* The streak's title in the manner of its genre, standing out on the day of a new title or record */
 .streak-level {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
   margin-top: 16px;
   padding: 12px 14px;
   border: 1px solid color-mix(in srgb, var(--chart) 20%, transparent);
@@ -4518,4 +4517,20 @@ select.field {
 .streak-special {
   color: var(--chart);
   font-size: 13px;
+}
+
+.streak-level-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.streak-rank {
+  margin-top: 4px;
+  color: var(--chart);
+  font-weight: 700;
+}
+
+.streak-hint.record {
+  color: var(--chart);
 }

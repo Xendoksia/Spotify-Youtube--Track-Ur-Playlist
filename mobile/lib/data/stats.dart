@@ -684,8 +684,8 @@ class Streak {
 
 DateTime _day(DateTime moment) => DateTime(moment.year, moment.month, moment.day);
 
-Streak streakOf(List<Play> all, DateTime now) {
-  final days = {for (final play in all) _day(play.playedAt)};
+/// The run of [days] going on now: up to today, or up to yesterday while today is not among them yet
+({int current, bool today, DateTime? start}) currentRun(Set<DateTime> days, DateTime now) {
   final today = _day(now);
   final played = days.contains(today);
   var day = played ? today : DateTime(today.year, today.month, today.day - 1);
@@ -694,7 +694,13 @@ Streak streakOf(List<Play> all, DateTime now) {
     current++;
     day = DateTime(day.year, day.month, day.day - 1);
   }
-  final start = current == 0 ? null : DateTime(day.year, day.month, day.day + 1);
+  return (current: current, today: played, start: current == 0 ? null : DateTime(day.year, day.month, day.day + 1));
+}
+
+Streak streakOf(List<Play> all, DateTime now) {
+  final days = {for (final play in all) _day(play.playedAt)};
+  final today = _day(now);
+  final (:current, today: played, :start) = currentRun(days, now);
   // Every run of days in order, to find the longest and the longest before the current one
   var longest = 0, before = 0, run = 0;
   DateTime? last;
