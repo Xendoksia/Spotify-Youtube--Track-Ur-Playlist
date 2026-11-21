@@ -11,6 +11,9 @@ class Repository {
 
   SupabaseClient get _db => Supabase.instance.client;
 
+  /// How many plays the cloud held at the last load, before those two devices recorded together counted once
+  int cloudPlays = 0;
+
   Future<List<Play>> plays() async {
     final rows = await _all((from, to) => _db
         .from('plays')
@@ -18,6 +21,7 @@ class Repository {
         .order('played_at', ascending: false)
         .order('uid')
         .range(from, to));
+    cloudPlays = rows.length;
     // A play the computer and the phone both recorded counts once, as on the desktop app
     return withoutDuplicates(rows.map(Play.fromRow).toList());
   }

@@ -97,7 +97,7 @@ class SyncTest(ListeningTestCase):
             patcher = mock.patch.object(sync, target, value)
             patcher.start()
             self.addCleanup(patcher.stop)
-        for name in ("unsynced", "mark_synced", "merge_remote"):
+        for name in ("unsynced", "mark_synced", "merge_remote", "all_uids", "mark_unsynced"):
             original = getattr(listening, name)
             patcher = mock.patch.object(sync.listening, name,
                                         lambda *args, original=original: original(*args, db_path=db_path))
@@ -116,6 +116,23 @@ class SyncTest(ListeningTestCase):
         self.assertEqual((row["user_id"], row["device_id"]), ("user", "pc"))
         self.assertIn("device_name", row)
         self.assertEqual(sync.push(client, "user"), 0)
+
+    def test_check_sends_what_the_cloud_lacks_and_fetches_what_is_missing_here(self):
+        # Here: a (in the cloud too) and b (marked sent but lost in the cloud)
+        for uid in ("a", "b"):
+            listening.merge_remote([remote(uid, f"2026-11-02 1{ord(uid) - 97}:00", device=None, name=uid)])
+        listening.mark_synced(listening.unsynced(10))
+        # The cloud: a, c (a phone play not fetched yet) and d (the phone's copy of a, kept here once)
+        cloud = [{**remote("a", "2026-11-02 10:00", name="a"), "device_id": None},
+                 {**remote("c", "2026-11-03 10:00", name="c"), "device_id": "phone", "source": "android"},
+                 {**remote("d", "2026-11-02 10:01", name="a"), "device_id": "phone", "source": "android"}]
+        client = FakeClient(cloud)
+        result = sync.check(client, "user")
+        self.assertEqual([row["uid"] for row in client.sent], ["b"])
+        self.assertEqual((result["cloud"], result["here"], result["sent"], result["fetched"], result["twice"]),
+                         (3, 3, 1, 1, 1))
+        self.assertEqual(self.config["SYNC_CHECK"]["twice"], 1)
+        self.assertFalse(sync.check_due())
 
     def test_pull_pages_through_and_remembers_where_it_stopped(self):
         rows = [{**remote(f"u{i}", "2026-11-02 10:00", name=f"Song {i}"), "device_id": "phone",

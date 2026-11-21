@@ -91,6 +91,53 @@ def pull(client: account.AccountClient) -> int:
     return added
 
 
+# How often the plays here are compared with the cloud's, and how many ids are asked for at once
+CHECK_EVERY = timedelta(days=1)
+CHECK_BATCH = 100
+
+
+def cloud_uids(client: account.AccountClient) -> set[str]:
+    """The ids of every play of the account in the cloud."""
+    uids, offset = set(), 0
+    while True:
+        rows = client.rest("GET", f"plays?select=uid&order=uid&limit={BATCH}&offset={offset}") or []
+        uids.update(row["uid"] for row in rows)
+        if len(rows) < BATCH:
+            return uids
+        offset += BATCH
+
+
+def check(client: account.AccountClient, user_id: str) -> dict:
+    """Compare the plays here with the cloud's and mend what differs: plays the cloud lacks are sent again and
+    plays this computer lacks are fetched. A play another device recorded at the same time as this computer is
+    kept here once (listening._insert), so it stays only in the cloud: counted as "twice". The outcome is kept in
+    config.json (SYNC_CHECK) for the account page."""
+    here, cloud = listening.all_uids(), cloud_uids(client)
+    missing_there = here - cloud
+    if missing_there:
+        listening.mark_unsynced(missing_there)
+        push(client, user_id)
+    missing_here = sorted(cloud - here)
+    fetched = 0
+    for start in range(0, len(missing_here), CHECK_BATCH):
+        ids = ",".join(missing_here[start:start + CHECK_BATCH])
+        rows = client.rest("GET", "plays?select=uid,device_id,played_at,source,artist,name,album,ms_played"
+                                  f"&uid=in.({ids})") or []
+        fetched += listening.merge_remote([{**row, "device": row["device_id"]} for row in rows])
+    result = {"at": datetime.now().astimezone().isoformat(), "cloud": len(cloud), "here": len(here) + fetched,
+              "sent": len(missing_there), "fetched": fetched, "twice": len(missing_here) - fetched}
+    config = load_config()
+    config["SYNC_CHECK"] = result
+    save_config(config)
+    return result
+
+
+def check_due() -> bool:
+    """The plays were not compared with the cloud in the last day."""
+    done = (load_config().get("SYNC_CHECK") or {}).get("at")
+    return not done or datetime.now().astimezone() - datetime.fromisoformat(done) >= CHECK_EVERY
+
+
 def _since_query(key: str) -> tuple[str | None, str]:
     """The last fetch time saved under key and the filter for rows changed since then."""
     since = load_config().get(key)
@@ -295,6 +342,18 @@ class Syncer:
                 result = sync_now()
                 last.clear()
                 last.update(result, at=datetime.now().astimezone(), error=None)
+                config = load_config()
+                config["SYNC_LAST_OK"] = last["at"].isoformat()
+                save_config(config)
+                # Once a day the plays here are compared with the cloud's, and what differs is mended; a failed
+                # comparison waits for the next sync and does not count as a failed sync
+                if check_due():
+                    try:
+                        user = account.profile()
+                        if user:
+                            check(account.AccountClient(), user["id"])
+                    except Exception:
+                        pass
             except TrackerError as error:
                 last["error"] = str(error) or None
                 last.setdefault("at", None)

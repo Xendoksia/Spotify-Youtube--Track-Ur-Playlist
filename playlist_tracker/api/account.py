@@ -8,10 +8,11 @@ event: state "done" (message) or "error" (message).
 from __future__ import annotations
 
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Callable
 
 from playlist_tracker.core import account, sync
+from playlist_tracker.core.config import load_config
 from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.music import artwork, listening
@@ -31,6 +32,30 @@ def day(iso: str | None) -> str:
     return f"{moment.day} {month_name(moment.month)} {moment.year}"
 
 
+def moment_text(iso: str) -> str:
+    """"18:42" today, "20 November 18:42" on another day."""
+    moment = datetime.fromisoformat(iso).astimezone()
+    if moment.date() == datetime.now().date():
+        return f"{moment:%H:%M}"
+    return f"{moment.day} {month_name(moment.month)} {moment:%H:%M}"
+
+
+def check_state(result: dict | None) -> dict:
+    """The last comparison of the plays here with the cloud's, as lines for the account page."""
+    if not result:
+        return {"lines": [t("account.check_never")], "same": False, "at": ""}
+    lines = [t("account.check_counts", cloud=number(result["cloud"]), here=number(result["here"]))]
+    if result["sent"]:
+        lines.append(t("account.check_sent", count=number(result["sent"])))
+    if result["fetched"]:
+        lines.append(t("account.check_fetched", count=number(result["fetched"])))
+    if result["twice"]:
+        lines.append(t("account.check_twice", count=number(result["twice"])))
+    same = not result["sent"] and not result["fetched"]
+    return {"lines": lines, "same": same, "same_text": t("account.check_same") if same else "",
+            "at": t("account.check_at", time=moment_text(result["at"]))}
+
+
 def sync_state() -> dict:
     """The outcome of the last sync and what waits on this computer."""
     last = sync.last
@@ -43,7 +68,13 @@ def sync_state() -> dict:
     else:
         state, text, when, counts = "waiting", t("account.sync_state.waiting"), t("account.sync_every"), ""
     total, waiting = sum(listening.counts().values()), listening.unsynced_count()
+    config = load_config()
+    last_ok = config.get("SYNC_LAST_OK")
+    stale = bool(last_ok) and datetime.now().astimezone() - datetime.fromisoformat(last_ok) > timedelta(days=1)
     return {
+        "check": check_state(config.get("SYNC_CHECK")),
+        "last_ok": t("account.last_ok", time=moment_text(last_ok)) if last_ok else "",
+        "stale": t("account.stale") if stale else "",
         "state": state, "text": text, "when": when, "counts": counts,
         "device": sync.device()[1], "plays": t("account.device_plays", count=number(total)),
         "waiting": t("account.device_waiting", count=number(waiting)) if waiting else t("account.device_all_sent"),
@@ -124,6 +155,15 @@ class Account:
             account.decided = False
             return ""
         return self._run(lambda: account.AccountClient().logout(), done, t("account.logging_out"))
+
+    def check_now(self) -> dict:
+        """Compare the plays here with the cloud's now and mend what differs."""
+        def compare():
+            user = account.profile()
+            if not user:
+                raise account.AccountError("")
+            return sync.check(account.AccountClient(), user["id"])
+        return self._run(compare, lambda result: "", t("account.checking"))
 
     def sync_now(self) -> dict:
         if not sync.syncer:

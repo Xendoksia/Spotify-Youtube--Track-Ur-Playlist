@@ -59,6 +59,7 @@ class Api:
             ("POST", "/api/account/refresh"): lambda q, b: account.refresh(),
             ("POST", "/api/account/logout"): lambda q, b: account.logout(),
             ("POST", "/api/account/sync"): lambda q, b: account.sync_now(),
+            ("POST", "/api/account/check"): lambda q, b: account.check_now(),
             ("GET", "/api/playlists"): lambda q, b: playlists.page(q["service"]),
             ("POST", "/api/playlists/toggle"): lambda q, b: playlists.toggle(b["service"], b["id"]),
             ("POST", "/api/playlists/all"): lambda q, b: playlists.set_all(b["service"], bool(b["tracked"])),

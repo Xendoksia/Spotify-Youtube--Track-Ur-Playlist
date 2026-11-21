@@ -13,6 +13,9 @@ class DataStore extends ChangeNotifier {
   bool loaded = false;
   Object? error;
 
+  /// When the plays were last loaded from the cloud
+  DateTime? loadedAt;
+
   DataStore(this.repository);
 
   Future<void> refresh() async {
@@ -25,6 +28,7 @@ class DataStore extends ChangeNotifier {
       playlists = results[1] as List<TrackedPlaylist>;
       events = results[2] as List<PlaylistEvent>;
       loaded = true;
+      loadedAt = DateTime.now();
     } catch (e) {
       error = e;
     } finally {

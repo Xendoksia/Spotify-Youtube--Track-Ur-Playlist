@@ -167,6 +167,18 @@ def mark_synced(plays: list[dict], db_path: Path = DB_PATH) -> None:
                        [(p["uid"], p["ms_played"]) for p in plays])
 
 
+def all_uids(db_path: Path = DB_PATH) -> set[str]:
+    """The ids of every play stored here, for comparing with the cloud."""
+    with open_db(db_path) as db:
+        return {r[0] for r in db.execute("SELECT uid FROM listens WHERE uid IS NOT NULL")}
+
+
+def mark_unsynced(uids: set[str], db_path: Path = DB_PATH) -> None:
+    """Plays the cloud turned out not to have: they go again with the next send."""
+    with open_db(db_path) as db:
+        db.executemany("UPDATE listens SET synced = 0 WHERE uid = ?", [(uid,) for uid in uids])
+
+
 def mark_all_unsynced(db_path: Path = DB_PATH) -> None:
     """After logging out: every play goes to the next account logged in."""
     with open_db(db_path) as db:

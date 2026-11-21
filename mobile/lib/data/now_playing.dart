@@ -134,6 +134,15 @@ class NowPlaying extends ChangeNotifier with WidgetsBindingObserver {
     return plays.length;
   }
 
+  /// How many plays recorded on this phone wait to be sent
+  static Future<int> pendingPlays() async {
+    try {
+      return (await _methods.invokeListMethod<Object?>('unsyncedPlays'))?.length ?? 0;
+    } on MissingPluginException {
+      return 0;
+    }
+  }
+
   /// The source of the phone's plays in Supabase (the desktop app's are "local")
   static const source = 'android';
 

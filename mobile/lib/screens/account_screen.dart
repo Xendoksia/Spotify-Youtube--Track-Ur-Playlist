@@ -83,6 +83,8 @@ class AccountScreen extends StatelessWidget {
           },
         ),
         gap,
+        SyncCard(store: store),
+        gap,
         ListenableBuilder(
           listenable: nowPlaying,
           builder: (context, _) => SectionCard(
@@ -169,6 +171,85 @@ class _Choice extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+/// How the phone and the cloud stand: the plays in the cloud (and those two devices recorded together, counted
+/// once), what this phone still has to send and when the plays were last loaded, with a button to send and load now
+class SyncCard extends StatefulWidget {
+  final DataStore store;
+
+  const SyncCard({super.key, required this.store});
+
+  @override
+  State<SyncCard> createState() => _SyncCardState();
+}
+
+class _SyncCardState extends State<SyncCard> {
+  late Future<int> _pending = NowPlaying.pendingPlays();
+  var _busy = false;
+
+  Future<void> _syncNow() async {
+    setState(() => _busy = true);
+    try {
+      await NowPlaying.send();
+      await widget.store.refresh();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _pending = NowPlaying.pendingPlays();
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Palette.of(context);
+    final store = widget.store;
+    return ListenableBuilder(
+      listenable: store,
+      builder: (context, _) {
+        final cloud = store.repository.cloudPlays;
+        final twice = cloud - store.plays.length;
+        final at = store.loadedAt;
+        return SectionCard(
+          title: context.t('account.sync'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(context.t('account.cloud_plays', {'count': context.number(cloud)})),
+              if (twice > 0)
+                Text(context.t('account.twice', {'count': context.number(twice)}),
+                    style: TextStyle(color: palette.muted, fontSize: 13)),
+              const SizedBox(height: 6),
+              FutureBuilder<int>(
+                future: _pending,
+                builder: (context, pending) {
+                  final count = pending.data ?? 0;
+                  return Text(
+                    count == 0 ? context.t('account.all_sent') : context.t('account.pending', {'count': context.number(count)}),
+                    style: TextStyle(color: count == 0 ? palette.added : palette.removed, fontWeight: FontWeight.w600),
+                  );
+                },
+              ),
+              if (at != null)
+                Text(context.t('account.refreshed_at', {'time': context.dateFormat('HH:mm').format(at)}),
+                    style: TextStyle(color: palette.muted, fontSize: 13)),
+              const SizedBox(height: 8),
+              FilledButton.tonalIcon(
+                onPressed: _busy ? null : _syncNow,
+                icon: _busy
+                    ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.sync),
+                label: Text(context.t('account.sync_now')),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

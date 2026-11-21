@@ -30,6 +30,9 @@ export interface AccountData {
     plays: string;
     waiting: string;
     all_sent: boolean;
+    last_ok: string;
+    stale: string;
+    check: { lines: string[]; same: boolean; same_text?: string; at: string };
   };
 }
 
@@ -154,9 +157,22 @@ export default function Account({ onLoggedOut }: { onLoggedOut: () => void }) {
                 {data.sync.counts && (
                   <span className={data.sync.state === "failed" ? "event-removed" : ""}>{data.sync.counts}</span>
                 )}
+                {data.sync.last_ok && <span className="muted">{data.sync.last_ok}</span>}
+                {data.sync.stale && <span className="event-removed">{data.sync.stale}</span>}
                 <div className="card-buttons">
                   <button className="button primary" disabled={data.busy} onClick={() => post("/api/account/sync", {})}>
                     {t("account.sync_now")}
+                  </button>
+                </div>
+              </section>
+              <section className="card account-card">
+                <h2 className="card-title"><Icon name="check" />{t("account.check")}</h2>
+                {data.sync.check.same_text && <span className="account-state event-added">{data.sync.check.same_text}</span>}
+                {data.sync.check.lines.map((line) => <span key={line}>{line}</span>)}
+                {data.sync.check.at && <span className="muted">{data.sync.check.at}</span>}
+                <div className="card-buttons">
+                  <button className="button" disabled={data.busy} onClick={() => post("/api/account/check", {})}>
+                    {t("account.check_now")}
                   </button>
                 </div>
               </section>
