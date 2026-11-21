@@ -256,7 +256,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
               gap,
               DiversityCard(store: widget.store, period: _period, offset: _offset, range: range, plays: plays),
               gap,
-              StreakCard(all: all),
+              StreakCard(store: widget.store),
               gap,
               MilestonesCard(store: widget.store, period: _period, range: range),
               gap,

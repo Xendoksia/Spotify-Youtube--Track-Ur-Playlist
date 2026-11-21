@@ -235,13 +235,25 @@ def streak_card() -> dict:
         "longest": t("stats.streak.longest", days=number(streak["longest"])) if streak["longest"] else "",
         "recent": streak["recent"], "headline": None, "message": None,
     }
-    if special:
+    card["stars"] = []
+    if days:
+        # What carried the run: its most played song and artist
         start = datetime.combine(streak["start"], datetime.min.time()).astimezone()
+        end = datetime.now().astimezone() + timedelta(days=1)
+        for row in listening.top_tracks(start, end, 1):
+            card["stars"].append({"label": t("stats.streak.song"), "column": "track_key", "key": row["key"],
+                                  "title": f"{row['name']}  ·  {row['artist']}", "plays": plays_text(row["plays"]),
+                                  "image": cover_url(row["artist"], row["album"], row["name"]), "round": False})
+        for row in listening.top_artists(start, end, 1):
+            card["stars"].append({"label": t("stats.streak.artist"), "column": "artist_key", "key": row["key"],
+                                  "title": row["name"], "plays": plays_text(row["plays"]),
+                                  "image": artist_url(row["name"]), "round": True})
+    if special:
         card["headline"] = t(f"stats.streak.{special}", days=number(days))
         card["message"] = t(f"stats.streak.say.{streak_family(start)}")
     else:
-        card["hint"] = (t("stats.streak.none") if days == 0 else t("stats.streak.going") if streak["today"]
-                        else t("stats.streak.keep", days=number(days + 1)))
+        card["hint"] = t("stats.streak.none" if days == 0 else "stats.streak.going" if streak["today"]
+                         else "stats.streak.keep")
     return card
 
 

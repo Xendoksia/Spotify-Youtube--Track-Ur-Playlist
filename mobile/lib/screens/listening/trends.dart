@@ -6,6 +6,7 @@ import '../../data/stats.dart';
 import '../../l10n/strings.dart';
 import '../../state/data_store.dart';
 import '../../theme/palette.dart';
+import '../../widgets/artwork_image.dart';
 import '../../widgets/cards.dart';
 import '../../widgets/format.dart';
 import 'detail_screen.dart';
@@ -204,9 +205,9 @@ class MilestonesCard extends StatelessWidget {
 /// The days in a row with a play up to today, the longest run, and the last two weeks as dots. Only on a step
 /// (3, 7, 14 days and on) or a new record does it say something more, in the manner of the run's main genre
 class StreakCard extends StatelessWidget {
-  final List<Play> all;
+  final DataStore store;
 
-  const StreakCard({super.key, required this.all});
+  const StreakCard({super.key, required this.store});
 
   /// The family of the genre most played during the run, by its artists' main genres
   static String _family(List<Play> all, DateTime start) {
@@ -222,10 +223,45 @@ class StreakCard extends StatelessWidget {
     return weights.entries.reduce((a, b) => b.value > a.value ? b : a).key;
   }
 
+  /// The run's most played song or artist, with its picture, opening its page
+  Widget _star(BuildContext context, String label, Ranked row, DetailKind kind) {
+    final muted = Palette.of(context).muted;
+    return InkWell(
+      onTap: () => openDetail(context, store, DetailTarget.ranked(kind, row)),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            kind == DetailKind.track
+                ? ArtworkImage.cover(artist: row.artist, album: row.album, name: row.title, size: 42)
+                : ArtworkImage.artist(artist: row.artist, size: 42),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(color: muted, fontSize: 12)),
+                  Text(kind == DetailKind.track ? '${row.title}  ·  ${row.artist}' : row.title,
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            Text(context.plays(row.plays), style: TextStyle(color: muted, fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
+    final all = store.plays;
     final streak = streakOf(all, DateTime.now());
+    final during = streak.start == null ? const <Play>[] : all.where((p) => !p.playedAt.isBefore(streak.start!)).toList();
+    final song = topTracks(during, limit: 1);
+    final artist = topArtists(during, limit: 1);
     final days = streak.current;
     final big = Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800, color: palette.chart);
     return SectionCard(
@@ -271,7 +307,11 @@ class StreakCard extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          // What carried the run
+          if (song.isNotEmpty) _star(context, context.t('stats.streak.song'), song.first, DetailKind.track),
+          if (artist.isNotEmpty) _star(context, context.t('stats.streak.artist'), artist.first, DetailKind.artist),
+          const SizedBox(height: 8),
           if (streak.special)
             Container(
               width: double.infinity,
@@ -297,12 +337,12 @@ class StreakCard extends StatelessWidget {
             )
           else
             Text(
-              days == 0
-                  ? context.t('stats.streak.none')
+              context.t(days == 0
+                  ? 'stats.streak.none'
                   : streak.today
-                      ? context.t('stats.streak.going')
-                      : context.t('stats.streak.keep', {'days': context.number(days + 1)}),
-              style: TextStyle(color: palette.muted, fontSize: 13),
+                      ? 'stats.streak.going'
+                      : 'stats.streak.keep'),
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
         ],
       ),

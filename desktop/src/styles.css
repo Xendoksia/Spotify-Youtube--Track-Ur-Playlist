@@ -4376,5 +4376,57 @@ select.field {
 
 .streak-hint {
   margin: 12px 0 0;
+  font-weight: 600;
+}
+
+.streak-stars {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 24px;
+  margin-top: 14px;
+}
+
+.streak-star {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.streak-star:hover {
+  background: var(--hover);
+}
+
+.streak-picture {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  font-size: 18px;
+}
+
+.streak-picture:not(.round) {
+  border-radius: 8px;
+}
+
+.streak-star-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   font-size: 13px;
+}
+
+.streak-star-text strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

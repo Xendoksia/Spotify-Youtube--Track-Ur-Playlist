@@ -21,6 +21,7 @@ export interface SectionsData {
   streak: {
     title: string; value: string; unit: string; longest: string; recent: boolean[];
     headline: string | null; message: string | null; hint?: string;
+    stars: { label: string; column: Column; key: string; title: string; plays: string; image: string; round: boolean }[];
   };
   milestones: {
     title: string; summary: string; empty: string; year_ago_title: string;
@@ -115,6 +116,7 @@ export function GenreShift({ data }: { data: GenresData["shift"] | null }) {
 /** The days in a row with a play, the longest run and the last two weeks as dots; a word of its own only on a
  * step or a new record (api/sections.py streak_card) */
 export function Streak({ data }: { data: SectionsData["streak"] }) {
+  const open = useOpenDetail();
   return (
     <Card icon="calendar" title={data.title} summary={data.longest}>
       <div className="streak">
@@ -128,13 +130,27 @@ export function Streak({ data }: { data: SectionsData["streak"] }) {
           ))}
         </div>
       </div>
+      {data.stars.length > 0 && (
+        <div className="streak-stars">
+          {data.stars.map((star) => (
+            <button key={star.column} className="streak-star clickable" onClick={() => open?.(star.column, star.key)}>
+              <Picture src={star.image} alt={star.title} round={star.round} className="streak-picture" />
+              <span className="streak-star-text">
+                <span className="muted">{star.label}</span>
+                <strong>{star.title}</strong>
+              </span>
+              <span className="muted">{star.plays}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {data.headline ? (
         <div className="streak-word">
           <strong>{data.headline}</strong>
           <span>{data.message}</span>
         </div>
       ) : (
-        <p className="muted streak-hint">{data.hint}</p>
+        <p className="streak-hint">{data.hint}</p>
       )}
     </Card>
   );
