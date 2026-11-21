@@ -23,7 +23,7 @@ export interface SectionsData {
     title: string; value: string; unit: string; longest: string;
     hint: string; record: boolean;
     genre: {
-      family: string; headline: string; level_up: string | null; level: string | null; say: string | null;
+      family: string; headline: string; level_up: string | null; say: string | null;
       road: { labels: string[]; place: number; next: number }; next: string;
     } | null;
     stars: { label: string; column: Column; key: string; title: string; plays: string; image: string; round: boolean }[];
@@ -159,8 +159,7 @@ export function Streak({ data }: { data: SectionsData["streak"] }) {
             <span className="streak-level-text">
               <strong className="streak-title">{data.genre.headline}</strong>
               {data.genre.level_up && <strong className="streak-special">{data.genre.level_up}</strong>}
-              {data.genre.level && <span className="streak-rank">{data.genre.level}</span>}
-              {data.genre.say && <span>{data.genre.say}</span>}
+              {data.genre.say && <span className="streak-say">{data.genre.say}</span>}
             </span>
           </div>
           <div className="streak-road">

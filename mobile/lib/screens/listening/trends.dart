@@ -262,8 +262,8 @@ class StreakCard extends StatelessWidget {
     );
   }
 
-  /// The genre's run: how long it has gone on, its title with the genre's sigil and a line, and the road to the
-  /// next title; on the day of a new title it stands out
+  /// The genre's run: how long it has gone on with the genre's sigil, its message for the level reached, and the
+  /// road to the next message; on the day a new one opens it stands out
   Widget _genre(BuildContext context, GenreStreak genre) {
     final palette = Palette.of(context);
     final level = streakLevel(genre.days);
@@ -302,11 +302,8 @@ class StreakCard extends StatelessWidget {
                       Text(context.t('stats.streak.level_up'),
                           style: TextStyle(color: palette.chart, fontWeight: FontWeight.w800, fontSize: 13)),
                     if (level > 0) ...[
-                      const SizedBox(height: 4),
-                      Text('${context.t('stats.streak.level', {'level': level})}  ·  '
-                          '${context.t('stats.streak.${genre.family}.$level')}',
-                          style: TextStyle(color: palette.chart, fontWeight: FontWeight.w700)),
-                      Text(context.t('stats.streak.${genre.family}.$level.say')),
+                      const SizedBox(height: 6),
+                      Text(context.t('stats.streak.${genre.family}.$level.say'), style: const TextStyle(fontSize: 15)),
                     ],
                   ],
                 ),

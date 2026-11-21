@@ -541,7 +541,7 @@ def current_run(days: set[date], today: date) -> tuple[int, bool, date | None]:
     return current, played, (day + timedelta(days=1) if current else None)
 
 
-def artist_days(db_path: Path = DB_PATH) -> list[tuple[date, str]]:
+def days_with_artists(db_path: Path = DB_PATH) -> list[tuple[date, str]]:
     """Each local day with each artist played on it, for runs of one genre."""
     with open_db(db_path) as db:
         return [(date.fromisoformat(r[0]), r[1]) for r in db.execute(

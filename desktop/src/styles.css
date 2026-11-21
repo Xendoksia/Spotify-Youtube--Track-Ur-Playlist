@@ -4525,10 +4525,9 @@ select.field {
   gap: 16px;
 }
 
-.streak-rank {
-  margin-top: 4px;
-  color: var(--chart);
-  font-weight: 700;
+.streak-say {
+  margin-top: 6px;
+  font-size: 15px;
 }
 
 .streak-hint.record {

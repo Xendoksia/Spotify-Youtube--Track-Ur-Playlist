@@ -217,7 +217,7 @@ def genre_streak() -> dict | None:
     from playlist_tracker.api.wrapped import genre_family
     days: dict[str, set] = {}
     families: dict[str, str | None] = {}
-    for day, artist in listening.artist_days():
+    for day, artist in listening.days_with_artists():
         if artist not in families:
             facts = artist_info.cached(artist)
             families[artist] = genre_family(facts["genres"][0]) if facts and facts["genres"] else None
@@ -268,7 +268,6 @@ def streak_card() -> dict:
             "family": family,
             "headline": t("stats.streak.genre", days=number(run), genre=t(f"stats.streak.genre.{family}")),
             "level_up": genre["today"] and run in listening.STREAK_LEVELS and t("stats.streak.level_up") or None,
-            "level": f"{t('stats.streak.level', level=level)}  ·  {t(f'stats.streak.{family}.{level}')}" if level else None,
             "say": t(f"stats.streak.{family}.{level}.say") if level else None,
             "road": None,
         }

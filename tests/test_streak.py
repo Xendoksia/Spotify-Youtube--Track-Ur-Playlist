@@ -39,3 +39,10 @@ class StreakTest(ListeningTestCase):
         self.assertEqual([listening.streak_next_level(d) for d in (0, 3, 13, 50, 365)], [3, 7, 14, 100, None])
         self.assertAlmostEqual(listening.streak_place(10), 1 + 3 / 7)
         self.assertEqual((listening.streak_place(0), listening.streak_place(400)), (0.0, 7.0))
+
+    def test_genre_runs_keep_the_genres_over_time_working(self):
+        # The genre streak's own day list once took the name the genres-over-time card uses
+        self.on(20, 21)
+        start, end = listening.period_range("month", 0)
+        self.assertIsInstance(listening.artist_days(start, end, db_path=self.db), list)
+        self.assertEqual(sorted(day.day for day, _ in listening.days_with_artists(db_path=self.db)), [20, 21])
