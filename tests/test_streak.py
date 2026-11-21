@@ -33,7 +33,9 @@ class StreakTest(ListeningTestCase):
         self.on(17)
         self.assertIsNone(listening.streak_special(self.streak()))
 
-    def test_titles_come_at_3_7_14_30_and_100_days(self):
-        self.assertEqual([listening.streak_level(d) for d in (0, 2, 3, 6, 7, 18, 30, 99, 100, 400)],
-                         [0, 0, 1, 1, 2, 3, 4, 4, 5, 5])
-        self.assertEqual([listening.streak_next_level(d) for d in (0, 3, 18, 99, 100)], [3, 7, 30, 100, None])
+    def test_titles_come_at_3_7_14_21_30_50_100_and_365_days(self):
+        self.assertEqual([listening.streak_level(d) for d in (0, 2, 3, 7, 13, 21, 49, 100, 364, 365, 400)],
+                         [0, 0, 1, 2, 2, 4, 5, 7, 7, 8, 8])
+        self.assertEqual([listening.streak_next_level(d) for d in (0, 3, 13, 50, 365)], [3, 7, 14, 100, None])
+        self.assertAlmostEqual(listening.streak_place(10), 1 + 3 / 7)
+        self.assertEqual((listening.streak_place(0), listening.streak_place(400)), (0.0, 7.0))

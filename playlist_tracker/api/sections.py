@@ -272,14 +272,12 @@ def streak_card() -> dict:
             "say": t(f"stats.streak.{family}.{level}.say") if level else None,
             "road": None,
         }
+        # The whole ladder of titles, and where the run is on it
+        part["road"] = {"labels": [number(step) for step in listening.STREAK_LEVELS],
+                        "place": listening.streak_place(run), "next": level}
         if next_level is None:
             part["next"] = t("stats.streak.top")
         else:
-            start_step = listening.STREAK_LEVELS[level - 1] if level else 0
-            after = listening.streak_next_level(next_level)
-            stops = [start_step, next_level] + ([after] if after else [])
-            part["road"] = {"labels": [number(step) for step in stops],
-                            "share": (run - start_step) / (next_level - start_step)}
             part["next"] = (t("stats.streak.first") if level == 0
                             else t("stats.streak.next_tomorrow") if next_level - run == 1
                             else t("stats.streak.next", days=number(next_level), left=number(next_level - run)))

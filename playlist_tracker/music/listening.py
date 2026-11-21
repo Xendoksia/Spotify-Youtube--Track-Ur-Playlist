@@ -505,12 +505,23 @@ def hours(start: datetime, end: datetime, column: str | None = None, key: str | 
 
 
 # The days in a row at which a streak earns its next title, as the phone's streakLevels
-STREAK_LEVELS = [3, 7, 14, 30, 100]
+STREAK_LEVELS = [3, 7, 14, 21, 30, 50, 100, 365]
 
 
 def streak_level(days: int) -> int:
     """The level a run of days has reached, 0 before the first."""
     return sum(1 for step in STREAK_LEVELS if days >= step)
+
+
+def streak_place(days: int) -> float:
+    """Where a run of days stands on the ladder of levels, counted in stops, as the phone's streakPlace."""
+    level = streak_level(days)
+    if level == 0:
+        return 0.0
+    if level == len(STREAK_LEVELS):
+        return len(STREAK_LEVELS) - 1.0
+    start = STREAK_LEVELS[level - 1]
+    return level - 1 + (days - start) / (STREAK_LEVELS[level] - start)
 
 
 def streak_next_level(days: int) -> int | None:

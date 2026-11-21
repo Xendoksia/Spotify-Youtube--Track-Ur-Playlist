@@ -4383,7 +4383,7 @@ select.field {
 
 .road-stop {
   position: absolute;
-  top: -7px;
+  top: -5px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4391,8 +4391,8 @@ select.field {
 }
 
 .road-dot {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border: 2.5px solid var(--border);
   border-radius: 50%;
   background: var(--surface);

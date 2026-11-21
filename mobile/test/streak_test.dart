@@ -31,8 +31,11 @@ void main() {
     expect(streakOf(on([18, 19, 20]), now).special, false);
   });
 
-  test('titles come at 3, 7, 14, 30 and 100 days', () {
-    expect([for (final days in [0, 2, 3, 6, 7, 18, 30, 99, 100, 400]) streakLevel(days)], [0, 0, 1, 1, 2, 3, 4, 4, 5, 5]);
-    expect([for (final days in [0, 3, 18, 99, 100]) streakNextLevel(days)], [3, 7, 30, 100, null]);
+  test('titles come at 3, 7, 14, 21, 30, 50, 100 and 365 days', () {
+    expect([for (final days in [0, 2, 3, 7, 13, 21, 49, 100, 364, 365, 400]) streakLevel(days)],
+        [0, 0, 1, 2, 2, 4, 5, 7, 7, 8, 8]);
+    expect([for (final days in [0, 3, 13, 50, 365]) streakNextLevel(days)], [3, 7, 14, 100, null]);
+    // Halfway from 7 to 14 sits halfway between the second and third stops
+    expect([for (final days in [0, 3, 10, 400]) streakPlace(days)], [0, 0, closeTo(1.43, 0.01), 7]);
   });
 }

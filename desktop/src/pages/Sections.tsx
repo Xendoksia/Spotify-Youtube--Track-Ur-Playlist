@@ -24,7 +24,7 @@ export interface SectionsData {
     hint: string; record: boolean;
     genre: {
       family: string; headline: string; level_up: string | null; level: string | null; say: string | null;
-      road: { labels: string[]; share: number } | null; next: string;
+      road: { labels: string[]; place: number; next: number }; next: string;
     } | null;
     stars: { label: string; column: Column; key: string; title: string; plays: string; image: string; round: boolean }[];
   };
@@ -120,17 +120,17 @@ export function GenreShift({ data }: { data: GenresData["shift"] | null }) {
 
 /** The run as a road between the step behind it, the next one and the one after, with a flame that slides to
  * the day the run is on (the next step is where the card says something more) */
-function StreakRoad({ road }: { road: { labels: string[]; share: number } }) {
-  // The stops sit evenly, and the flame between the first two as far as the run has come
-  const gap = road.labels.length === 3 ? 50 : 100;
-  const reached = road.share * gap;
+function StreakRoad({ road }: { road: { labels: string[]; place: number; next: number } }) {
+  // Every title is a stop, evenly apart, and the flame sits as far as the run has come between two
+  const last = road.labels.length - 1;
+  const reached = (road.place / last) * 100;
   return (
     <div className="road-line">
       <span className="road-fill" style={{ width: `${reached}%` }} />
       <span className="road-flame" style={{ left: `${reached}%` }}>{"\u{1F525}"}</span>
       {road.labels.map((label, index) => (
-        <span key={index} className={`road-stop${index === 0 ? " passed" : index === 1 ? " next" : ""}`}
-              style={{ left: `${index * gap}%` }}>
+        <span key={index} className={`road-stop${index < road.next ? " passed" : index === road.next ? " next" : ""}`}
+              style={{ left: `${(index / last) * 100}%` }}>
           <span className="road-dot" />
           <span className="road-label">{label}</span>
         </span>
@@ -164,7 +164,7 @@ export function Streak({ data }: { data: SectionsData["streak"] }) {
             </span>
           </div>
           <div className="streak-road">
-            {data.genre.road && <StreakRoad road={data.genre.road} />}
+            <StreakRoad road={data.genre.road} />
             <p className="muted road-text">{data.genre.next}</p>
           </div>
         </div>

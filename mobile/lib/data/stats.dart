@@ -637,7 +637,17 @@ DateTime yearBack(DateTime moment) {
 }
 
 /// The days in a row at which a streak earns its next title, in the manner of its genre (Level 1 at 3 days)
-const streakLevels = [3, 7, 14, 30, 100];
+const streakLevels = [3, 7, 14, 21, 30, 50, 100, 365];
+
+/// Where a run of [days] stands on the ladder of levels, counted in stops: 0 at the first stop (and before it),
+/// 2.5 halfway from the third to the fourth, the last stop's index at the highest
+double streakPlace(int days) {
+  final level = streakLevel(days);
+  if (level == 0) return 0;
+  if (level == streakLevels.length) return streakLevels.length - 1.0;
+  final from = streakLevels[level - 1];
+  return level - 1 + (days - from) / (streakLevels[level] - from);
+}
 
 /// The level a run of [days] has reached, 0 before the first
 int streakLevel(int days) => streakLevels.where((step) => days >= step).length;

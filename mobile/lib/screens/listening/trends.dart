@@ -313,11 +313,9 @@ class StreakCard extends StatelessWidget {
               ),
             ],
           ),
-          if (next != null) ...[
-            const SizedBox(height: 14),
-            StreakRoad(days: genre.days),
-            const SizedBox(height: 4),
-          ],
+          const SizedBox(height: 14),
+          StreakRoad(days: genre.days),
+          const SizedBox(height: 4),
           Text(
             next == null
                 ? context.t('stats.streak.top')
@@ -408,8 +406,8 @@ class GenreStreak {
   const GenreStreak(this.family, this.days, this.today);
 }
 
-/// The run as a road between the level behind it, the next one and the one after, with a flame that slides to
-/// the day the run is on; the next stop is where the next title opens
+/// The whole ladder of levels as a road, each stop a title, with a flame that slides to where the run is: the stops
+/// passed are filled and the next one, where the next title opens, is ringed
 class StreakRoad extends StatelessWidget {
   final int days;
 
@@ -418,34 +416,27 @@ class StreakRoad extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
-    final level = streakLevel(days);
-    final from = level == 0 ? 0 : streakLevels[level - 1];
-    final next = streakNextLevel(days)!;
-    final after = streakNextLevel(next);
-    // The stops sit evenly, and the flame between the first two as far as the run has come
-    final gap = after == null ? 1.0 : 0.5;
-    final share = (days - from) / (next - from);
-    final stops = [(from, 0.0), (next, gap), if (after != null) (after, 1.0)];
+    final last = streakLevels.length - 1;
+    final next = streakLevel(days);
     return SizedBox(
-      height: 64,
+      height: 62,
       child: LayoutBuilder(
         builder: (context, box) {
-          const inset = 14.0;
+          const inset = 12.0;
           final width = box.maxWidth - inset * 2;
           return TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: share * gap),
-            duration: const Duration(milliseconds: 1100),
+            tween: Tween(begin: 0, end: streakPlace(days) / last),
+            duration: const Duration(milliseconds: 1200),
             curve: Curves.easeOutCubic,
             builder: (context, reached, _) => Stack(
               clipBehavior: Clip.none,
               children: [
-                // The road, filled up to the flame
                 Positioned(
                   left: inset,
                   right: inset,
                   top: 30,
                   child: Container(
-                    height: 6,
+                    height: 5,
                     decoration: BoxDecoration(color: palette.border, borderRadius: BorderRadius.circular(3)),
                   ),
                 ),
@@ -454,42 +445,42 @@ class StreakRoad extends StatelessWidget {
                   top: 30,
                   child: Container(
                     width: width * reached,
-                    height: 6,
+                    height: 5,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(3),
                       gradient: LinearGradient(colors: [palette.chart.withValues(alpha: 0.5), palette.chart]),
                     ),
                   ),
                 ),
-                for (final (step, at) in stops)
+                for (final (index, step) in streakLevels.indexed)
                   Positioned(
-                    left: inset + width * at - 22,
-                    top: 23,
-                    width: 44,
+                    left: inset + width * index / last - 18,
+                    top: 24,
+                    width: 36,
                     child: Column(
                       children: [
                         Container(
-                          width: 20,
-                          height: 20,
+                          width: 16,
+                          height: 16,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: step <= days ? palette.chart : Theme.of(context).colorScheme.surface,
-                            border: Border.all(color: step == next ? palette.chart : palette.border, width: 2.5),
+                            border: Border.all(color: index == next ? palette.chart : palette.border, width: 2.5),
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         Text(context.number(step),
                             style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: step == next ? FontWeight.w800 : FontWeight.w500,
-                                color: step == next ? null : palette.muted)),
+                                fontSize: 11,
+                                fontWeight: index == next ? FontWeight.w800 : FontWeight.w500,
+                                color: index == next ? null : palette.muted)),
                       ],
                     ),
                   ),
                 Positioned(
-                  left: inset + width * reached - 14,
+                  left: inset + width * reached - 12,
                   top: 0,
-                  child: const Text('\u{1F525}', style: TextStyle(fontSize: 24)),
+                  child: const Text('\u{1F525}', style: TextStyle(fontSize: 20)),
                 ),
               ],
             ),
