@@ -1,7 +1,7 @@
 /** A ring drawn in the manner of a genre family round its middle, as the phone's GenreSigil
  * (mobile/lib/screens/listening/wrapped_visuals.dart): sharp spikes for metal, thick bars for rock, stepped bars for
  * electronic music, bouncing dots for pop, soft waves for jazz and calm music, an eight pointed star for Turkish
- * music. It is drawn once; turning and beating are CSS transforms on it, so nothing is painted again. */
+ * music, in the text color around it. It is drawn once; turning and beating are CSS transforms on it, so nothing is painted again. */
 
 import type { ReactNode } from "react";
 
@@ -26,7 +26,7 @@ function shapes(family: string): ReactNode {
   const line = (key: string | number, a: number, from: number, to: number, width: number, cap = "round") => {
     const [x1, y1] = at(a, from);
     const [x2, y2] = at(a, to);
-    return <line key={key} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#fff" strokeWidth={width} strokeLinecap={cap as "round"} />;
+    return <line key={key} x1={x1} y1={y1} x2={x2} y2={y2} stroke="currentColor" strokeWidth={width} strokeLinecap={cap as "round"} />;
   };
   switch (family) {
     case "metal": {
@@ -39,7 +39,7 @@ function shapes(family: string): ReactNode {
         const [x3, y3] = at(a + half, INNER);
         return `M${x1} ${y1}L${x2} ${y2}L${x3} ${y3}Z`;
       }).join("");
-      return <path d={d} fill="#fff" />;
+      return <path d={d} fill="currentColor" />;
     }
     case "rock":
       return Array.from({ length: 26 }, (_, i) =>
@@ -50,20 +50,20 @@ function shapes(family: string): ReactNode {
           line(i, turn(i, 36), INNER + 4, INNER + 4 + (REACH * (1 + Math.floor(noise(i, seed) * 4))) / 4, SIZE * 0.022, "butt")),
         ...Array.from({ length: 72 }, (_, i) => {
           const [x, y] = at(turn(i, 72), INNER - 1);
-          return <circle key={`dot${i}`} cx={x} cy={y} r={1} fill="#fff" />;
+          return <circle key={`dot${i}`} cx={x} cy={y} r={1} fill="currentColor" />;
         }),
       ];
     case "hiphop":
       return [
         ...Array.from({ length: 14 }, (_, i) =>
           line(i, turn(i, 14), INNER + 6, INNER + 6 + REACH * (0.2 + 0.5 * noise(i, seed)), SIZE * 0.06)),
-        <circle key="in" cx={C} cy={C} r={INNER + 1} fill="none" stroke="#fff" strokeWidth={2} />,
-        <circle key="out" cx={C} cy={C} r={INNER + REACH + 8} fill="none" stroke="rgb(255 255 255 / 0.5)" strokeWidth={2} />,
+        <circle key="in" cx={C} cy={C} r={INNER + 1} fill="none" stroke="currentColor" strokeWidth={2} />,
+        <circle key="out" cx={C} cy={C} r={INNER + REACH + 8} fill="none" stroke="currentColor" strokeOpacity={0.5} strokeWidth={2} />,
       ];
     case "pop":
       return Array.from({ length: 20 }, (_, i) => {
         const [x, y] = at(turn(i, 20), INNER + REACH * 0.55 + 6 * Math.sin(i * 1.7));
-        return <circle key={i} cx={x} cy={y} r={SIZE * (0.015 + 0.03 * noise(i, seed))} fill="#fff" />;
+        return <circle key={i} cx={x} cy={y} r={SIZE * (0.015 + 0.03 * noise(i, seed))} fill="currentColor" />;
       });
     case "jazz":
     case "calm":
@@ -75,31 +75,31 @@ function shapes(family: string): ReactNode {
           const [x, y] = at(a, INNER + REACH * (0.45 + 0.35 * Math.sin(a * waves + k * 1.2)) + k * 6);
           return `${s ? "L" : "M"}${x} ${y}`;
         }).join("");
-        return <path key={k} d={d} fill="none" stroke={`rgb(255 255 255 / ${alpha})`} strokeWidth={2.5} />;
+        return <path key={k} d={d} fill="none" stroke="currentColor" strokeOpacity={alpha} strokeWidth={2.5} />;
       });
     }
     case "turkish":
       return [
         ...[0, Math.PI / 4].map((start, k) => {
           const points = Array.from({ length: 4 }, (_, i) => at(start + (i * Math.PI) / 2, INNER + REACH * 0.95).join(","));
-          return <polygon key={k} points={points.join(" ")} fill="none" stroke="#fff" strokeWidth={2.5} />;
+          return <polygon key={k} points={points.join(" ")} fill="none" stroke="currentColor" strokeWidth={2.5} />;
         }),
         ...Array.from({ length: 32 }, (_, i) => {
           const [x, y] = at(turn(i, 32), INNER + REACH + 6);
-          return <circle key={`dot${i}`} cx={x} cy={y} r={1.6} fill="#fff" />;
+          return <circle key={`dot${i}`} cx={x} cy={y} r={1.6} fill="currentColor" />;
         }),
       ];
     case "folk":
       return Array.from({ length: 12 }, (_, i) => {
         const a = turn(i, 12);
         const [x, y] = at(a, INNER + REACH * 0.55);
-        return <ellipse key={i} cx={x} cy={y} rx={REACH * 0.475} ry={REACH * 0.19} fill="#fff"
+        return <ellipse key={i} cx={x} cy={y} rx={REACH * 0.475} ry={REACH * 0.19} fill="currentColor"
                         transform={`rotate(${(a * 180) / Math.PI} ${x} ${y})`} />;
       });
     default:
       return Array.from({ length: 5 }, (_, k) => (
         <circle key={k} cx={C} cy={C} r={INNER + 4 + (k * REACH) / 5} fill="none"
-                stroke={`rgb(255 255 255 / ${1 - k * 0.17})`} strokeWidth={1.5} />
+                stroke="currentColor" strokeOpacity={1 - k * 0.17} strokeWidth={1.5} />
       ));
   }
 }

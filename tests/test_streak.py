@@ -25,10 +25,15 @@ class StreakTest(ListeningTestCase):
         self.assertEqual((streak["current"], streak["today"]), (2, False))
         self.assertIsNone(listening.streak_special(streak))
 
-    def test_a_word_only_on_a_step_or_the_day_a_record_is_first_beaten(self):
+    def test_marked_only_on_a_new_title_or_the_day_a_record_is_first_beaten(self):
         self.on(1, 2, 3, 19, 20, 21)
-        self.assertEqual(listening.streak_special(self.streak()), "step")
+        self.assertEqual(listening.streak_special(self.streak()), "level_up")
         self.on(18)
         self.assertEqual(listening.streak_special(self.streak()), "record")
         self.on(17)
         self.assertIsNone(listening.streak_special(self.streak()))
+
+    def test_titles_come_at_3_7_14_30_and_100_days(self):
+        self.assertEqual([listening.streak_level(d) for d in (0, 2, 3, 6, 7, 18, 30, 99, 100, 400)],
+                         [0, 0, 1, 1, 2, 3, 4, 4, 5, 5])
+        self.assertEqual([listening.streak_next_level(d) for d in (0, 3, 18, 99, 100)], [3, 7, 30, 100, None])

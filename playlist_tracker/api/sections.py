@@ -224,22 +224,33 @@ def streak_family(start: datetime) -> str:
 
 
 def streak_card() -> dict:
-    """The days in a row with a play up to today, the longest run and the last two weeks; on a step or a new record
-    a headline and a word in the manner of the run's main genre, else a short hint."""
+    """The days in a row with a play up to today, the longest run, the run's title in the manner of its genre, the
+    road to the next title and the song and artist that carried the run."""
     streak = listening.streak()
     days = streak["current"]
     special = listening.streak_special(streak)
+    level = listening.streak_level(days)
+    next_level = listening.streak_next_level(days)
     card = {
         "title": t("stats.streak"), "value": number(days),
         "unit": t("stats.streak.day_one" if days == 1 else "stats.streak.days"),
         "longest": t("stats.streak.longest", days=number(streak["longest"])) if streak["longest"] else "",
-        "recent": streak["recent"], "headline": None, "message": None,
+        "level": None, "road": None, "stars": [],
+        "hint": None if special else t("stats.streak.none" if days == 0 else "stats.streak.going" if streak["today"]
+                                       else "stats.streak.keep"),
     }
-    card["stars"] = []
     if days:
-        # What carried the run: its most played song and artist
         start = datetime.combine(streak["start"], datetime.min.time()).astimezone()
         end = datetime.now().astimezone() + timedelta(days=1)
+        if level:
+            family = streak_family(start)
+            card["level"] = {
+                "family": family, "label": t("stats.streak.level", level=level),
+                "name": t(f"stats.streak.{family}.{level}"), "say": t(f"stats.streak.{family}.{level}.say"),
+                "special": None if not special else (t("stats.streak.record", days=number(days)) if special == "record"
+                                                     else t("stats.streak.level_up")),
+            }
+        # What carried the run: its most played song and artist
         for row in listening.top_tracks(start, end, 1):
             card["stars"].append({"label": t("stats.streak.song"), "column": "track_key", "key": row["key"],
                                   "title": f"{row['name']}  ·  {row['artist']}", "plays": plays_text(row["plays"]),
@@ -248,12 +259,17 @@ def streak_card() -> dict:
             card["stars"].append({"label": t("stats.streak.artist"), "column": "artist_key", "key": row["key"],
                                   "title": row["name"], "plays": plays_text(row["plays"]),
                                   "image": artist_url(row["name"]), "round": True})
-    if special:
-        card["headline"] = t(f"stats.streak.{special}", days=number(days))
-        card["message"] = t(f"stats.streak.say.{streak_family(start)}")
+    if next_level is None:
+        card["next"] = t("stats.streak.top")
     else:
-        card["hint"] = t("stats.streak.none" if days == 0 else "stats.streak.going" if streak["today"]
-                         else "stats.streak.keep")
+        start_step = listening.STREAK_LEVELS[level - 1] if level else 0
+        after = listening.streak_next_level(next_level)
+        stops = [start_step, next_level] + ([after] if after else [])
+        card["road"] = {"labels": [number(step) for step in stops],
+                        "share": (days - start_step) / (next_level - start_step)}
+        card["next"] = (t("stats.streak.first") if days < listening.STREAK_LEVELS[0]
+                        else t("stats.streak.next_tomorrow") if next_level - days == 1
+                        else t("stats.streak.next", days=number(next_level), left=number(next_level - days)))
     return card
 
 

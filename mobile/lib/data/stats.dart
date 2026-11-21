@@ -636,8 +636,19 @@ DateTime yearBack(DateTime moment) {
   return back.month == moment.month ? back : DateTime(moment.year - 1, moment.month, 28, moment.hour, moment.minute);
 }
 
-/// Days in a row worth a word on the streak card; past a year every hundredth day is too
-const streakSteps = {3, 7, 14, 21, 30, 50, 75, 100, 150, 200, 250, 300, 365};
+/// The days in a row at which a streak earns its next title, in the manner of its genre (Level 1 at 3 days)
+const streakLevels = [3, 7, 14, 30, 100];
+
+/// The level a run of [days] has reached, 0 before the first
+int streakLevel(int days) => streakLevels.where((step) => days >= step).length;
+
+/// The days at which the next level comes, or null at the highest
+int? streakNextLevel(int days) {
+  for (final step in streakLevels) {
+    if (step > days) return step;
+  }
+  return null;
+}
 
 /// Days in a row with at least one play, as the desktop app's listening.streak
 class Streak {
@@ -664,11 +675,11 @@ class Streak {
   /// Today the current run first went past every earlier one (only once there was an earlier one worth beating)
   bool get record => today && before >= 3 && current == before + 1;
 
-  /// Today the run reached a count worth a word
-  bool get milestone => today && (streakSteps.contains(current) || (current > 365 && current % 100 == 0));
+  /// Today the run earned its next title
+  bool get levelUp => today && streakLevels.contains(current);
 
-  /// Whether the card has a word for today; it is rare on purpose, only on a step or a new record
-  bool get special => record || milestone;
+  /// Whether the card marks today: a new title or a new record
+  bool get special => record || levelUp;
 }
 
 DateTime _day(DateTime moment) => DateTime(moment.year, moment.month, moment.day);

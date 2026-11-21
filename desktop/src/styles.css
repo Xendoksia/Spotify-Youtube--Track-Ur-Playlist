@@ -4343,35 +4343,84 @@ select.field {
   font-size: 15px;
 }
 
-.streak-days {
-  display: flex;
-  gap: 8px;
+/* The road to the next step: the fill grows and the flame slides once, by transform alone */
+.streak-road {
+  margin-top: 22px;
+  padding: 0 14px;
 }
 
-.streak-day {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
+.road-line {
+  position: relative;
+  height: 6px;
+  margin: 26px 0 30px;
+  border-radius: 3px;
   background: var(--border);
 }
 
-.streak-day.played {
+.road-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--chart) 50%, transparent), var(--chart));
+  transform-origin: left;
+  animation: podium-grow 1100ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.road-flame {
+  position: absolute;
+  top: -34px;
+  font-size: 24px;
+  transform: translateX(-50%);
+  animation: flame-in 1100ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+@keyframes flame-in {
+  from {
+    left: 0;
+    opacity: 0;
+  }
+}
+
+.road-stop {
+  position: absolute;
+  top: -7px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateX(-50%);
+}
+
+.road-dot {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.road-stop.passed .road-dot {
+  border-color: var(--chart);
   background: var(--chart);
 }
 
-.streak-day.today {
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--text);
+.road-stop.next .road-dot {
+  border-color: var(--chart);
 }
 
-.streak-word {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 14px;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--chart) 40%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--chart) 12%, transparent);
+.road-label {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.road-stop.next .road-label {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.road-text {
+  margin: 0;
+  font-size: 13px;
 }
 
 .streak-hint {
@@ -4429,4 +4478,44 @@ select.field {
   font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The streak's title in the manner of its genre, standing out on the day of a new title or record */
+.streak-level {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--chart) 20%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--chart) 7%, transparent);
+}
+
+.streak-level.special {
+  border-color: color-mix(in srgb, var(--chart) 55%, transparent);
+  background: color-mix(in srgb, var(--chart) 16%, transparent);
+}
+
+/* The sigil takes the color around it: white on the summary's stage, the chart's color here */
+.streak-sigil {
+  display: grid;
+  flex: none;
+  color: var(--chart);
+}
+
+.streak-level-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.streak-title {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.streak-special {
+  color: var(--chart);
+  font-size: 13px;
 }

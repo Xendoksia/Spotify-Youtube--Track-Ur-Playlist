@@ -9,6 +9,7 @@ import '../../theme/palette.dart';
 import '../../widgets/artwork_image.dart';
 import '../../widgets/cards.dart';
 import '../../widgets/format.dart';
+import 'wrapped_visuals.dart' show GenreSigil;
 import 'detail_screen.dart';
 
 /// How varied the period's listening was, as the desktop app's diversity card: the share of its five most played
@@ -254,6 +255,52 @@ class StreakCard extends StatelessWidget {
     );
   }
 
+  /// The run's title in the manner of its genre, with the genre's sigil and a line; on the day of a new title or
+  /// a new record it stands out with a word for the day
+  Widget _level(BuildContext context, Streak streak, String family) {
+    final palette = Palette.of(context);
+    final level = streakLevel(streak.current);
+    final card = Row(
+      children: [
+        ColorFiltered(
+          colorFilter: ColorFilter.mode(palette.chart, BlendMode.srcIn),
+          child: GenreSigil(family: family, size: 56),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (streak.special)
+                Text(
+                  streak.record
+                      ? context.t('stats.streak.record', {'days': context.number(streak.current)})
+                      : context.t('stats.streak.level_up'),
+                  style: TextStyle(color: palette.chart, fontWeight: FontWeight.w800, fontSize: 13),
+                ),
+              Text(context.t('stats.streak.level', {'level': level}),
+                  style: TextStyle(color: palette.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+              Text(context.t('stats.streak.$family.$level'),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text(context.t('stats.streak.$family.$level.say')),
+            ],
+          ),
+        ),
+      ],
+    );
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: palette.chart.withValues(alpha: streak.special ? 0.16 : 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.chart.withValues(alpha: streak.special ? 0.55 : 0.2)),
+      ),
+      child: card,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
@@ -263,6 +310,8 @@ class StreakCard extends StatelessWidget {
     final song = topTracks(during, limit: 1);
     final artist = topArtists(during, limit: 1);
     final days = streak.current;
+    final next = streakNextLevel(days);
+    final family = days == 0 ? 'other' : _family(all, streak.start!);
     final big = Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800, color: palette.chart);
     return SectionCard(
       title: context.t('stats.streak'),
@@ -288,54 +337,32 @@ class StreakCard extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 12),
-          // The last two weeks, today last and ringed
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              for (final (index, played) in streak.recent.indexed)
-                Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: played ? palette.chart : palette.border,
-                    border: index == streak.recent.length - 1
-                        ? Border.all(color: Theme.of(context).colorScheme.onSurface, width: 1.5)
-                        : null,
-                  ),
-                ),
-            ],
+          const SizedBox(height: 14),
+          if (days >= streakLevels.first) _level(context, streak, family),
+          const SizedBox(height: 14),
+          if (next != null) ...[
+            StreakRoad(days: days),
+            const SizedBox(height: 8),
+          ],
+          Text(
+            next == null
+                ? context.t('stats.streak.top')
+                : days < streakLevels.first
+                    ? context.t('stats.streak.first')
+                    : next - days == 1
+                        ? context.t('stats.streak.next_tomorrow')
+                        : context.t('stats.streak.next', {
+                            'days': context.number(next),
+                            'left': context.number(next - days),
+                          }),
+            style: TextStyle(color: palette.muted, fontSize: 13),
           ),
           const SizedBox(height: 8),
           // What carried the run
           if (song.isNotEmpty) _star(context, context.t('stats.streak.song'), song.first, DetailKind.track),
           if (artist.isNotEmpty) _star(context, context.t('stats.streak.artist'), artist.first, DetailKind.artist),
           const SizedBox(height: 8),
-          if (streak.special)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: palette.chart.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: palette.chart.withValues(alpha: 0.4)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    streak.record
-                        ? context.t('stats.streak.record', {'days': context.number(days)})
-                        : context.t('stats.streak.step', {'days': context.number(days)}),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(context.t('stats.streak.say.${_family(all, streak.start!)}')),
-                ],
-              ),
-            )
-          else
+          if (!streak.special)
             Text(
               context.t(days == 0
                   ? 'stats.streak.none'
@@ -345,6 +372,98 @@ class StreakCard extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// The run as a road between the level behind it, the next one and the one after, with a flame that slides to
+/// the day the run is on; the next stop is where the next title opens
+class StreakRoad extends StatelessWidget {
+  final int days;
+
+  const StreakRoad({super.key, required this.days});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Palette.of(context);
+    final level = streakLevel(days);
+    final from = level == 0 ? 0 : streakLevels[level - 1];
+    final next = streakNextLevel(days)!;
+    final after = streakNextLevel(next);
+    // The stops sit evenly, and the flame between the first two as far as the run has come
+    final gap = after == null ? 1.0 : 0.5;
+    final share = (days - from) / (next - from);
+    final stops = [(from, 0.0), (next, gap), if (after != null) (after, 1.0)];
+    return SizedBox(
+      height: 64,
+      child: LayoutBuilder(
+        builder: (context, box) {
+          const inset = 14.0;
+          final width = box.maxWidth - inset * 2;
+          return TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: share * gap),
+            duration: const Duration(milliseconds: 1100),
+            curve: Curves.easeOutCubic,
+            builder: (context, reached, _) => Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // The road, filled up to the flame
+                Positioned(
+                  left: inset,
+                  right: inset,
+                  top: 30,
+                  child: Container(
+                    height: 6,
+                    decoration: BoxDecoration(color: palette.border, borderRadius: BorderRadius.circular(3)),
+                  ),
+                ),
+                Positioned(
+                  left: inset,
+                  top: 30,
+                  child: Container(
+                    width: width * reached,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(3),
+                      gradient: LinearGradient(colors: [palette.chart.withValues(alpha: 0.5), palette.chart]),
+                    ),
+                  ),
+                ),
+                for (final (step, at) in stops)
+                  Positioned(
+                    left: inset + width * at - 22,
+                    top: 23,
+                    width: 44,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: step <= days ? palette.chart : Theme.of(context).colorScheme.surface,
+                            border: Border.all(color: step == next ? palette.chart : palette.border, width: 2.5),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(context.number(step),
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: step == next ? FontWeight.w800 : FontWeight.w500,
+                                color: step == next ? null : palette.muted)),
+                      ],
+                    ),
+                  ),
+                Positioned(
+                  left: inset + width * reached - 14,
+                  top: 0,
+                  child: const Text('\u{1F525}', style: TextStyle(fontSize: 24)),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

@@ -504,8 +504,18 @@ def hours(start: datetime, end: datetime, column: str | None = None, key: str | 
     return counts_by_hour
 
 
-# Days in a row worth a word on the streak card; past a year every hundredth day is too (as the phone's streakSteps)
-STREAK_STEPS = {3, 7, 14, 21, 30, 50, 75, 100, 150, 200, 250, 300, 365}
+# The days in a row at which a streak earns its next title, as the phone's streakLevels
+STREAK_LEVELS = [3, 7, 14, 30, 100]
+
+
+def streak_level(days: int) -> int:
+    """The level a run of days has reached, 0 before the first."""
+    return sum(1 for step in STREAK_LEVELS if days >= step)
+
+
+def streak_next_level(days: int) -> int | None:
+    """The days at which the next level comes, or None at the highest."""
+    return next((step for step in STREAK_LEVELS if step > days), None)
 
 
 def streak(today: date | None = None, db_path: Path = DB_PATH) -> dict:
@@ -536,13 +546,13 @@ def streak(today: date | None = None, db_path: Path = DB_PATH) -> dict:
 
 
 def streak_special(streak: dict) -> str | None:
-    """"record" the day the current run first beats every earlier one, "step" the day it reaches a count worth a
-    word, else None: the card says something more only then, on purpose rarely."""
+    """"record" the day the current run first beats every earlier one, "level_up" the day it earns its next title,
+    else None."""
     if not streak["today"]:
         return None
     current = streak["current"]
     if streak["before"] >= 3 and current == streak["before"] + 1:
         return "record"
-    if current in STREAK_STEPS or (current > 365 and current % 100 == 0):
-        return "step"
+    if current in STREAK_LEVELS:
+        return "level_up"
     return None

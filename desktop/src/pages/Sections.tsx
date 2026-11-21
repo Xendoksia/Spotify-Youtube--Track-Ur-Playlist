@@ -4,6 +4,7 @@
 import BarList, { BarRow } from "../components/BarList";
 import Card from "../components/Card";
 import Picture from "../components/Picture";
+import Sigil from "../components/Sigil";
 import { Column, useOpenDetail } from "../navigation";
 import StackedColumns, { Series, seriesClass, StackedColumn } from "../components/StackedColumns";
 import { CardSkeleton } from "../components/Skeleton";
@@ -19,8 +20,10 @@ export interface SectionsData {
     values: { label: string; value: number; text: string }[]; artists: BarRow[];
   };
   streak: {
-    title: string; value: string; unit: string; longest: string; recent: boolean[];
-    headline: string | null; message: string | null; hint?: string;
+    title: string; value: string; unit: string; longest: string;
+    level: { family: string; label: string; name: string; say: string; special: string | null } | null;
+    road: { labels: string[]; share: number } | null;
+    next: string; hint: string | null;
     stars: { label: string; column: Column; key: string; title: string; plays: string; image: string; round: boolean }[];
   };
   milestones: {
@@ -113,7 +116,28 @@ export function GenreShift({ data }: { data: GenresData["shift"] | null }) {
   );
 }
 
-/** The days in a row with a play, the longest run and the last two weeks as dots; a word of its own only on a
+/** The run as a road between the step behind it, the next one and the one after, with a flame that slides to
+ * the day the run is on (the next step is where the card says something more) */
+function StreakRoad({ road }: { road: NonNullable<SectionsData["streak"]["road"]> }) {
+  // The stops sit evenly, and the flame between the first two as far as the run has come
+  const gap = road.labels.length === 3 ? 50 : 100;
+  const reached = road.share * gap;
+  return (
+    <div className="road-line">
+      <span className="road-fill" style={{ width: `${reached}%` }} />
+      <span className="road-flame" style={{ left: `${reached}%` }}>{"\u{1F525}"}</span>
+      {road.labels.map((label, index) => (
+        <span key={index} className={`road-stop${index === 0 ? " passed" : index === 1 ? " next" : ""}`}
+              style={{ left: `${index * gap}%` }}>
+          <span className="road-dot" />
+          <span className="road-label">{label}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** The days in a row with a play, the longest run and the road to the next step; a word of its own only on a
  * step or a new record (api/sections.py streak_card) */
 export function Streak({ data }: { data: SectionsData["streak"] }) {
   const open = useOpenDetail();
@@ -124,11 +148,21 @@ export function Streak({ data }: { data: SectionsData["streak"] }) {
           <span className="streak-value">{data.value}</span>
           <span className="streak-unit">{data.unit}</span>
         </div>
-        <div className="streak-days">
-          {data.recent.map((played, index) => (
-            <span key={index} className={`streak-day${played ? " played" : ""}${index === data.recent.length - 1 ? " today" : ""}`} />
-          ))}
+      </div>
+      {data.level && (
+        <div className={`streak-level${data.level.special ? " special" : ""}`}>
+          <span className="streak-sigil"><Sigil family={data.level.family} size={60} /></span>
+          <span className="streak-level-text">
+            {data.level.special && <strong className="streak-special">{data.level.special}</strong>}
+            <span className="muted">{data.level.label}</span>
+            <strong className="streak-title">{data.level.name}</strong>
+            <span>{data.level.say}</span>
+          </span>
         </div>
+      )}
+      <div className="streak-road">
+        {data.road && <StreakRoad road={data.road} />}
+        <p className="muted road-text">{data.next}</p>
       </div>
       {data.stars.length > 0 && (
         <div className="streak-stars">
@@ -144,14 +178,7 @@ export function Streak({ data }: { data: SectionsData["streak"] }) {
           ))}
         </div>
       )}
-      {data.headline ? (
-        <div className="streak-word">
-          <strong>{data.headline}</strong>
-          <span>{data.message}</span>
-        </div>
-      ) : (
-        <p className="streak-hint">{data.hint}</p>
-      )}
+      {data.hint && <p className="streak-hint">{data.hint}</p>}
     </Card>
   );
 }

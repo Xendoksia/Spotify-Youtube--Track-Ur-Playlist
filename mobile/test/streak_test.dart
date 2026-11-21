@@ -17,17 +17,22 @@ void main() {
     expect(streakOf(on([20, 21]), now).recent, [...List.filled(12, false), true, true]);
   });
 
-  test('the card has a word only on a step or the day a record is first beaten', () {
-    // 1 to 3, a gap, then 5 to 7 is a step but not a record (the same length as before)
+  test('the card marks only the day of a new title or the day a record is first beaten', () {
+    // 1 to 3, a gap, then 19 to 21 earns the first title but is no record (the same length as before)
     final step = streakOf(on([1, 2, 3, 19, 20, 21]), now);
-    expect((step.longest, step.before, step.milestone, step.record, step.special), (3, 3, true, false, true));
+    expect((step.longest, step.before, step.levelUp, step.record, step.special), (3, 3, true, false, true));
     // 1 to 3, a gap, then 18 to 21: four days beat three for the first time today
     final record = streakOf(on([1, 2, 3, 18, 19, 20, 21]), now);
-    expect((record.record, record.milestone), (true, false));
+    expect((record.record, record.levelUp), (true, false));
     // A day later the record goes on but says nothing more
     final next = streakOf(on([1, 2, 3, 17, 18, 19, 20, 21]), now);
     expect((next.record, next.special), (false, false));
     // Without a play today there is nothing to celebrate yet
     expect(streakOf(on([18, 19, 20]), now).special, false);
+  });
+
+  test('titles come at 3, 7, 14, 30 and 100 days', () {
+    expect([for (final days in [0, 2, 3, 6, 7, 18, 30, 99, 100, 400]) streakLevel(days)], [0, 0, 1, 1, 2, 3, 4, 4, 5, 5]);
+    expect([for (final days in [0, 3, 18, 99, 100]) streakNextLevel(days)], [3, 7, 30, 100, null]);
   });
 }
