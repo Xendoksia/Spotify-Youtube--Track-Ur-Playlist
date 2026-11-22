@@ -982,12 +982,6 @@ img.picture.loaded {
 
 /* Milestones */
 
-.milestones.split {
-  display: grid;
-  grid-template-columns: 3fr 2fr;
-  gap: 32px;
-}
-
 .plain-list {
   margin: 0;
   padding: 0;

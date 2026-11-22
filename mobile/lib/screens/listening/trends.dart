@@ -117,17 +117,15 @@ class DiversityCard extends StatelessWidget {
       );
 }
 
-/// The milestones reached in the period with how far the next count of plays is, and the top tracks of the same
-/// time a year earlier once there are plays from then, as the desktop app's milestones card
+/// The milestones reached in the period with how far the next count of plays is, as the desktop app's milestones
+/// card
 class MilestonesCard extends StatelessWidget {
   static const shown = 8;
-  static const yearAgo = 3;
 
   final DataStore store;
-  final Period period;
   final DateRange range;
 
-  const MilestonesCard({super.key, required this.store, required this.period, required this.range});
+  const MilestonesCard({super.key, required this.store, required this.range});
 
   @override
   Widget build(BuildContext context) {
@@ -135,9 +133,6 @@ class MilestonesCard extends StatelessWidget {
     final muted = Palette.of(context).muted;
     final step = nextTotalStep(all.length);
     final reached = milestones(all).where((m) => range.contains(m.at)).take(shown).toList();
-    final ago = period == Period.all
-        ? <Ranked>[]
-        : topTracks(playsIn(all, DateRange(yearBack(range.start), yearBack(range.end))), limit: yearAgo);
     return SectionCard(
       title: context.t('stats.milestones'),
       child: Column(
@@ -150,15 +145,6 @@ class MilestonesCard extends StatelessWidget {
           if (reached.isEmpty) Text(context.t('stats.milestones.none'), style: TextStyle(color: muted)),
           for (final milestone in reached)
             _row(context, _date(context, milestone.at), _text(context, milestone), _open(context, milestone)),
-          if (ago.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.only(top: 12, bottom: 4),
-              child: Text(context.t('stats.year_ago'), style: const TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            for (final (index, track) in ago.indexed)
-              _row(context, '${index + 1}.', '${track.title}  ·  ${track.artist}  ·  ${context.plays(track.plays)}',
-                  () => openDetail(context, store, DetailTarget.ranked(DetailKind.track, track))),
-          ],
         ],
       ),
     );

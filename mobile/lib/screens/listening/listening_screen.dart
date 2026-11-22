@@ -263,7 +263,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
                 YearAgoTodayCard(store: widget.store, plays: yearAgo),
                 gap,
               ],
-              MilestonesCard(store: widget.store, period: _period, range: range),
+              MilestonesCard(store: widget.store, range: range),
               gap,
               GenresCard(all: all, plays: plays),
               gap,

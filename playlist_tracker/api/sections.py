@@ -28,7 +28,6 @@ DIVERSITY_TOP = 5
 DIVERSITY_CHANGE = 5
 FOCUSED, WIDE = 70, 40
 MILESTONES_SHOWN = 8
-YEAR_AGO = 3
 YEAR_AGO_TODAY = 3
 
 
@@ -62,7 +61,7 @@ def sections(period: str, offset: int) -> dict:
         "diversity": diversity(period, offset, start, end),
         "streak": streak_card(),
         "year_ago_today": year_ago_today(),
-        "milestones": milestones(period, start, end),
+        "milestones": milestones(start, end),
         "collage": album_collage(start, end),
     }
 
@@ -188,13 +187,11 @@ def milestone_text(milestone: dict) -> str:
     return t("stats.milestones.start")
 
 
-def milestones(period: str, start: datetime, end: datetime) -> dict:
-    """The milestones reached in the period with how far the next count of plays is, and the top tracks of
-    the same time a year earlier, once there are plays from then."""
+def milestones(start: datetime, end: datetime) -> dict:
+    """The milestones reached in the period with how far the next count of plays is."""
     step = listening.next_total_step()
     period_start, period_end = listening.to_utc(start), listening.to_utc(end)
     reached = [m for m in listening.milestones() if period_start <= m["at"] < period_end][:MILESTONES_SHOWN]
-    tracks = [] if period == "all" else listening.top_tracks(year_back(start), year_back(end), YEAR_AGO)
     return {
         "title": t("stats.milestones"),
         "summary": t("stats.milestones.next", count=number(step[0]), left=number(step[1])) if step else "",
@@ -204,10 +201,6 @@ def milestones(period: str, start: datetime, end: datetime) -> dict:
             "column": "artist_key" if m["kind"] in ("artist", "met") else "track_key" if m["kind"] == "track" else None,
             "key": m.get("key"),
         } for m in reached],
-        "year_ago_title": t("stats.year_ago"),
-        "year_ago": [{"rank": rank, "key": r["key"],
-                      "text": f"{r['name']}  ·  {r['artist']}  ·  {plays_text(r['plays'])}"}
-                     for rank, r in enumerate(tracks, start=1)],
     }
 
 

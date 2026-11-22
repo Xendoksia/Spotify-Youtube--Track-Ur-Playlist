@@ -32,9 +32,8 @@ export interface SectionsData {
     title: string; summary: string; tracks: { key: string; title: string; plays: string; image: string }[];
   } | null;
   milestones: {
-    title: string; summary: string; empty: string; year_ago_title: string;
+    title: string; summary: string; empty: string;
     items: { date: string; text: string; kind: string; column: Column | null; key: string | null }[];
-    year_ago: { rank: number; key: string; text: string }[];
   };
   collage: {
     title: string; summary: string; empty: string; columns: number; available: boolean;
@@ -212,31 +211,16 @@ export function Milestones({ data }: { data: SectionsData["milestones"] }) {
   const open = useOpenDetail();
   return (
     <Card icon="flag" title={data.title} summary={data.summary}>
-      <div className={data.year_ago.length ? "milestones split" : "milestones"}>
-        <ul className="plain-list">
-          {data.items.length === 0 && <li className="empty">{data.empty}</li>}
-          {data.items.map((item, index) => (
-            <li key={index} className={`plain-row${item.column ? " clickable" : ""}`}
-                onClick={item.column && open ? () => open(item.column!, item.key!) : undefined}>
-              <span className="plain-left">{item.date}</span>
-              <span>{item.text}</span>
-            </li>
-          ))}
-        </ul>
-        {data.year_ago.length > 0 && (
-          <div>
-            <h3 className="column-title">{data.year_ago_title}</h3>
-            <ul className="plain-list">
-              {data.year_ago.map((item) => (
-                <li key={item.key} className="plain-row clickable" onClick={() => open?.("track_key", item.key)}>
-                  <span className="plain-left">{item.rank}.</span>
-                  <span>{item.text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
+      <ul className="plain-list">
+        {data.items.length === 0 && <li className="empty">{data.empty}</li>}
+        {data.items.map((item, index) => (
+          <li key={index} className={`plain-row${item.column ? " clickable" : ""}`}
+              onClick={item.column && open ? () => open(item.column!, item.key!) : undefined}>
+            <span className="plain-left">{item.date}</span>
+            <span>{item.text}</span>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }
