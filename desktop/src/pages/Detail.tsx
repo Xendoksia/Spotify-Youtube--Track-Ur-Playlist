@@ -8,7 +8,7 @@ import Card from "../components/Card";
 import ColumnChart, { Bucket } from "../components/ColumnChart";
 import DayCurve from "../components/DayCurve";
 import Hero, { HeroData } from "../components/Hero";
-import Icon from "../components/Icon";
+import Icon, { IconName } from "../components/Icon";
 import Picture from "../components/Picture";
 import Tile, { TileData } from "../components/Tile";
 import TrackGrid from "../components/TrackGrid";
@@ -31,6 +31,8 @@ interface DetailData {
   tracks?: { title: string; rows: BarRow[]; pictures: boolean };
   progress?: { share: number; text: string };
   hours?: { title: string; buckets: Bucket[]; peak: number | null; peak_text: string; summary: string };
+  highlights?: { title: string; items: { icon: IconName; label: string; value: string }[] };
+  weekdays?: { title: string; summary: string; peak: number; buckets: Bucket[] };
   album?: { caption: string; key: string; title: string; image: string; heard: string; open: string } | null;
   mood: Mood | null;
 }
@@ -63,6 +65,45 @@ function AlbumProgress({ progress }: { progress: NonNullable<DetailData["progres
         <div className="progress-fill" style={{ width: `${share * 100}%` }} />
       </div>
     </section>
+  );
+}
+
+/** A track's place among all, its best day and its most days in a row (api/detail.py highlights) */
+function Highlights({ data }: { data: NonNullable<DetailData["highlights"]> }) {
+  return (
+    <Card icon="star" title={data.title}>
+      <ul className="highlights">
+        {data.items.map((item) => (
+          <li key={item.label}>
+            <span className="highlight-icon"><Icon name={item.icon} /></span>
+            <span className="highlight-text">
+              <span className="muted">{item.label}</span>
+              <strong>{item.value}</strong>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+/** Plays per day of the week, the day played most on standing out in the page's color */
+function Weekdays({ data }: { data: NonNullable<DetailData["weekdays"]> }) {
+  const most = Math.max(...data.buckets.map((bucket) => bucket.value), 1);
+  return (
+    <Card icon="calendar" title={data.title} summary={data.summary}>
+      <div className="weekdays">
+        {data.buckets.map((bucket, day) => (
+          <div key={day} className={`weekday${day === data.peak ? " peak" : ""}`} title={bucket.tooltip}>
+            <span className="weekday-value">{bucket.value || ""}</span>
+            <div className="weekday-space">
+              <div className="weekday-fill" style={{ height: `${(bucket.value * 100) / most}%` }} />
+            </div>
+            <span className="weekday-label">{bucket.label}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -144,6 +185,12 @@ export default function Detail({ visit, onLoaded }: {
               </Card>
             )}
           </div>
+          {data.highlights && data.weekdays && (
+            <div className="pair">
+              <Highlights data={data.highlights} />
+              <Weekdays data={data.weekdays} />
+            </div>
+          )}
           {timeline}
         </>
       )}

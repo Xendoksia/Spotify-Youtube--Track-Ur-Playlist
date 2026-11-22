@@ -481,6 +481,42 @@ List<int> playsPerHour(List<Play> plays) {
   return hours;
 }
 
+/// The most days in a row among [days] (their times of day do not count)
+int longestRun(Iterable<DateTime> days) {
+  final sorted = {for (final day in days) DateTime(day.year, day.month, day.day)}.toList()..sort();
+  var longest = 0, run = 0;
+  DateTime? last;
+  for (final day in sorted) {
+    run = last != null && DateTime(last.year, last.month, last.day + 1) == day ? run + 1 : 1;
+    last = day;
+    if (run > longest) longest = run;
+  }
+  return longest;
+}
+
+/// The local day with the most of [plays] (the latest of equal ones) and its plays, null without plays
+(DateTime, int)? bestDay(List<Play> plays) {
+  final counts = <DateTime, int>{};
+  for (final play in plays) {
+    final day = DateTime(play.playedAt.year, play.playedAt.month, play.playedAt.day);
+    counts[day] = (counts[day] ?? 0) + 1;
+  }
+  (DateTime, int)? best;
+  for (final MapEntry(key: day, value: count) in counts.entries) {
+    if (best == null || count > best.$2 || (count == best.$2 && day.isAfter(best.$1))) best = (day, count);
+  }
+  return best;
+}
+
+/// Plays per day of the week, Monday first
+List<int> playsPerWeekday(List<Play> plays) {
+  final days = List.filled(7, 0);
+  for (final play in plays) {
+    days[play.playedAt.weekday - 1]++;
+  }
+  return days;
+}
+
 /// The parts of the day, six hours each from midnight, as the desktop app's day_part
 const dayParts = ['night', 'morning', 'afternoon', 'evening'];
 

@@ -7,7 +7,7 @@ for an artist its most played tracks and a few facts, for an album its track lis
 from __future__ import annotations
 
 import threading
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Callable
 
 from playlist_tracker.api.overview import artist_url, cover_url
@@ -17,6 +17,8 @@ from playlist_tracker.music import artist_info, artwork, listening
 from playlist_tracker.music.text import date_text, duration_text, hour_buckets, month_name, plays_text, summary_text, tracks_text
 
 ARTIST_TRACKS = 15
+# More rows than there are tracks, to find one's place among all of them
+ALL_TRACKS = 1_000_000
 # Plays of tracks of an album fetched at most (the album's own tracks come from Deezer)
 ALBUM_TRACKS = 100
 # Up to this many days of history the chart shows days, after that months
@@ -120,6 +122,49 @@ def day_curve(hours: list[int]) -> dict:
             "summary": t(f"detail.hours.{part}") if part else t("detail.hours.spread")}
 
 
+def longest_run(days: list[date]) -> int:
+    """The most days in a row among the days."""
+    longest = run = 0
+    last = None
+    for day in sorted(days):
+        run = run + 1 if last is not None and day == last + timedelta(days=1) else 1
+        last = day
+        longest = max(longest, run)
+    return longest
+
+
+def highlights(key: str) -> list[dict]:
+    """A track's place among all the tracks, the day it was played most (the latest of equal ones) and its most
+    days in a row."""
+    start, end = listening.period_range("all")
+    ranked = [r["key"] for r in listening.top_tracks(start, end, ALL_TRACKS)]
+    per_day = {date.fromisoformat(day): count
+               for day, count in listening.timeline(start, end, "day", "track_key", key).items()}
+    best = max(per_day, key=lambda day: (per_day[day], day))
+    run = longest_run(list(per_day))
+    return [
+        {"icon": "star", "label": t("detail.highlights.rank"),
+         "value": t("detail.highlights.rank_value", rank=number(ranked.index(key) + 1), total=number(len(ranked)))},
+        {"icon": "calendar", "label": t("detail.highlights.best_day"),
+         "value": f"{best.day} {month_name(best.month)} {best.year}  ·  {plays_text(per_day[best])}"},
+        {"icon": "flag", "label": t("detail.highlights.run"),
+         "value": t("detail.highlights.day_one" if run == 1 else "detail.highlights.days", days=number(run))},
+    ]
+
+
+def weekdays(column: str, key: str) -> dict:
+    """Plays per day of the week from Monday, with the day it is played most on."""
+    start, end = listening.period_range("all")
+    counts = [0] * 7
+    for day, count in listening.timeline(start, end, "day", column, key).items():
+        counts[date.fromisoformat(day).weekday()] += count
+    short, full = t("stats.weekdays").split(","), t("detail.weekdays_full").split(",")
+    peak = max(range(7), key=lambda day: counts[day])
+    return {"title": t("detail.weekdays"), "summary": t("detail.weekdays.peak", day=full[peak]), "peak": peak,
+            "buckets": [{"label": short[day], "value": counts[day],
+                         "tooltip": f"{full[day]}\n{plays_text(counts[day])}"} for day in range(7)]}
+
+
 def tile(name: str, value, text: str, kind: str = "number") -> dict:
     """kind: "number" and "duration" count up in the window, "text" (dates, names) is shown as it is."""
     return {"name": name, "label": t(f"detail.tile.{name}"), "value": value, "text": text, "kind": kind}
@@ -179,6 +224,8 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
         start, end = listening.period_range("all")
         hours = listening.hours(start, end, column, key)
         page["hours"] = {"title": t("detail.track_hours"), "buckets": hour_buckets(hours), **day_curve(hours)}
+        page["highlights"] = {"title": t("detail.highlights"), "items": highlights(key)}
+        page["weekdays"] = weekdays(column, key)
         page["album"] = None
         if info["album"]:
             album_key = listening.album_key(info["artist_key"], info["album_lower"])

@@ -1,4 +1,5 @@
 import unittest
+from datetime import date
 
 from playlist_tracker.api import detail
 from playlist_tracker.core import i18n
@@ -29,6 +30,14 @@ class DayCurveTest(unittest.TestCase):
         self.assertIsNone(detail.day_part(hours(h1=1, h7=1, h13=1, h19=1)))
         self.assertEqual(detail.day_curve(hours(h1=1, h7=1, h13=1, h19=1))["summary"],
                          "You play it all through the day")
+
+
+class HighlightsTest(unittest.TestCase):
+    def test_longest_run_of_days(self):
+        days = [date(2026, 11, d) for d in (1, 2, 3, 5, 6, 9)]
+        self.assertEqual(detail.longest_run(days), 3)
+        self.assertEqual(detail.longest_run([date(2026, 12, 31), date(2027, 1, 1)]), 2)
+        self.assertEqual(detail.longest_run([]), 0)
 
 
 if __name__ == "__main__":

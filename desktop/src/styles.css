@@ -988,9 +988,16 @@ img.picture.loaded {
   --day-color: var(--mood, var(--chart));
 }
 
-/* Without a picture's color the curve stays in the charts' green */
-.stats-page:not(.has-mood) .day-curve {
+/* Without a picture's color the curve and the cards beside it stay in the charts' green */
+.stats-page:not(.has-mood) .day-curve,
+.stats-page:not(.has-mood) .highlights,
+.stats-page:not(.has-mood) .weekdays {
   --day-color: var(--chart);
+}
+
+.highlights,
+.weekdays {
+  --day-color: var(--mood, var(--chart));
 }
 
 .day-curve-plot {
@@ -1102,6 +1109,97 @@ img.picture.loaded {
   stroke: currentColor;
   stroke-width: 1.4px;
   stroke-linecap: round;
+}
+
+/* A track's highlights and its days of the week (pages/Detail.tsx) */
+.highlights {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.highlights li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.highlight-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--day-color) 18%, transparent);
+  color: var(--day-color);
+  font-size: 17px;
+}
+
+.highlight-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.highlight-text strong {
+  font-size: 16px;
+}
+
+.weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  height: 172px;
+}
+
+.weekday {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.weekday-value {
+  height: 16px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.weekday-space {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 44px;
+}
+
+.weekday-fill {
+  width: 100%;
+  min-height: 4px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--day-color) 40%, transparent);
+  transition: height var(--change);
+}
+
+.weekday.peak .weekday-fill {
+  background: var(--day-color);
+}
+
+.weekday.peak .weekday-value,
+.weekday.peak .weekday-label {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.weekday-label {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 /* Milestones */

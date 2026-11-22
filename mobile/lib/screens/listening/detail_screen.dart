@@ -119,7 +119,14 @@ class _DetailScreenState extends State<DetailScreen> {
               ),
               gap,
             ],
-            if (target.kind == DetailKind.track && plays.isNotEmpty) ...[_hours(context, plays), gap],
+            if (target.kind == DetailKind.track && plays.isNotEmpty) ...[
+              _hours(context, plays),
+              gap,
+              _highlights(context, plays),
+              gap,
+              _weekdays(context, plays),
+              gap,
+            ],
             if (target.kind == DetailKind.album) ...[_albumTracks(context, plays), gap],
             _chart(context, plays),
             if (target.kind == DetailKind.artist) ...[
@@ -163,6 +170,94 @@ class _DetailScreenState extends State<DetailScreen> {
             style: TextStyle(color: Palette.of(context).muted, fontSize: 13)),
         const SizedBox(height: 12),
         DayCurve(hours: hours, color: MoodColor.of(context) ?? Palette.of(context).chart),
+      ]),
+    );
+  }
+
+  /// The track's place among all tracks, the day it was played most and its most days in a row
+  Widget _highlights(BuildContext context, List<Play> plays) {
+    final palette = Palette.of(context);
+    final color = MoodColor.of(context) ?? palette.chart;
+    final ranked = topTracks(widget.store.plays, limit: 1 << 30);
+    final rank = ranked.indexWhere((row) => row.key == plays.first.trackKey) + 1;
+    final (day, count) = bestDay(plays)!;
+    final run = longestRun(plays.map((p) => p.playedAt));
+    Widget row(IconData icon, String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, size: 20, color: color),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(label, style: TextStyle(color: palette.muted, fontSize: 13)),
+                Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ]),
+        );
+    return SectionCard(
+      title: context.t('detail.highlights'),
+      child: Column(children: [
+        if (rank > 0)
+          row(Icons.star_rounded, context.t('detail.highlights.rank'),
+              context.t('detail.highlights.rank_value', {'rank': context.number(rank), 'total': context.number(ranked.length)})),
+        row(Icons.calendar_today_rounded, context.t('detail.highlights.best_day'),
+            '${context.dateFormat('d MMMM y').format(day)}  ·  ${context.plays(count)}'),
+        row(Icons.flag_rounded, context.t('detail.highlights.run'),
+            context.t(run == 1 ? 'detail.highlights.day_one' : 'detail.highlights.days', {'days': context.number(run)})),
+      ]),
+    );
+  }
+
+  /// Plays per day of the week, the day played most on standing out in the page's color
+  Widget _weekdays(BuildContext context, List<Play> plays) {
+    final palette = Palette.of(context);
+    final color = MoodColor.of(context) ?? palette.chart;
+    final days = playsPerWeekday(plays);
+    final most = days.reduce((a, b) => a > b ? a : b);
+    var peak = 0;
+    for (var day = 1; day < 7; day++) {
+      if (days[day] > days[peak]) peak = day;
+    }
+    // 2 November 2026 is a Monday: the names of the week's days from it, in the app's language
+    String name(int day, String pattern) => context.dateFormat(pattern).format(DateTime(2026, 11, 2 + day));
+    TextStyle label(int day) => TextStyle(
+        color: day == peak ? null : palette.muted, fontSize: 12, fontWeight: day == peak ? FontWeight.w700 : FontWeight.normal);
+    return SectionCard(
+      title: context.t('detail.weekdays'),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(context.t('detail.weekdays.peak', {'day': name(peak, 'EEEE')}),
+            style: TextStyle(color: palette.muted, fontSize: 13)),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 150,
+          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            for (var day = 0; day < 7; day++)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                    Text(days[day] > 0 ? context.number(days[day]) : '', style: label(day)),
+                    const SizedBox(height: 4),
+                    Container(
+                      height: 4 + 96 * (most == 0 ? 0 : days[day] / most),
+                      decoration: BoxDecoration(
+                        color: day == peak ? color : color.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(name(day, 'EEE'), style: label(day)),
+                  ]),
+                ),
+              ),
+          ]),
+        ),
       ]),
     );
   }

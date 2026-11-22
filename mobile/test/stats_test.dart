@@ -337,6 +337,21 @@ void main() {
       expect(yearBack(DateTime(2028, 2, 29)), DateTime(2027, 2, 28));
     });
 
+    test('the highlights of a track page: most days in a row, best day and days of the week', () {
+      expect(longestRun([for (final d in [1, 2, 3, 5, 6, 9]) DateTime(2026, 11, d, 20)]), 3);
+      expect(longestRun([DateTime(2026, 12, 31, 23), DateTime(2027, 1, 1, 1)]), 2);
+      final plays = [
+        play('A', 'Song', DateTime(2026, 11, 2, 9)),
+        play('A', 'Song', DateTime(2026, 11, 2, 21)),
+        play('A', 'Song', DateTime(2026, 11, 7, 9)),
+        play('A', 'Song', DateTime(2026, 11, 8, 9)),
+        play('A', 'Song', DateTime(2026, 11, 8, 10)),
+      ];
+      expect(bestDay(plays), (DateTime(2026, 11, 8), 2));
+      expect(playsPerWeekday(plays), [2, 0, 0, 0, 0, 1, 2]);
+      expect(bestDay([]), isNull);
+    });
+
     test('the part of the day with most plays, none for an even spread', () {
       List<int> hours(Map<int, int> counts) => [for (var hour = 0; hour < 24; hour++) counts[hour] ?? 0];
       expect(dayPart(hours({18: 5, 20: 3, 9: 1})), 'evening');
