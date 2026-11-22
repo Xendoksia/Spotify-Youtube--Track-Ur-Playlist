@@ -1,13 +1,15 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../l10n/strings.dart';
 import '../theme/palette.dart';
 import 'format.dart';
 
 /// The plays of the 24 hours as one soft curve in [color], over a faint band of night, dawn, day and dusk, with the
-/// most played hour marked; touching it shows the hour under the finger, as the desktop app's DayCurve
+/// most played hour marked, as the desktop app's DayCurve. A tap picks an hour and keeps it (the same one again goes
+/// back to the peak) and a sideways drag runs through the hours, a light tick at each, while the page still scrolls
 class DayCurve extends StatefulWidget {
   /// Plays per hour, 0-23
   final List<int> hours;
@@ -31,8 +33,13 @@ class _DayCurveState extends State<DayCurve> {
     return peak;
   }
 
-  void _touch(Offset at, double width) =>
-      setState(() => _touched = (at.dx / width * 24).floor().clamp(0, 23));
+  int _hourAt(Offset at, double width) => (at.dx / width * 24).floor().clamp(0, 23);
+
+  void _pick(int? hour) {
+    if (hour == _touched) return;
+    HapticFeedback.selectionClick();
+    setState(() => _touched = hour);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,10 +57,13 @@ class _DayCurveState extends State<DayCurve> {
           final x = (shown + 0.5) / 24 * width;
           final y = height - widget.hours[shown] / most * (height - _DayCurvePainter.top);
           return GestureDetector(
-            onTapDown: (details) => _touch(details.localPosition, width),
-            onPanUpdate: (details) => _touch(details.localPosition, width),
-            onPanEnd: (_) => setState(() => _touched = null),
-            onTapUp: (_) => setState(() => _touched = null),
+            behavior: HitTestBehavior.opaque,
+            onTapUp: (details) {
+              final hour = _hourAt(details.localPosition, width);
+              _pick(hour == _touched ? null : hour);
+            },
+            onHorizontalDragStart: (details) => _pick(_hourAt(details.localPosition, width)),
+            onHorizontalDragUpdate: (details) => _pick(_hourAt(details.localPosition, width)),
             child: SizedBox(
               height: height,
               width: width,
