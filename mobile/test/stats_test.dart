@@ -337,12 +337,12 @@ void main() {
       expect(yearBack(DateTime(2028, 2, 29)), DateTime(2027, 2, 28));
     });
 
-    test('a year ago today is the whole local day a year back', () {
-      final day = yearAgoToday(DateTime(2026, 11, 22, 15, 30));
-      expect((day.start, day.end), (DateTime(2025, 11, 22), DateTime(2025, 11, 23)));
-      expect(day.contains(DateTime(2025, 11, 22, 23, 59)), isTrue);
-      expect(day.contains(DateTime(2025, 11, 23)), isFalse);
-      expect(yearAgoToday(DateTime(2028, 2, 29, 9)).start, DateTime(2027, 2, 28));
+    test('this time last year is the same month a year back', () {
+      final month = yearAgoMonth(DateTime(2026, 11, 22, 15, 30));
+      expect((month.start, month.end), (DateTime(2025, 11), DateTime(2025, 12)));
+      expect(month.contains(DateTime(2025, 11, 30, 23, 59)), isTrue);
+      expect(month.contains(DateTime(2025, 12)), isFalse);
+      expect(yearAgoMonth(DateTime(2026, 12, 5)).end, DateTime(2026));
     });
   });
 

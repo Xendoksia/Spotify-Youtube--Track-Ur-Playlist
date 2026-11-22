@@ -636,11 +636,8 @@ DateTime yearBack(DateTime moment) {
   return back.month == moment.month ? back : DateTime(moment.year - 1, moment.month, 28, moment.hour, moment.minute);
 }
 
-/// The local day a year before [now]'s, which the "a year ago today" card looks back at
-DateRange yearAgoToday(DateTime now) {
-  final start = yearBack(DateTime(now.year, now.month, now.day));
-  return DateRange(start, DateTime(start.year, start.month, start.day + 1));
-}
+/// The month of [now] a year earlier, which the "this time last year" card looks back at
+DateRange yearAgoMonth(DateTime now) => DateRange(DateTime(now.year - 1, now.month), DateTime(now.year - 1, now.month + 1));
 
 /// The days in a row at which a streak earns its next title, in the manner of its genre (Level 1 at 3 days)
 const streakLevels = [3, 7, 14, 21, 30, 50, 100, 365];

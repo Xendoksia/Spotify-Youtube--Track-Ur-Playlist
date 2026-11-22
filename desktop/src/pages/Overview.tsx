@@ -12,7 +12,7 @@ import { useTexts } from "../i18n";
 import { Mood, moodStyle } from "../mood";
 import { useOpenDetail } from "../navigation";
 import {
-  Collage, Discoveries, Diversity, Genres, GenresData, GenreShift, Milestones, SectionsData, Streak, YearAgoToday,
+  Collage, Discoveries, Diversity, Genres, GenresData, GenreShift, Milestones, SectionsData, Streak, YearAgo,
 } from "./Sections";
 
 type Period = "week" | "month" | "year" | "all";
@@ -161,7 +161,7 @@ export default function Overview({ hidden, openSummary, inboxVersion }: {
                 <GenreShift data={genres?.shift ?? null} />
               </div>
               <Streak data={sections.streak} />
-              <YearAgoToday data={sections.year_ago_today} />
+              <YearAgo data={sections.year_ago} />
               <Milestones data={sections.milestones} />
               <div className="pair">
                 <Genres data={genres?.genres ?? null} />

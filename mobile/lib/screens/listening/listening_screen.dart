@@ -147,7 +147,8 @@ class _ListeningScreenState extends State<ListeningScreen> {
     final trackChange = rankChanges(all, _period, _offset, now, trackKeyOf);
     final artistChange = rankChanges(all, _period, _offset, now, artistKeyOf);
     final days = trend(_period, range, plays, now);
-    final yearAgo = playsIn(all, yearAgoToday(now));
+    final yearAgo = yearAgoMonth(now);
+    final yearAgoPlays = playsIn(all, yearAgo);
     _findMood(tracks.firstOrNull, artists.firstOrNull);
     const gap = SizedBox(height: 12);
     return [
@@ -259,8 +260,8 @@ class _ListeningScreenState extends State<ListeningScreen> {
               gap,
               StreakCard(store: widget.store),
               gap,
-              if (yearAgo.isNotEmpty) ...[
-                YearAgoTodayCard(store: widget.store, plays: yearAgo),
+              if (yearAgoPlays.isNotEmpty) ...[
+                YearAgoCard(store: widget.store, month: yearAgo.start, plays: yearAgoPlays),
                 gap,
               ],
               MilestonesCard(store: widget.store, range: range),

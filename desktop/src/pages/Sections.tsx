@@ -1,5 +1,5 @@
 /** The overview's cards below the charts (api/sections.py): discoveries or forgotten tracks, diversity,
- * genres over time, the streak, a year ago today, milestones, genres and the album collage. */
+ * genres over time, the streak, this time last year, milestones, genres and the album collage. */
 
 import BarList, { BarRow } from "../components/BarList";
 import Card from "../components/Card";
@@ -8,6 +8,8 @@ import Sigil from "../components/Sigil";
 import { Column, useOpenDetail } from "../navigation";
 import StackedColumns, { Series, seriesClass, StackedColumn } from "../components/StackedColumns";
 import { CardSkeleton } from "../components/Skeleton";
+
+interface YearAgoRow { key: string; title: string; subtitle: string; image: string }
 
 export interface SectionsData {
   discoveries: {
@@ -28,8 +30,9 @@ export interface SectionsData {
     } | null;
     stars: { label: string; column: Column; key: string; title: string; plays: string; image: string; round: boolean }[];
   };
-  year_ago_today: {
-    title: string; summary: string; tracks: { key: string; title: string; plays: string; image: string }[];
+  year_ago: {
+    title: string; summary: string; tracks_title: string; artists_title: string;
+    tracks: YearAgoRow[]; artists: YearAgoRow[];
   } | null;
   milestones: {
     title: string; summary: string; empty: string;
@@ -188,20 +191,39 @@ export function Streak({ data }: { data: SectionsData["streak"] }) {
   );
 }
 
-/** The same day a year earlier, only once there were plays on it (api/sections.py year_ago_today) */
-export function YearAgoToday({ data }: { data: SectionsData["year_ago_today"] }) {
+function YearAgoList({ rows, column }: { rows: YearAgoRow[]; column: Column }) {
   const open = useOpenDetail();
+  const round = column === "artist_key";
+  return (
+    <div className="year-ago-list">
+      {rows.map((row) => (
+        <button key={row.key} className="streak-star clickable" onClick={() => open?.(column, row.key)}>
+          <Picture src={row.image} alt={row.title} round={round} className="streak-picture" />
+          <span className="streak-star-text">
+            <strong>{row.title}</strong>
+            {row.subtitle && <span className="muted">{row.subtitle}</span>}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The tracks and artists played most in the same month a year earlier, only once there were plays then
+ * (api/sections.py year_ago) */
+export function YearAgo({ data }: { data: SectionsData["year_ago"] }) {
   if (!data) return null;
   return (
     <Card icon="history" title={data.title} summary={data.summary}>
-      <div className="streak-stars year-ago">
-        {data.tracks.map((track) => (
-          <button key={track.key} className="streak-star clickable" onClick={() => open?.("track_key", track.key)}>
-            <Picture src={track.image} alt={track.title} className="streak-picture" />
-            <span className="streak-star-text"><strong>{track.title}</strong></span>
-            <span className="muted">{track.plays}</span>
-          </button>
-        ))}
+      <div className="pair inner">
+        <div>
+          <h3 className="column-title">{data.tracks_title}</h3>
+          <YearAgoList rows={data.tracks} column="track_key" />
+        </div>
+        <div>
+          <h3 className="column-title">{data.artists_title}</h3>
+          <YearAgoList rows={data.artists} column="artist_key" />
+        </div>
       </div>
     </Card>
   );

@@ -47,33 +47,38 @@ class GenreShiftBucketTest(unittest.TestCase):
         self.assertEqual((sections.share(1, 3), sections.share(0, 0)), (33, 0))
 
 
-class YearAgoTodayTest(ListeningTestCase):
+class YearAgoTest(ListeningTestCase):
     def setUp(self):
         super().setUp()
         i18n.set_language("en")
         self.addCleanup(i18n.set_language, None)
 
-    def store(self, name, at: datetime):
-        played = {"artist": "A", "name": name, "album": "Album", "played_at": listening.to_utc(at), "ms_played": 200_000}
+    def store(self, artist, name, at: datetime):
+        played = {"artist": artist, "name": name, "album": "Album", "played_at": listening.to_utc(at),
+                  "ms_played": 200_000}
         with listening.open_db(self.db) as db:
             listening._insert(db, played, "local")
 
-    def test_nothing_shows_without_plays_on_that_day(self):
+    def test_nothing_shows_without_plays_in_that_month(self):
         now = datetime(2026, 11, 22, 15).astimezone()
-        self.store("Song", now - timedelta(days=1))
-        self.store("Song", datetime(2025, 11, 21, 23, 59).astimezone())
-        self.store("Song", datetime(2025, 11, 23, 0, 1).astimezone())
-        self.assertIsNone(sections.year_ago_today(now, self.db))
+        self.store("A", "Song", now - timedelta(days=1))
+        self.store("A", "Song", datetime(2025, 10, 31, 23, 59).astimezone())
+        self.store("A", "Song", datetime(2025, 12, 1, 0, 1).astimezone())
+        self.assertIsNone(sections.year_ago(now, self.db))
 
-    def test_the_same_day_a_year_back_with_its_top_tracks(self):
-        now = datetime(2026, 11, 22, 9).astimezone()
-        self.store("Song", datetime(2025, 11, 22, 8).astimezone())
-        self.store("Song", datetime(2025, 11, 22, 21).astimezone())
-        self.store("Other", datetime(2025, 11, 22, 23, 50).astimezone())
-        card = sections.year_ago_today(now, self.db)
-        self.assertEqual(card["summary"], "22 November 2025  ·  3 plays  ·  10 min")
-        self.assertEqual([track["title"] for track in card["tracks"]], ["Song  ·  A", "Other  ·  A"])
-        self.assertEqual(card["tracks"][0]["plays"], "2 plays")
+    def test_the_same_month_a_year_back_with_its_top_tracks_and_artists(self):
+        now = datetime(2026, 11, 2, 9).astimezone()
+        self.store("A", "Song", datetime(2025, 11, 1, 8).astimezone())
+        self.store("A", "Song", datetime(2025, 11, 20, 21).astimezone())
+        self.store("B", "Other", datetime(2025, 11, 30, 23, 50).astimezone())
+        card = sections.year_ago(now, self.db)
+        self.assertEqual(card["summary"], "What you played most through November 2025")
+        self.assertEqual([(t["title"], t["subtitle"]) for t in card["tracks"]], [("Song", "A"), ("Other", "B")])
+        self.assertEqual([a["title"] for a in card["artists"]], ["A", "B"])
+
+    def test_december_looks_at_december(self):
+        self.store("A", "Song", datetime(2025, 12, 31, 22).astimezone())
+        self.assertIsNotNone(sections.year_ago(datetime(2026, 12, 5).astimezone(), self.db))
 
 
 if __name__ == "__main__":
