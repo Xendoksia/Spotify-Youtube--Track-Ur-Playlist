@@ -23,6 +23,9 @@ ALBUM_TRACKS = 100
 DAILY_LIMIT = 62
 MIN_DAYS = 14
 COLUMNS = ("track_key", "artist_key", listening.ALBUM)
+DAY_PARTS = ("night", "morning", "afternoon", "evening")
+# Share of the plays a part of the day needs to be called the usual one
+DAY_PART_LEAD = 0.4
 
 _looked_up: set[tuple[str, str]] = set()
 _looked_up_lock = threading.Lock()
@@ -98,6 +101,25 @@ def timeline(column: str, key: str, info: dict) -> dict:
     return {"title": t("stats.per_month"), "buckets": buckets}
 
 
+def day_part(hours: list[int]) -> str | None:
+    """The part of the day with the most plays: night (0-6), morning, afternoon or evening (18-24); None when no
+    part has a clear lead, so the page does not say "mostly" of an even spread."""
+    parts = [sum(hours[start:start + 6]) for start in range(0, 24, 6)]
+    total = sum(parts)
+    best = max(range(4), key=lambda part: parts[part])
+    return DAY_PARTS[best] if total and parts[best] / total >= DAY_PART_LEAD else None
+
+
+def day_curve(hours: list[int]) -> dict:
+    """The most played hour and the part of the day, for the curve of the track's hours."""
+    if not any(hours):
+        return {"peak": None, "peak_text": "", "summary": ""}
+    peak = max(range(24), key=lambda hour: hours[hour])
+    part = day_part(hours)
+    return {"peak": peak, "peak_text": t("detail.hours.peak", hour=f"{peak:02d}:00"),
+            "summary": t(f"detail.hours.{part}") if part else t("detail.hours.spread")}
+
+
 def tile(name: str, value, text: str, kind: str = "number") -> dict:
     """kind: "number" and "duration" count up in the window, "text" (dates, names) is shown as it is."""
     return {"name": name, "label": t(f"detail.tile.{name}"), "value": value, "text": text, "kind": kind}
@@ -155,8 +177,8 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
 
     if kind == "track":
         start, end = listening.period_range("all")
-        page["hours"] = {"title": t("detail.track_hours"),
-                         "buckets": hour_buckets(listening.hours(start, end, column, key))}
+        hours = listening.hours(start, end, column, key)
+        page["hours"] = {"title": t("detail.track_hours"), "buckets": hour_buckets(hours), **day_curve(hours)}
         page["album"] = None
         if info["album"]:
             album_key = listening.album_key(info["artist_key"], info["album_lower"])

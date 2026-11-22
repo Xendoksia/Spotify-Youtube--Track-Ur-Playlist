@@ -9,6 +9,7 @@ import '../../state/data_store.dart';
 import '../../theme/palette.dart';
 import '../../widgets/artwork_image.dart';
 import '../../widgets/cards.dart';
+import '../../widgets/day_curve.dart';
 import '../../widgets/format.dart';
 import 'listening_chart.dart';
 
@@ -118,6 +119,7 @@ class _DetailScreenState extends State<DetailScreen> {
               ),
               gap,
             ],
+            if (target.kind == DetailKind.track && plays.isNotEmpty) ...[_hours(context, plays), gap],
             if (target.kind == DetailKind.album) ...[_albumTracks(context, plays), gap],
             _chart(context, plays),
             if (target.kind == DetailKind.artist) ...[
@@ -147,6 +149,21 @@ class _DetailScreenState extends State<DetailScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// When the track is played: the curve of its hours, with the part of the day it is mostly played in
+  Widget _hours(BuildContext context, List<Play> plays) {
+    final hours = playsPerHour(plays);
+    final part = dayPart(hours);
+    return SectionCard(
+      title: context.t('detail.track_hours'),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(context.t(part == null ? 'detail.hours.spread' : 'detail.hours.$part'),
+            style: TextStyle(color: Palette.of(context).muted, fontSize: 13)),
+        const SizedBox(height: 12),
+        DayCurve(hours: hours, color: MoodColor.of(context) ?? Palette.of(context).chart),
+      ]),
     );
   }
 

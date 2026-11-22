@@ -481,6 +481,21 @@ List<int> playsPerHour(List<Play> plays) {
   return hours;
 }
 
+/// The parts of the day, six hours each from midnight, as the desktop app's day_part
+const dayParts = ['night', 'morning', 'afternoon', 'evening'];
+
+/// The part of the day with the most of [hours]' plays, or null when none has a clear lead (40% of the plays), so
+/// an even spread is not called "mostly"
+String? dayPart(List<int> hours) {
+  final parts = [for (var start = 0; start < 24; start += 6) hours.sublist(start, start + 6).fold<int>(0, (a, b) => a + b)];
+  final total = parts.fold<int>(0, (a, b) => a + b);
+  var best = 0;
+  for (var part = 1; part < 4; part++) {
+    if (parts[part] > parts[best]) best = part;
+  }
+  return total > 0 && parts[best] / total >= 0.4 ? dayParts[best] : null;
+}
+
 /// A track or artist heard for the first time ever in a period, or one not played lately
 class Discovered {
   final Ranked row;

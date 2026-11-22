@@ -980,6 +980,130 @@ img.picture.loaded {
 .series-3 { background: var(--series-3); }
 .series-other { background: var(--series-other); }
 
+/* The curve of a track's hours (components/DayCurve.tsx) */
+.day-curve {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  --day-color: var(--mood, var(--chart));
+}
+
+/* Without a picture's color the curve stays in the charts' green */
+.stats-page:not(.has-mood) .day-curve {
+  --day-color: var(--chart);
+}
+
+.day-curve-plot {
+  position: relative;
+  height: 172px;
+}
+
+.day-curve-plot svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.band-night { stop-color: #5b6ee1; stop-opacity: 0.16; }
+.band-dawn { stop-color: #f2a65a; stop-opacity: 0.1; }
+.band-noon { stop-color: #f5d76e; stop-opacity: 0.12; }
+.band-dusk { stop-color: #e0707a; stop-opacity: 0.1; }
+
+.fill-top { stop-color: var(--day-color); stop-opacity: 0.5; }
+.fill-bottom { stop-color: var(--day-color); stop-opacity: 0.02; }
+
+.day-curve-line {
+  fill: none;
+  stroke: var(--day-color);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.day-curve-guide {
+  stroke: var(--day-color);
+  stroke-width: 1px;
+  stroke-dasharray: 3 4;
+  opacity: 0.7;
+  vector-effect: non-scaling-stroke;
+}
+
+.day-curve-dot {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--day-color);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.day-curve-dot.peak {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--day-color) 28%, transparent);
+}
+
+.day-curve-label {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.18);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.day-curve-dot.start .day-curve-label {
+  left: -6px;
+  transform: none;
+}
+
+.day-curve-dot.end .day-curve-label {
+  right: -6px;
+  left: auto;
+  transform: none;
+}
+
+.day-curve-hours {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+}
+
+.day-curve-axis {
+  position: relative;
+  height: 18px;
+  margin: 0 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.day-curve-mark {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transform: translateX(-50%);
+}
+
+.day-curve-mark svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+
+.day-curve-mark .ray {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4px;
+  stroke-linecap: round;
+}
+
 /* Milestones */
 
 .plain-list {

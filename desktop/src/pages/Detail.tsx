@@ -6,6 +6,7 @@ import { get } from "../api";
 import { BarRow } from "../components/BarList";
 import Card from "../components/Card";
 import ColumnChart, { Bucket } from "../components/ColumnChart";
+import DayCurve from "../components/DayCurve";
 import Hero, { HeroData } from "../components/Hero";
 import Icon from "../components/Icon";
 import Picture from "../components/Picture";
@@ -29,7 +30,7 @@ interface DetailData {
   timeline: { title: string; buckets: Bucket[] };
   tracks?: { title: string; rows: BarRow[]; pictures: boolean };
   progress?: { share: number; text: string };
-  hours?: { title: string; buckets: Bucket[] };
+  hours?: { title: string; buckets: Bucket[]; peak: number | null; peak_text: string; summary: string };
   album?: { caption: string; key: string; title: string; image: string; heard: string; open: string } | null;
   mood: Mood | null;
 }
@@ -137,8 +138,9 @@ export default function Detail({ visit, onLoaded }: {
               </section>
             )}
             {data.hours && (
-              <Card icon="clock" title={data.hours.title}>
-                <ColumnChart buckets={data.hours.buckets} empty={empty} />
+              <Card icon="clock" title={data.hours.title} summary={data.hours.summary}>
+                <DayCurve buckets={data.hours.buckets} peak={data.hours.peak} peakText={data.hours.peak_text}
+                          empty={empty} />
               </Card>
             )}
           </div>

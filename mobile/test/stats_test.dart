@@ -337,6 +337,14 @@ void main() {
       expect(yearBack(DateTime(2028, 2, 29)), DateTime(2027, 2, 28));
     });
 
+    test('the part of the day with most plays, none for an even spread', () {
+      List<int> hours(Map<int, int> counts) => [for (var hour = 0; hour < 24; hour++) counts[hour] ?? 0];
+      expect(dayPart(hours({18: 5, 20: 3, 9: 1})), 'evening');
+      expect(dayPart(hours({0: 2, 5: 2, 6: 1})), 'night');
+      expect(dayPart(hours({1: 1, 7: 1, 13: 1, 19: 1})), isNull);
+      expect(dayPart(List.filled(24, 0)), isNull);
+    });
+
     test('this time last year is the same month a year back', () {
       final month = yearAgoMonth(DateTime(2026, 11, 22, 15, 30));
       expect((month.start, month.end), (DateTime(2025, 11), DateTime(2025, 12)));
