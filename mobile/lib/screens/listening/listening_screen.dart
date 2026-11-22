@@ -261,7 +261,11 @@ class _ListeningScreenState extends State<ListeningScreen> {
               StreakCard(store: widget.store),
               gap,
               if (yearAgoPlays.isNotEmpty) ...[
-                YearAgoCard(store: widget.store, month: yearAgo.start, plays: yearAgoPlays),
+                YearAgoCard(
+                    store: widget.store,
+                    month: yearAgo.start,
+                    plays: yearAgoPlays,
+                    thisMonth: playsIn(all, periodRange(Period.month, 0, now))),
                 gap,
               ],
               MilestonesCard(store: widget.store, range: range),

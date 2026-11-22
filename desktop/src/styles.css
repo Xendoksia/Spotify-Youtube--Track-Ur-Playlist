@@ -4436,6 +4436,23 @@ select.field {
   gap: 4px;
 }
 
+/* Where it stands this month, in words beside it */
+.year-ago-status {
+  flex: none;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.year-ago-status.top {
+  color: var(--added);
+  font-weight: 600;
+}
+
+.year-ago-status.gone {
+  opacity: 0.65;
+}
+
 .streak-star {
   display: flex;
   align-items: center;

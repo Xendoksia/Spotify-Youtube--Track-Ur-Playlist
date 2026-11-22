@@ -9,7 +9,10 @@ import { Column, useOpenDetail } from "../navigation";
 import StackedColumns, { Series, seriesClass, StackedColumn } from "../components/StackedColumns";
 import { CardSkeleton } from "../components/Skeleton";
 
-interface YearAgoRow { key: string; title: string; subtitle: string; image: string }
+interface YearAgoRow {
+  key: string; title: string; subtitle: string; image: string;
+  status: "top" | "still" | "gone"; status_text: string;
+}
 
 export interface SectionsData {
   discoveries: {
@@ -203,14 +206,15 @@ function YearAgoList({ rows, column }: { rows: YearAgoRow[]; column: Column }) {
             <strong>{row.title}</strong>
             {row.subtitle && <span className="muted">{row.subtitle}</span>}
           </span>
+          <span className={`year-ago-status ${row.status}`}>{row.status_text}</span>
         </button>
       ))}
     </div>
   );
 }
 
-/** The tracks and artists played most in the same month a year earlier, only once there were plays then
- * (api/sections.py year_ago) */
+/** The tracks and artists played most in the same month a year earlier, each with where it stands this month, only
+ * once there were plays then (api/sections.py year_ago) */
 export function YearAgo({ data }: { data: SectionsData["year_ago"] }) {
   if (!data) return null;
   return (

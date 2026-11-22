@@ -75,6 +75,20 @@ class YearAgoTest(ListeningTestCase):
         self.assertEqual(card["summary"], "What you played most through November 2025")
         self.assertEqual([(t["title"], t["subtitle"]) for t in card["tracks"]], [("Song", "A"), ("Other", "B")])
         self.assertEqual([a["title"] for a in card["artists"]], ["A", "B"])
+        self.assertEqual([t["status"] for t in card["tracks"]], ["gone", "gone"])
+
+    def test_each_row_says_where_it_stands_this_month(self):
+        now = datetime(2026, 11, 22, 9).astimezone()
+        for index, (name, artist) in enumerate([("Song", "A"), ("Song", "A"), ("Other", "B"), ("Third", "C")]):
+            self.store(artist, name, datetime(2025, 11, 5 + index, 8).astimezone())
+        for index, (name, artist) in enumerate([("Song", "A"), ("Song", "A"), ("Song", "A"), ("New", "E"), ("New", "E"),
+                                                ("Two", "F"), ("Two", "F"), ("Other", "B")]):
+            self.store(artist, name, datetime(2026, 11, 3 + index, 12).astimezone())
+        card = sections.year_ago(now, self.db)
+        status = {t["title"]: (t["status"], t["status_text"]) for t in card["tracks"]}
+        self.assertEqual(status["Song"], ("top", "Still in your top 3"))
+        self.assertEqual(status["Other"][0], "still")
+        self.assertEqual([t["status"] for t in card["tracks"] if t["title"] not in ("Song", "Other")], ["gone"])
 
     def test_december_looks_at_december(self):
         self.store("A", "Song", datetime(2025, 12, 31, 22).astimezone())

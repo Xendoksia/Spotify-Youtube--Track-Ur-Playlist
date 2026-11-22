@@ -189,8 +189,8 @@ class MilestonesCard extends StatelessWidget {
       };
 }
 
-/// The tracks and artists played most in the same month a year earlier, as the desktop app's card. It is only
-/// built when there were plays then
+/// The tracks and artists played most in the same month a year earlier, each with where it stands this month in
+/// words beside it, as the desktop app's card. It is only built when there were plays then
 class YearAgoCard extends StatelessWidget {
   static const shown = 3;
 
@@ -202,11 +202,17 @@ class YearAgoCard extends StatelessWidget {
   /// That month's plays
   final List<Play> plays;
 
-  const YearAgoCard({super.key, required this.store, required this.month, required this.plays});
+  /// This month's plays
+  final List<Play> thisMonth;
+
+  const YearAgoCard(
+      {super.key, required this.store, required this.month, required this.plays, required this.thisMonth});
 
   @override
   Widget build(BuildContext context) {
     final muted = Palette.of(context).muted;
+    final tracksNow = topTracks(thisMonth, limit: 1 << 30).map((r) => r.key).toList();
+    final artistsNow = topArtists(thisMonth, limit: 1 << 30).map((r) => r.key).toList();
     return SectionCard(
       title: context.t('stats.year_ago'),
       child: Column(
@@ -216,16 +222,30 @@ class YearAgoCard extends StatelessWidget {
               style: TextStyle(color: muted, fontSize: 13)),
           const SizedBox(height: 12),
           Text(context.t('stats.year_ago.tracks'), style: const TextStyle(fontWeight: FontWeight.w600)),
-          for (final track in topTracks(plays, limit: shown)) _row(context, track, DetailKind.track),
+          for (final track in topTracks(plays, limit: shown)) _row(context, track, DetailKind.track, tracksNow),
           const SizedBox(height: 12),
           Text(context.t('stats.year_ago.artists'), style: const TextStyle(fontWeight: FontWeight.w600)),
-          for (final artist in topArtists(plays, limit: shown)) _row(context, artist, DetailKind.artist),
+          for (final artist in topArtists(plays, limit: shown)) _row(context, artist, DetailKind.artist, artistsNow),
         ],
       ),
     );
   }
 
-  Widget _row(BuildContext context, Ranked row, DetailKind kind) => InkWell(
+  /// Where a track or artist stands in this month's plays, [ranked] most played first
+  Widget _status(BuildContext context, String key, List<String> ranked) {
+    final palette = Palette.of(context);
+    final status = ranked.take(shown).contains(key) ? 'top' : ranked.contains(key) ? 'still' : 'gone';
+    return Text(
+      context.t('stats.year_ago.$status', {'count': shown}),
+      style: TextStyle(
+        color: status == 'top' ? palette.added : palette.muted.withValues(alpha: status == 'gone' ? 0.65 : 1),
+        fontSize: 12,
+        fontWeight: status == 'top' ? FontWeight.w600 : FontWeight.normal,
+      ),
+    );
+  }
+
+  Widget _row(BuildContext context, Ranked row, DetailKind kind, List<String> ranked) => InkWell(
         onTap: () => openDetail(context, store, DetailTarget.ranked(kind, row)),
         borderRadius: BorderRadius.circular(10),
         child: Padding(
@@ -250,6 +270,8 @@ class YearAgoCard extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+              _status(context, row.key, ranked),
             ],
           ),
         ),

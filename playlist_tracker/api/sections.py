@@ -29,6 +29,8 @@ DIVERSITY_CHANGE = 5
 FOCUSED, WIDE = 70, 40
 MILESTONES_SHOWN = 8
 YEAR_AGO_SHOWN = 3
+# More rows than any month has, to see where a track or artist stands
+ALL_ROWS = 1_000_000
 
 
 def period_bounds(period: str, offset: int) -> tuple[str, int, datetime, datetime]:
@@ -204,22 +206,38 @@ def milestones(start: datetime, end: datetime) -> dict:
     }
 
 
+def month_bounds(moment: datetime) -> tuple[datetime, datetime]:
+    """The start of moment's month and of the next one."""
+    start = moment.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return start, start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
+
+
+def now_status(key: str, ranked: list[str]) -> dict:
+    """Where a track or artist of a year ago stands in this month's plays."""
+    status = ("top" if key in ranked[:YEAR_AGO_SHOWN] else "still" if key in ranked else "gone")
+    return {"status": status, "status_text": t(f"stats.year_ago.{status}", count=YEAR_AGO_SHOWN)}
+
+
 def year_ago(now: datetime | None = None, db_path=listening.DB_PATH) -> dict | None:
-    """The tracks and artists played most in the same month a year earlier, or None without plays then, so the
-    card only shows up once there is a year of plays behind it."""
+    """The tracks and artists played most in the same month a year earlier, each with where it stands this month,
+    or None without plays then, so the card only shows up once there is a year of plays behind it."""
     now = (now or datetime.now()).astimezone()
-    start = now.replace(year=now.year - 1, day=1, hour=0, minute=0, second=0, microsecond=0)
-    end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
+    start, end = month_bounds(now.replace(year=now.year - 1, day=1))
     tracks = listening.top_tracks(start, end, YEAR_AGO_SHOWN, db_path=db_path)
     if not tracks:
         return None
+    this_start, this_end = month_bounds(now)
+    tracks_now = [r["key"] for r in listening.top_tracks(this_start, this_end, ALL_ROWS, db_path=db_path)]
+    artists_now = [r["key"] for r in listening.top_artists(this_start, this_end, ALL_ROWS, db_path=db_path)]
     return {
         "title": t("stats.year_ago"),
         "summary": t("stats.year_ago.summary", month=f"{month_name(start.month)} {start.year}"),
         "tracks_title": t("stats.year_ago.tracks"), "artists_title": t("stats.year_ago.artists"),
         "tracks": [{"key": r["key"], "title": r["name"], "subtitle": r["artist"],
-                    "image": cover_url(r["artist"], r["album"], r["name"])} for r in tracks],
-        "artists": [{"key": r["key"], "title": r["name"], "subtitle": "", "image": artist_url(r["name"])}
+                    "image": cover_url(r["artist"], r["album"], r["name"]), **now_status(r["key"], tracks_now)}
+                   for r in tracks],
+        "artists": [{"key": r["key"], "title": r["name"], "subtitle": "", "image": artist_url(r["name"]),
+                     **now_status(r["key"], artists_now)}
                     for r in listening.top_artists(start, end, YEAR_AGO_SHOWN, db_path=db_path)],
     }
 
