@@ -11,7 +11,9 @@ import { OverviewSkeleton } from "../components/Skeleton";
 import { useTexts } from "../i18n";
 import { Mood, moodStyle } from "../mood";
 import { useOpenDetail } from "../navigation";
-import { Collage, Discoveries, Diversity, Genres, GenresData, GenreShift, Milestones, SectionsData, Streak } from "./Sections";
+import {
+  Collage, Discoveries, Diversity, Genres, GenresData, GenreShift, Milestones, SectionsData, Streak, YearAgoToday,
+} from "./Sections";
 
 type Period = "week" | "month" | "year" | "all";
 const PERIODS: Period[] = ["week", "month", "year", "all"];
@@ -159,6 +161,7 @@ export default function Overview({ hidden, openSummary, inboxVersion }: {
                 <GenreShift data={genres?.shift ?? null} />
               </div>
               <Streak data={sections.streak} />
+              <YearAgoToday data={sections.year_ago_today} />
               <Milestones data={sections.milestones} />
               <div className="pair">
                 <Genres data={genres?.genres ?? null} />

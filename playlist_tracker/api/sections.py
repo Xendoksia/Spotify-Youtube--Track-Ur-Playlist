@@ -29,6 +29,7 @@ DIVERSITY_CHANGE = 5
 FOCUSED, WIDE = 70, 40
 MILESTONES_SHOWN = 8
 YEAR_AGO = 3
+YEAR_AGO_TODAY = 3
 
 
 def period_bounds(period: str, offset: int) -> tuple[str, int, datetime, datetime]:
@@ -60,6 +61,7 @@ def sections(period: str, offset: int) -> dict:
         "forgotten": forgotten() if period == "all" else None,
         "diversity": diversity(period, offset, start, end),
         "streak": streak_card(),
+        "year_ago_today": year_ago_today(),
         "milestones": milestones(period, start, end),
         "collage": album_collage(start, end),
     }
@@ -206,6 +208,25 @@ def milestones(period: str, start: datetime, end: datetime) -> dict:
         "year_ago": [{"rank": rank, "key": r["key"],
                       "text": f"{r['name']}  ·  {r['artist']}  ·  {plays_text(r['plays'])}"}
                      for rank, r in enumerate(tracks, start=1)],
+    }
+
+
+def year_ago_today(now: datetime | None = None, db_path=listening.DB_PATH) -> dict | None:
+    """The same day a year earlier with its plays and most played tracks, or None when nothing was played that
+    day, so the card only shows up once there is a year of plays behind it."""
+    today = (now or datetime.now()).astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+    start = year_back(today)
+    end = start + timedelta(days=1)
+    tracks = listening.top_tracks(start, end, YEAR_AGO_TODAY, db_path=db_path)
+    if not tracks:
+        return None
+    day = listening.summary(start, end, db_path)
+    return {
+        "title": t("stats.year_ago_today"),
+        "summary": summary_text(f"{start.day} {month_name(start.month)} {start.year}", plays_text(day["plays"]),
+                                minutes=day["minutes"]),
+        "tracks": [{"key": r["key"], "title": f"{r['name']}  ·  {r['artist']}", "plays": plays_text(r["plays"]),
+                    "image": cover_url(r["artist"], r["album"], r["name"])} for r in tracks],
     }
 
 

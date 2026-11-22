@@ -4435,6 +4435,18 @@ select.field {
   margin-top: 14px;
 }
 
+/* A year ago today: the day's top tracks side by side, one under another in a narrow window */
+.streak-stars.year-ago {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0;
+}
+
+@media (max-width: 1100px) {
+  .streak-stars.year-ago {
+    grid-template-columns: 1fr;
+  }
+}
+
 .streak-star {
   display: flex;
   align-items: center;

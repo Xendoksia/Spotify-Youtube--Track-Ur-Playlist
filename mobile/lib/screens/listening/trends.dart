@@ -203,6 +203,60 @@ class MilestonesCard extends StatelessWidget {
       };
 }
 
+/// The same day a year earlier, as the desktop app's card: its date, plays and time, and its most played tracks.
+/// It is only built when there were plays that day
+class YearAgoTodayCard extends StatelessWidget {
+  static const shown = 3;
+
+  final DataStore store;
+
+  /// That day's plays
+  final List<Play> plays;
+
+  const YearAgoTodayCard({super.key, required this.store, required this.plays});
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Palette.of(context).muted;
+    final day = Summary.of(plays);
+    final parts = [
+      context.dateFormat('d MMMM y').format(plays.first.playedAt),
+      context.plays(day.plays),
+      if (day.minutes > 0) context.minutes(day.minutes),
+    ];
+    return SectionCard(
+      title: context.t('stats.year_ago_today'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(parts.join('  ·  '), style: TextStyle(color: muted, fontSize: 13)),
+          const SizedBox(height: 6),
+          for (final track in topTracks(plays, limit: shown))
+            InkWell(
+              onTap: () => openDetail(context, store, DetailTarget.ranked(DetailKind.track, track)),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    ArtworkImage.cover(artist: track.artist, album: track.album, name: track.title, size: 42),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text('${track.title}  ·  ${track.artist}',
+                          maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(context.plays(track.plays), style: TextStyle(color: muted, fontSize: 13)),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Two streaks on one card: days in a row with any play (with the longest run and the song and artist that
 /// carried it), and below it, apart, days in a row of one genre, which earns titles in its manner at 3, 7, 14, 30
 /// and 100 days with a road to the next one

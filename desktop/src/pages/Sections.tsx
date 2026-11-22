@@ -1,5 +1,5 @@
 /** The overview's cards below the charts (api/sections.py): discoveries or forgotten tracks, diversity,
- * genres over time, milestones, genres and the album collage. */
+ * genres over time, the streak, a year ago today, milestones, genres and the album collage. */
 
 import BarList, { BarRow } from "../components/BarList";
 import Card from "../components/Card";
@@ -28,6 +28,9 @@ export interface SectionsData {
     } | null;
     stars: { label: string; column: Column; key: string; title: string; plays: string; image: string; round: boolean }[];
   };
+  year_ago_today: {
+    title: string; summary: string; tracks: { key: string; title: string; plays: string; image: string }[];
+  } | null;
   milestones: {
     title: string; summary: string; empty: string; year_ago_title: string;
     items: { date: string; text: string; kind: string; column: Column | null; key: string | null }[];
@@ -182,6 +185,25 @@ export function Streak({ data }: { data: SectionsData["streak"] }) {
           ))}
         </div>
       )}
+    </Card>
+  );
+}
+
+/** The same day a year earlier, only once there were plays on it (api/sections.py year_ago_today) */
+export function YearAgoToday({ data }: { data: SectionsData["year_ago_today"] }) {
+  const open = useOpenDetail();
+  if (!data) return null;
+  return (
+    <Card icon="history" title={data.title} summary={data.summary}>
+      <div className="streak-stars year-ago">
+        {data.tracks.map((track) => (
+          <button key={track.key} className="streak-star clickable" onClick={() => open?.("track_key", track.key)}>
+            <Picture src={track.image} alt={track.title} className="streak-picture" />
+            <span className="streak-star-text"><strong>{track.title}</strong></span>
+            <span className="muted">{track.plays}</span>
+          </button>
+        ))}
+      </div>
     </Card>
   );
 }

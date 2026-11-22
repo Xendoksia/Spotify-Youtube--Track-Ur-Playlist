@@ -336,6 +336,14 @@ void main() {
       expect(nextTotalStep(100), (250, 150));
       expect(yearBack(DateTime(2028, 2, 29)), DateTime(2027, 2, 28));
     });
+
+    test('a year ago today is the whole local day a year back', () {
+      final day = yearAgoToday(DateTime(2026, 11, 22, 15, 30));
+      expect((day.start, day.end), (DateTime(2025, 11, 22), DateTime(2025, 11, 23)));
+      expect(day.contains(DateTime(2025, 11, 22, 23, 59)), isTrue);
+      expect(day.contains(DateTime(2025, 11, 23)), isFalse);
+      expect(yearAgoToday(DateTime(2028, 2, 29, 9)).start, DateTime(2027, 2, 28));
+    });
   });
 
   group('trend', () {
