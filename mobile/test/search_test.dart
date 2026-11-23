@@ -26,6 +26,17 @@ void main() {
     expect(searchScore('park', ['Numb', 'Linkin Park']), 2);
   });
 
+  test('a collaboration is searched as its artists when one is heard alone', () {
+    final plays = [
+      play('Şanışer', 'Görünce', 'A'),
+      play('Şanışer, Sena Şener', 'Yağmur', 'B'),
+      play('Simon & Garfunkel', 'The Boxer', 'C'),
+    ];
+    expect(searchPlays(plays, 'sanis')!.artists.map((a) => (a.title, a.plays)), [('Şanışer', 2)]);
+    expect(searchPlays(plays, 'sena')!.artists.single.title, 'Sena Şener');
+    expect(searchPlays(plays, 'simon')!.artists.single.title, 'Simon & Garfunkel');
+  });
+
   test('plays are searched as tracks, artists and albums', () {
     final plays = [play('Göksel', 'Acıyor', 'Yollar'), play('Slipknot', 'Snuff', 'All Hope Is Gone')];
     final found = searchPlays(plays, 'goks')!;

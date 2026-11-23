@@ -102,7 +102,7 @@ class _TimelineCurveState extends State<TimelineCurve> with TickerProviderStateM
         spacing: 8,
         runSpacing: 4,
         children: [
-          if (up || down)
+          if ((up || down) && before > 0)
             FadeTransition(
               opacity: CurvedAnimation(parent: _reveal, curve: const Interval(0.85, 1)),
               child: Container(

@@ -100,7 +100,8 @@ SearchResults? searchPlays(List<Play> plays, String query) {
   const all = 1 << 30;
   return SearchResults(
     _best(topTracks(plays, limit: all), folded, (row) => [row.title, row.artist]),
-    _best(topArtists(plays, limit: all), folded, (row) => [row.title]),
+    // Artists of collaborations each on their own, so "Şanışer, Sena Şener" finds Şanışer and Sena Şener
+    _best(creditedArtists(plays), folded, (row) => [row.title]),
     _best(topAlbums(plays, limit: all), folded, (row) => [row.title, row.artist]),
   );
 }

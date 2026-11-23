@@ -10,6 +10,17 @@ List<String> nameVariants(String artist) {
   return {artist, first}.where((name) => name.isNotEmpty).toList();
 }
 
+final _creditSeparators = RegExp(r',|&| feat\.? | ft\.? | x ', caseSensitive: false);
+
+/// The artists one artist name credits, as the desktop app's listening.credited: a collaboration such as
+/// "Şanışer, Sena Şener" is its artists when one of them is also heard on their own ([soloKeys]), so a band named
+/// "Simon & Garfunkel" stays one
+List<String> credited(String artist, Set<String> soloKeys) {
+  final parts = artist.split(_creditSeparators).map((part) => part.trim()).where((part) => part.isNotEmpty).toList();
+  if (parts.length > 1 && parts.any((part) => soloKeys.contains(textKey(part)))) return parts;
+  return [artist];
+}
+
 /// A time as the desktop app writes it for syncing: UTC with microseconds, so such texts sort by time.
 String utcStamp(DateTime moment) {
   final utc = moment.toUtc();
@@ -48,16 +59,16 @@ class Play {
   String get trackKey => '$artistKey|${textKey(name)}';
 
   factory Play.fromRow(Map<String, dynamic> row) => Play(
-        uid: row['uid'] as String,
-        deviceId: row['device_id'] as String,
-        deviceName: row['device_name'] as String?,
-        playedAt: DateTime.parse(row['played_at'] as String).toLocal(),
-        artist: row['artist'] as String? ?? '',
-        name: row['name'] as String? ?? '',
-        album: row['album'] as String? ?? '',
-        msPlayed: row['ms_played'] as int? ?? 0,
-        source: row['source'] as String? ?? '',
-      );
+    uid: row['uid'] as String,
+    deviceId: row['device_id'] as String,
+    deviceName: row['device_name'] as String?,
+    playedAt: DateTime.parse(row['played_at'] as String).toLocal(),
+    artist: row['artist'] as String? ?? '',
+    name: row['name'] as String? ?? '',
+    album: row['album'] as String? ?? '',
+    msPlayed: row['ms_played'] as int? ?? 0,
+    source: row['source'] as String? ?? '',
+  );
 }
 
 /// Plays of a track closer than its length plus this are one play recorded by two sources, as the desktop app's
@@ -81,7 +92,12 @@ List<Play> withoutDuplicates(List<Play> plays) {
       same.add(play);
     }
   }
-  return dropped.isEmpty ? plays : [for (final play in plays) if (!dropped.contains(play.uid)) play];
+  return dropped.isEmpty
+      ? plays
+      : [
+          for (final play in plays)
+            if (!dropped.contains(play.uid)) play,
+        ];
 }
 
 class TrackedPlaylist {
@@ -92,10 +108,10 @@ class TrackedPlaylist {
   TrackedPlaylist({required this.service, required this.playlistId, required this.name});
 
   factory TrackedPlaylist.fromRow(Map<String, dynamic> row) => TrackedPlaylist(
-        service: row['service'] as String,
-        playlistId: row['playlist_id'] as String,
-        name: row['name'] as String? ?? row['playlist_id'] as String,
-      );
+    service: row['service'] as String,
+    playlistId: row['playlist_id'] as String,
+    name: row['name'] as String? ?? row['playlist_id'] as String,
+  );
 }
 
 /// What a check of a playlist found, as the desktop app's history.EVENT_* names

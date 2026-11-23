@@ -199,7 +199,14 @@ class DetailTarget {
     DetailKind.album => albumKeyOf,
   };
 
-  List<Play> playsIn(List<Play> plays) => plays.where((p) => keyOf(p) == key).toList();
+  /// Its plays; an artist's include the collaborations crediting them
+  List<Play> playsIn(List<Play> plays) {
+    if (kind != DetailKind.artist) return plays.where((p) => keyOf(p) == key).toList();
+    final solo = {for (final play in plays) play.artistKey};
+    return plays
+        .where((p) => p.artistKey == key || credited(p.artist, solo).any((name) => textKey(name) == key))
+        .toList();
+  }
 
   /// The tag of its picture flying to its page; [depth] is the page's place in the stack (1 = opened from the
   /// listening page), so a page's big picture never flies into a row of the page opened from it
@@ -315,6 +322,25 @@ class JourneyPoint {
     );
   }
   return (points, daily);
+}
+
+/// Every artist with their plays, collaborations counted for each artist they credit, most played first
+List<Ranked> creditedArtists(List<Play> plays) {
+  final solo = {for (final play in plays) play.artistKey};
+  final names = <String, String>{};
+  final counts = <String, int>{};
+  final ms = <String, int>{};
+  for (final play in plays) {
+    for (final name in credited(play.artist, solo)) {
+      final key = textKey(name);
+      names.putIfAbsent(key, () => name);
+      counts[key] = (counts[key] ?? 0) + 1;
+      ms[key] = (ms[key] ?? 0) + play.msPlayed;
+    }
+  }
+  return [
+    for (final key in counts.keys) Ranked(key, names[key]!, '', counts[key]!, ms[key]! ~/ 60000, artist: names[key]!),
+  ]..sort((a, b) => b.plays.compareTo(a.plays));
 }
 
 /// An artist's last days compared with as many days before them (the desktop app's detail.trend)

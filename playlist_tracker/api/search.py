@@ -53,7 +53,8 @@ def search(query: str) -> dict:
         return {"query": query, "tracks": [], "artists": [], "albums": []}
     start, end = listening.period_range("all")
     tracks = _best(listening.top_tracks(start, end, 1_000_000), folded, lambda r: (r["name"], r["artist"]))
-    artists = _best(listening.top_artists(start, end, 1_000_000), folded, lambda r: (r["name"],))
+    # Artists of collaborations each on their own, so "Şanışer, Sena Şener" finds Şanışer and Sena Şener
+    artists = _best(listening.credited_artists(), folded, lambda r: (r["name"],))
     albums = _best(listening.top_albums(start, end, 1_000_000), folded, lambda r: (r["album"], r["artist"]))
     return {
         "query": query,

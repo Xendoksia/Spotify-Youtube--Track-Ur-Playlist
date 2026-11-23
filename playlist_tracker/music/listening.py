@@ -105,6 +105,68 @@ def name_variants(artist: str) -> list[str]:
     return list(dict.fromkeys(name for name in (artist, first) if name))
 
 
+_CREDIT_SEPARATORS = re.compile(r",|&| feat\.? | ft\.? | x ", flags=re.IGNORECASE)
+
+
+def credited(artist: str, solo_keys: set[str]) -> list[str]:
+    """The artists one artist name credits: a collaboration such as "Şanışer, Sena Şener" is its artists when one
+    of them is also heard on their own (solo_keys), so a band named "Simon & Garfunkel" stays one."""
+    parts = [part.strip() for part in _CREDIT_SEPARATORS.split(artist or "") if part.strip()]
+    if len(parts) > 1 and any(key(part) in solo_keys for part in parts):
+        return parts
+    return [artist]
+
+
+def _artist_names(db: sqlite3.Connection) -> list[tuple[str, str]]:
+    return [(r[0], r[1]) for r in db.execute("SELECT DISTINCT artist, artist_key FROM listens")]
+
+
+def artist_keys(artist_key: str, db_path: Path = DB_PATH) -> list[str]:
+    """The stored artist keys whose plays belong to an artist: its own and those of collaborations crediting it."""
+    with open_db(db_path) as db:
+        names = _artist_names(db)
+    solo = {stored for _, stored in names}
+    found = {stored for name, stored in names
+             if stored == artist_key or artist_key in {key(part) for part in credited(name, solo)}}
+    return sorted(found) or [artist_key]
+
+
+def artist_name(artist_key: str, db_path: Path = DB_PATH) -> str | None:
+    """An artist's name as written, also when it is only heard in collaborations."""
+    with open_db(db_path) as db:
+        names = _artist_names(db)
+    solo = {stored for _, stored in names}
+    for name, stored in names:
+        for part in credited(name, solo):
+            if key(part) == artist_key:
+                return part
+    return None
+
+
+def credited_artists(db_path: Path = DB_PATH) -> list[dict]:
+    """Every artist with their plays, collaborations counted for each artist they credit, most played first."""
+    with open_db(db_path) as db:
+        rows = db.execute("SELECT artist, artist_key, track_key FROM listens").fetchall()
+    solo = {r[1] for r in rows}
+    artists: dict[str, dict] = {}
+    for artist, _, track in rows:
+        for part in credited(artist, solo):
+            entry = artists.setdefault(key(part), {"key": key(part), "name": part, "plays": 0, "track_keys": set()})
+            entry["plays"] += 1
+            entry["track_keys"].add(track)
+    result = [{"key": a["key"], "name": a["name"], "plays": a["plays"], "tracks": len(a["track_keys"])}
+              for a in artists.values()]
+    return sorted(result, key=lambda a: -a["plays"])
+
+
+def _artist_where(artist_key: str | None, db_path: Path) -> tuple[str, tuple]:
+    """The WHERE condition for an artist's plays (collaborations crediting them included), or all plays."""
+    if artist_key is None:
+        return "1", ()
+    keys = artist_keys(artist_key, db_path)
+    return f"artist_key IN ({', '.join('?' * len(keys))})", tuple(keys)
+
+
 def to_utc(moment: datetime) -> str:
     return moment.astimezone(timezone.utc).strftime(UTC_FORMAT)
 
@@ -260,7 +322,7 @@ def summary_by(start: datetime, end: datetime, bucket: str, db_path: Path = DB_P
 def top_tracks(start: datetime, end: datetime, limit: int = 10, artist_key: str | None = None,
                album: str | None = None, db_path: Path = DB_PATH) -> list[dict]:
     """Most played tracks of the period, optionally of one artist or one album (an album_key) only."""
-    where, params = _filter(ALBUM, album) if album else ("(? IS NULL OR artist_key = ?)", (artist_key, artist_key))
+    where, params = _filter(ALBUM, album) if album else _artist_where(artist_key, db_path)
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
             "SELECT track_key AS key, MAX(name) AS name, MAX(artist) AS artist, MAX(album) AS album, "
@@ -300,15 +362,16 @@ def rank_history(key: str, ends: list[datetime], db_path: Path = DB_PATH) -> lis
 def top_albums(start: datetime, end: datetime, limit: int = 10, artist_key: str | None = None,
                db_path: Path = DB_PATH) -> list[dict]:
     """Most played albums of the period, optionally of one artist only; plays without an album name are left out."""
+    where, params = _artist_where(artist_key, db_path)
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
             "SELECT artist_key, LOWER(album) AS album_lower, MAX(artist) AS artist, MAX(album) AS album, "
             "MAX(name) AS name, COUNT(*) AS plays, "
             "MAX(played_at) AS last_played "
             "FROM listens WHERE played_at >= ? AND played_at < ? AND COALESCE(album, '') != '' "
-            "AND (? IS NULL OR artist_key = ?) "
+            f"AND {where} "
             "GROUP BY artist_key, LOWER(album) ORDER BY plays DESC, SUM(ms_played) DESC, last_played DESC LIMIT ?",
-            (*_range(start, end), artist_key, artist_key, limit))]
+            (*_range(start, end), *params, limit))]
 
 
 def top_artists(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
@@ -480,7 +543,7 @@ def timeline(start: datetime, end: datetime, bucket: str, column: str | None = N
              db_path: Path = DB_PATH) -> dict[str, int]:
     """Plays per local day ('%Y-%m-%d') or month ('%Y-%m'), optionally of one track, artist or album."""
     pattern = "%Y-%m-%d" if bucket == "day" else "%Y-%m"
-    where, params = _filter(column, key) if column else ("1", ())
+    where, params = _filter(column, key, db_path) if column else ("1", ())
     with open_db(db_path) as db:
         return {r[0]: r[1] for r in db.execute(
             "SELECT strftime(?, played_at, 'localtime') AS bucket, COUNT(*) FROM listens "
@@ -503,18 +566,20 @@ def album_key(artist_key: str, album_lower: str) -> str:
     return f"{artist_key}{_ALBUM_SEPARATOR}{album_lower}"
 
 
-def _filter(column: str, key: str) -> tuple[str, tuple]:
+def _filter(column: str, key: str, db_path: Path = DB_PATH) -> tuple[str, tuple]:
     """The WHERE condition picking the plays of one track, artist or album."""
     if column == ALBUM:
         artist_key, album = key.split(_ALBUM_SEPARATOR, 1)
         return "artist_key = ? AND LOWER(album) = ?", (artist_key, album)
     _check_column(column)
+    if column == "artist_key":
+        return _artist_where(key, db_path)
     return f"{column} = ?", (key,)
 
 
 def detail(column: str, key: str, db_path: Path = DB_PATH) -> dict | None:
     """All time totals of one track (column "track_key"), artist ("artist_key") or album (ALBUM)."""
-    where, params = _filter(column, key)
+    where, params = _filter(column, key, db_path)
     with open_db(db_path) as db:
         row = db.execute(
             "SELECT MAX(name) AS name, MAX(artist) AS artist, MAX(album) AS album, MAX(artist_key) AS artist_key, "
@@ -528,14 +593,15 @@ def detail(column: str, key: str, db_path: Path = DB_PATH) -> dict | None:
 def artist_titles(artist_key: str, db_path: Path = DB_PATH) -> set[str]:
     """The album and track names heard from one artist."""
     with open_db(db_path) as db:
-        rows = db.execute("SELECT DISTINCT album, name FROM listens WHERE artist_key = ?", (artist_key,)).fetchall()
+        where, params = _artist_where(artist_key, db_path)
+        rows = db.execute(f"SELECT DISTINCT album, name FROM listens WHERE {where}", params).fetchall()
     return {title for row in rows for title in row if title}
 
 
 def hours(start: datetime, end: datetime, column: str | None = None, key: str | None = None,
           db_path: Path = DB_PATH) -> list[int]:
     """Plays per local hour of the day, 0-23, optionally of one track, artist or album."""
-    where, params = _filter(column, key) if column else ("1", ())
+    where, params = _filter(column, key, db_path) if column else ("1", ())
     counts_by_hour = [0] * 24
     with open_db(db_path) as db:
         for hour, count in db.execute(

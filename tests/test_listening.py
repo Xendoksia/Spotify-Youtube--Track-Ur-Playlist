@@ -237,3 +237,20 @@ class RankHistoryTest(ListeningTestCase):
         places = listening.rank_history("evanescence|lithium", ends, db_path=self.db)
         # Not played yet, then behind Snuff, then ahead of it
         self.assertEqual(places, [None, (2, 2, 1), (1, 2, 3)])
+
+
+class CreditsTest(ListeningTestCase):
+    def test_a_collaboration_counts_for_an_artist_heard_alone(self):
+        self.play("Şanışer", "Görünce", "2026-11-02 10:00")
+        self.play("Şanışer, Sena Şener", "Yağmurlar", "2026-11-03 10:00")
+        self.play("Simon & Garfunkel", "The Boxer", "2026-11-04 10:00")
+        self.assertEqual(listening.artist_keys("şanışer", self.db), ["şanışer", "şanışer, sena şener"])
+        self.assertEqual(listening.artist_keys("sena şener", self.db), ["şanışer, sena şener"])
+        self.assertEqual(listening.artist_name("sena şener", self.db), "Sena Şener")
+        # Neither half of the band is heard alone, so it stays one artist
+        self.assertEqual(listening.artist_keys("simon", self.db), ["simon"])
+        names = {a["name"]: a["plays"] for a in listening.credited_artists(self.db)}
+        self.assertEqual(names, {"Şanışer": 2, "Sena Şener": 1, "Simon & Garfunkel": 1})
+        start, end = utc("2026-11-01 00:00"), utc("2026-11-05 00:00")
+        tracks = listening.top_tracks(start, end, artist_key="şanışer", db_path=self.db)
+        self.assertEqual({t["name"] for t in tracks}, {"Görünce", "Yağmurlar"})

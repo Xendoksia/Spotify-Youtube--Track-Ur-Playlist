@@ -270,7 +270,8 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
     if not info:
         return None
     kind = "artist" if column == "artist_key" else "album" if column == listening.ALBUM else "track"
-    title = info["artist"] if kind == "artist" else info["album"] if kind == "album" else info["name"]
+    # An artist heard in collaborations is named alone, not after one of them
+    title = (listening.artist_name(key) or info["artist"]) if kind == "artist" else         info["album"] if kind == "album" else info["name"]
     summary = summary_text(plays_text(info["plays"]), minutes=info["minutes"])
     hero = {"caption": t(f"detail.{kind}"), "title": title, "detail": summary, "about": "",
             "subtitle": info["artist"], "subtitle_link": {"column": "artist_key", "key": info["artist_key"]},
