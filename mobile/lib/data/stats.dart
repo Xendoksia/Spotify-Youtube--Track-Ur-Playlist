@@ -83,6 +83,13 @@ void rememberSoloArtists(List<Play> all) => soloArtistKeys = knownArtists(all.ma
 /// The artists a play counts for: a collaboration's credited artists, else its own
 List<String> artistKeysOf(Play play) => [for (final name in credited(play.artist, soloArtistKeys)) textKey(name)];
 
+/// The artists of a track's artist line, each with whether they have a page of their own (a collaboration's
+/// artist heard nowhere else has none), as the desktop app's artist_links
+List<(String name, bool page)> artistLinks(String artist) {
+  final pages = {for (final name in credited(artist, soloArtistKeys)) textKey(name)};
+  return [for (final part in creditParts(artist)) (part, pages.contains(textKey(part)))];
+}
+
 /// The plays grouped by key, most played first; ties go to the one listened to longer, then to the one played
 /// last, as in the desktop app
 List<MapEntry<String, List<Play>>> _ordered(List<Play> plays, String Function(Play) keyOf) =>

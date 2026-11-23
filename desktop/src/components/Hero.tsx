@@ -14,11 +14,17 @@ export interface HeroData {
   about?: string;
 }
 
+/** An artist of a track's artist line, with the key of their page (null for one without a page) */
+export interface ArtistLink {
+  name: string;
+  key: string | null;
+}
+
 /** The number one track or artist of the period, or the subject of a detail page, over a blurred copy of
- * its picture. onClick opens its page; onSubtitle the artist's page from the artist line. */
-export default function Hero({ data, caption, empty, round, large = false, onClick, onSubtitle }: {
+ * its picture. onClick opens its page; given artists, each of them with a page opens it from the artist line. */
+export default function Hero({ data, caption, empty, round, large = false, onClick, artists, onArtist }: {
   data: HeroData | null; caption: string; empty: string; round: boolean; large?: boolean;
-  onClick?: () => void; onSubtitle?: () => void;
+  onClick?: () => void; artists?: ArtistLink[]; onArtist?: (key: string) => void;
 }) {
   if (!data) {
     return (
@@ -40,13 +46,22 @@ export default function Hero({ data, caption, empty, round, large = false, onCli
         <div className="hero-text">
           <span className="hero-caption">{data.caption}</span>
           <span className="hero-title">{data.title}</span>
-          {onSubtitle ? (
-            <button className="hero-subtitle link" onClick={(event) => {
-              event.stopPropagation();
-              onSubtitle();
-            }}>
-              {data.subtitle}
-            </button>
+          {artists?.length && onArtist ? (
+            <span className="hero-subtitle hero-artists">
+              {artists.map((artist, index) => (
+                <span key={`${artist.name}${index}`}>
+                  {index > 0 && ", "}
+                  {artist.key ? (
+                    <button className="link" onClick={(event) => {
+                      event.stopPropagation();
+                      onArtist(artist.key!);
+                    }}>
+                      {artist.name}
+                    </button>
+                  ) : artist.name}
+                </span>
+              ))}
+            </span>
           ) : (
             <span className="hero-subtitle">{data.subtitle}</span>
           )}

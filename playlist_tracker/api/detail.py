@@ -277,11 +277,13 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
     title = (listening.artist_name(key) or info["artist"]) if kind == "artist" else         info["album"] if kind == "album" else info["name"]
     summary = summary_text(plays_text(info["plays"]), minutes=info["minutes"])
     hero = {"caption": t(f"detail.{kind}"), "title": title, "detail": summary, "about": "",
-            "subtitle": info["artist"], "subtitle_link": {"column": "artist_key", "key": info["artist_key"]},
+            "subtitle": info["artist"],
+            # Each artist of a collaboration opens their own page
+            "artists": listening.artist_links(info["artist"]),
             "image": cover_url(info["artist"], info["album"], info["name"])}
     if kind == "artist":
         facts = artist_info.request(title, key, arrived)
-        hero.update(subtitle=tracks_text(info["tracks"]), subtitle_link=None, image=artist_url(title),
+        hero.update(subtitle=tracks_text(info["tracks"]), artists=[], image=artist_url(title),
                     about=artist_info.describe(facts) if facts else "")
     page = {"kind": kind, "column": column, "key": key, "title": title, "hero": hero,
             "timeline": timeline(column, key, info)}

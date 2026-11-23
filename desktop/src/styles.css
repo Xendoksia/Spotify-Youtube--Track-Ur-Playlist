@@ -1722,16 +1722,18 @@ img.picture.loaded {
   animation: song-in 400ms 80ms cubic-bezier(0.33, 1, 0.68, 1) both;
 }
 
-.hero-subtitle.link {
-  align-self: flex-start;
+/* A track's artists, each with a page of their own opening it */
+.hero-artists .link {
   padding: 0;
   border: 0;
   background: none;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
   text-align: left;
 }
 
-.hero-subtitle.link:hover {
+.hero-artists .link:hover {
   text-decoration: underline;
 }
 

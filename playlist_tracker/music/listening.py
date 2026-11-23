@@ -141,6 +141,15 @@ def artist_keys(artist_key: str, db_path: Path = DB_PATH) -> list[str]:
     return sorted(found) or [artist_key]
 
 
+def artist_links(artist: str, db_path: Path = DB_PATH) -> list[dict]:
+    """The artists of a track's artist line, each with the key of their page, or None for one without a page of
+    their own (a collaboration's artist heard nowhere else)."""
+    with open_db(db_path) as db:
+        known = known_artists(name for name, _ in _artist_names(db))
+    pages = {key(part) for part in credited(artist, known)}
+    return [{"name": part, "key": key(part) if key(part) in pages else None} for part in _credit_parts(artist)]
+
+
 def main_artist_key(artist_key: str, db_path: Path = DB_PATH) -> str:
     """The artist a stored artist key stands for: a collaboration's first artist, else the key itself."""
     with open_db(db_path) as db:

@@ -7,7 +7,7 @@ import { BarRow } from "../components/BarList";
 import Card from "../components/Card";
 import ColumnChart, { Bucket } from "../components/ColumnChart";
 import DayCurve from "../components/DayCurve";
-import Hero, { HeroData } from "../components/Hero";
+import Hero, { ArtistLink, HeroData } from "../components/Hero";
 import Icon, { IconName } from "../components/Icon";
 import Picture from "../components/Picture";
 import Tile, { TileData } from "../components/Tile";
@@ -28,7 +28,7 @@ export interface Visit {
 interface DetailData {
   kind: "track" | "artist" | "album";
   title: string;
-  hero: HeroData & { subtitle_link: Visit | null };
+  hero: HeroData & { artists: ArtistLink[] };
   tiles: TileData[];
   timeline: { title: string; buckets: Bucket[]; peak?: number | null; peak_text?: string };
   trend?: Trend | null;
@@ -144,7 +144,6 @@ export default function Detail({ visit, onLoaded }: {
   const empty = t("stats.empty");
   if (missing) return <p className="empty">{empty}</p>;
   if (!data) return <DetailSkeleton />;
-  const link = data.hero.subtitle_link;
   const tracks = data.tracks && (
     <Card icon="tracks" title={data.tracks.title}>
       <TrackGrid rows={data.tracks.rows} empty={empty} />
@@ -159,7 +158,7 @@ export default function Detail({ visit, onLoaded }: {
   return (
     <div className="overview" style={curveStyle(data.palette)}>
       <Hero data={data.hero} caption={data.hero.caption} empty={empty} round={data.kind === "artist"}
-            large onSubtitle={link ? () => open(link.column, link.key) : undefined} />
+            large artists={data.hero.artists} onArtist={(key) => open("artist_key", key)} />
       <div className="tiles">
         {data.tiles.map((tile) => <Tile key={tile.name} tile={tile} />)}
       </div>

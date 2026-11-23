@@ -252,6 +252,8 @@ class CreditsTest(ListeningTestCase):
         self.play("Cem Adrian, Mark Eliyahu", "Seni Dert Etmeler", "2026-11-04 11:00")
         self.play("Mark Eliyahu, Cem Adrian", "Derinlerde", "2026-11-04 12:00")
         self.assertEqual(listening.main_artist_key("şanışer, sena şener", self.db), "şanışer")
+        self.assertEqual(listening.artist_links("Şanışer, Sena Şener", self.db),
+                         [{"name": "Şanışer", "key": "şanışer"}, {"name": "Sena Şener", "key": None}])
         self.assertEqual(listening.main_artist_key("şanışer", self.db), "şanışer")
         # Both are first in a collaboration, so each is credited for both songs
         self.assertEqual(len(listening.artist_keys("mark eliyahu", self.db)), 2)

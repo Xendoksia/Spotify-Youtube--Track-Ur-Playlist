@@ -117,7 +117,7 @@ class _DetailScreenState extends State<DetailScreen> {
               _Header(
                 target: target,
                 hero: target.hero(widget.depth),
-                onArtist: () => _open(DetailTarget.artist(target.artist)),
+                onArtist: (name) => _open(DetailTarget.artist(name)),
                 tracklist: _tracklist,
                 picture: _picture,
               ),
@@ -458,7 +458,9 @@ class _DetailScreenState extends State<DetailScreen> {
 class _Header extends StatelessWidget {
   final DetailTarget target;
   final String hero;
-  final VoidCallback onArtist;
+
+  /// Opens the page of one of the artists of the track or album
+  final void Function(String name) onArtist;
   final Future<List<(String, int)>?>? tracklist;
   final String? picture;
 
@@ -499,12 +501,35 @@ class _Header extends StatelessWidget {
           style: Theme.of(context).textTheme.headlineMedium
               ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5, height: 1.15),
         ),
+        // Each artist of a collaboration opens their own page, one without a page stays plain
         if (target.kind != DetailKind.artist)
-          TextButton(
-            onPressed: onArtist,
-            child: Text(
-              target.artist,
-              style: TextStyle(color: mood ?? palette.chart, fontSize: 17, fontWeight: FontWeight.w600),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                for (final (index, (name, page)) in artistLinks(target.artist).indexed) ...[
+                  if (index > 0) Text(', ', style: TextStyle(color: palette.muted, fontSize: 17)),
+                  if (page)
+                    InkWell(
+                      onTap: () => onArtist(name),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                        child: Text(
+                          name,
+                          style: TextStyle(color: mood ?? palette.chart, fontSize: 17, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    )
+                  else
+                    Text(
+                      name,
+                      style: TextStyle(color: palette.muted, fontSize: 17, fontWeight: FontWeight.w600),
+                    ),
+                ],
+              ],
             ),
           ),
         if (tracklist != null)

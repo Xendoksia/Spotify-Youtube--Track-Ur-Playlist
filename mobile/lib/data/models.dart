@@ -14,6 +14,9 @@ List<String> nameVariants(String artist) {
 // "Judge & Jury" or "Simon & Garfunkel" carry one in their name
 final _creditSeparators = RegExp(r',| feat\.? | ft\.? ', caseSensitive: false);
 
+/// The artists listed in one artist name, a collaboration's in order
+List<String> creditParts(String artist) => _creditParts(artist);
+
 List<String> _creditParts(String artist) {
   final parts = artist.split(_creditSeparators).map((part) => part.trim()).where((part) => part.isNotEmpty).toList();
   return parts.isEmpty ? [artist] : parts;
