@@ -711,12 +711,14 @@ DateTime _latest(Iterable<Play> plays) => plays.map((p) => p.playedAt).reduce((a
 List<Discovered> _firstHeard(
   List<Play> all,
   DateRange range,
-  String Function(Play) keyOf,
+  List<String> Function(Play) keysOf,
   Ranked Function(String key, List<Play> plays) row,
 ) {
   final everything = <String, List<Play>>{};
   for (final play in all) {
-    everything.putIfAbsent(keyOf(play), () => []).add(play);
+    for (final key in keysOf(play)) {
+      everything.putIfAbsent(key, () => []).add(play);
+    }
   }
   final found = <Discovered>[];
   final ms = <String, int>{};
@@ -737,7 +739,7 @@ List<Discovered> _firstHeard(
 List<Discovered> newTracks(List<Play> all, DateRange range) => _firstHeard(
   all,
   range,
-  trackKeyOf,
+  (play) => [play.trackKey],
   (key, plays) => Ranked(
     key,
     plays.first.name,
@@ -749,12 +751,14 @@ List<Discovered> newTracks(List<Play> all, DateRange range) => _firstHeard(
   ),
 );
 
-List<Discovered> newArtists(List<Play> all, DateRange range) => _firstHeard(
-  all,
-  range,
-  artistKeyOf,
-  (key, plays) => Ranked(key, plays.first.artist, '', plays.length, _minutes(plays), artist: plays.first.artist),
-);
+/// A collaboration counts for the artists it credits, not as an artist of its own
+List<Discovered> newArtists(List<Play> all, DateRange range) => _firstHeard(all, range, artistKeysOf, (key, plays) {
+  final name = credited(
+    plays.first.artist,
+    soloArtistKeys,
+  ).firstWhere((n) => textKey(n) == key, orElse: () => plays.first.artist);
+  return Ranked(key, name, '', plays.length, _minutes(plays), artist: name);
+});
 
 /// Tracks played at least [minPlays] times but not once in the last [days] days, most played first
 List<Discovered> forgotten(List<Play> all, DateTime now, {int days = 30, int minPlays = 3, int limit = 10}) {

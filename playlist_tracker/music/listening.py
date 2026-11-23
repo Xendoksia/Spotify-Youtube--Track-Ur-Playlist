@@ -452,8 +452,30 @@ def new_tracks(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list[
 
 
 def new_artists(start: datetime, end: datetime, db_path: Path = DB_PATH) -> list[dict]:
-    return _first_heard(start, end, "artist_key",
-                        "MAX(l.artist) AS name, COUNT(DISTINCT l.track_key) AS tracks", db_path)
+    """Artists whose very first recorded play falls in the period, most played in it first; a collaboration counts
+    for the artists it credits (credited), not as an artist of its own."""
+    with open_db(db_path) as db:
+        rows = db.execute("SELECT artist, track_key, COALESCE(ms_played, 0), played_at FROM listens").fetchall()
+    known = known_artists(r[0] for r in rows)
+    since, until = _range(start, end)
+    firsts: dict[str, str] = {}
+    inside: dict[str, dict] = {}
+    for artist, track, ms, played_at in rows:
+        for part in credited(artist, known):
+            k = key(part)
+            firsts[k] = min(firsts.get(k, played_at), played_at)
+            if since <= played_at < until:
+                entry = inside.setdefault(k, {"key": k, "name": part, "plays": 0, "ms": 0, "track_keys": set()})
+                entry["plays"] += 1
+                entry["ms"] += ms
+                entry["track_keys"].add(track)
+    found = [{"key": k, "name": e["name"], "tracks": len(e["track_keys"]), "plays": e["plays"],
+              "minutes": e["ms"] // 60000, "first_played": firsts[k], "ms": e["ms"]}
+             for k, e in inside.items() if since <= firsts[k] < until]
+    found.sort(key=lambda a: (a["plays"], a["ms"], a["first_played"]), reverse=True)
+    for artist in found:
+        del artist["ms"]
+    return found
 
 
 def forgotten(days: int = 30, min_plays: int = 3, limit: int = 10, now: datetime | None = None,
