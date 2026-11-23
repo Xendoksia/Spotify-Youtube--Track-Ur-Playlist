@@ -7,15 +7,16 @@ import '../l10n/strings.dart';
 import '../theme/palette.dart';
 import 'format.dart';
 
-/// The plays of the 24 hours as one soft curve in [color], over a faint band of night, dawn, day and dusk, with the
+/// The plays of the 24 hours as one soft curve in [color] by day and [color2] at night, over a faint band of them, with the
 /// most played hour marked, as the desktop app's DayCurve. A tap picks an hour and keeps it (the same one again goes
 /// back to the peak) and a sideways drag runs through the hours, a light tick at each, while the page still scrolls
 class DayCurve extends StatefulWidget {
   /// Plays per hour, 0-23
   final List<int> hours;
   final Color color;
+  final Color color2;
 
-  const DayCurve({super.key, required this.hours, required this.color});
+  const DayCurve({super.key, required this.hours, required this.color, required this.color2});
 
   @override
   State<DayCurve> createState() => _DayCurveState();
@@ -52,63 +53,76 @@ class _DayCurveState extends State<DayCurve> {
         : '${shown.toString().padLeft(2, '0')}:00  ·  ${context.plays(widget.hours[shown])}';
     return Column(
       children: [
-        LayoutBuilder(builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final x = (shown + 0.5) / 24 * width;
-          final y = height - widget.hours[shown] / most * (height - _DayCurvePainter.top);
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapUp: (details) {
-              final hour = _hourAt(details.localPosition, width);
-              _pick(hour == _touched ? null : hour);
-            },
-            onHorizontalDragStart: (details) => _pick(_hourAt(details.localPosition, width)),
-            onHorizontalDragUpdate: (details) => _pick(_hourAt(details.localPosition, width)),
-            child: SizedBox(
-              height: height,
-              width: width,
-              child: Stack(clipBehavior: Clip.none, children: [
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _DayCurvePainter(hours: widget.hours, color: widget.color, shown: shown),
-                  ),
-                ),
-                Positioned(
-                  left: x - 6,
-                  top: y - 6,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: widget.color,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: surface, width: 2),
-                      boxShadow: [if (_touched == null) BoxShadow(color: widget.color.withValues(alpha: 0.3), spreadRadius: 4)],
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: math.max(0, y - 36),
-                  // Over the hour, leaning inward near an edge so it stays on the card
-                  child: Align(
-                    alignment: Alignment(x / width * 2 - 1, 0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: surface,
-                        borderRadius: BorderRadius.circular(999),
-                        boxShadow: const [BoxShadow(color: Color(0x2E000000), blurRadius: 6, offset: Offset(0, 1))],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final x = (shown + 0.5) / 24 * width;
+            final y = height - widget.hours[shown] / most * (height - _DayCurvePainter.top);
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (details) {
+                final hour = _hourAt(details.localPosition, width);
+                _pick(hour == _touched ? null : hour);
+              },
+              onHorizontalDragStart: (details) => _pick(_hourAt(details.localPosition, width)),
+              onHorizontalDragUpdate: (details) => _pick(_hourAt(details.localPosition, width)),
+              child: SizedBox(
+                height: height,
+                width: width,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _DayCurvePainter(
+                          hours: widget.hours,
+                          color: widget.color,
+                          color2: widget.color2,
+                          shown: shown,
+                        ),
                       ),
-                      child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                     ),
-                  ),
+                    Positioned(
+                      left: x - 6,
+                      top: y - 6,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: widget.color,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: surface, width: 2),
+                          boxShadow: [
+                            if (_touched == null)
+                              BoxShadow(color: widget.color.withValues(alpha: 0.3), spreadRadius: 4),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: math.max(0, y - 36),
+                      // Over the hour, leaning inward near an edge so it stays on the card
+                      child: Align(
+                        alignment: Alignment(x / width * 2 - 1, 0),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: surface,
+                            borderRadius: BorderRadius.circular(999),
+                            boxShadow: const [BoxShadow(color: Color(0x2E000000), blurRadius: 6, offset: Offset(0, 1))],
+                          ),
+                          child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ]),
-            ),
-          );
-        }),
+              ),
+            );
+          },
+        ),
         const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -120,11 +134,14 @@ class _DayCurveState extends State<DayCurve> {
               (18, Icons.wb_twilight_rounded),
               (24, Icons.dark_mode_outlined),
             ])
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(icon, size: 13, color: palette.muted),
-                const SizedBox(width: 3),
-                Text(hour.toString().padLeft(2, '0'), style: TextStyle(color: palette.muted, fontSize: 11)),
-              ]),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 13, color: palette.muted),
+                  const SizedBox(width: 3),
+                  Text(hour.toString().padLeft(2, '0'), style: TextStyle(color: palette.muted, fontSize: 11)),
+                ],
+              ),
           ],
         ),
       ],
@@ -137,9 +154,10 @@ class _DayCurvePainter extends CustomPainter {
 
   final List<int> hours;
   final Color color;
+  final Color color2;
   final int shown;
 
-  _DayCurvePainter({required this.hours, required this.color, required this.shown});
+  _DayCurvePainter({required this.hours, required this.color, required this.color2, required this.shown});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -148,17 +166,19 @@ class _DayCurvePainter extends CustomPainter {
     double y(int hour) => size.height - hours[(hour + 24) % 24] / most * (size.height - top);
     final whole = Offset.zero & size;
 
-    // Night, dawn, noon, dusk and night again, faintly
+    // The picture's second color at night and its first by day, faintly
     canvas.drawRRect(
       RRect.fromRectAndRadius(whole, const Radius.circular(10)),
       Paint()
-        ..shader = const LinearGradient(colors: [
-          Color(0x295B6EE1),
-          Color(0x1AF2A65A),
-          Color(0x1FF5D76E),
-          Color(0x1AE0707A),
-          Color(0x295B6EE1),
-        ]).createShader(whole),
+        ..shader = LinearGradient(
+          colors: [
+            color2.withValues(alpha: 0.16),
+            color2.withValues(alpha: 0.08),
+            color.withValues(alpha: 0.12),
+            color.withValues(alpha: 0.08),
+            color2.withValues(alpha: 0.16),
+          ],
+        ).createShader(whole),
     );
 
     // The day goes round: the hours before midnight lead into the first ones, so the curve does not drop at the ends
@@ -167,8 +187,14 @@ class _DayCurvePainter extends CustomPainter {
     final line = Path()..moveTo(points[1].dx, points[1].dy);
     for (var i = 1; i < points.length - 2; i++) {
       final (p0, p1, p2, p3) = (points[i - 1], points[i], points[i + 1], points[i + 2]);
-      line.cubicTo(p1.dx + (p2.dx - p0.dx) / 6, keep(p1.dy + (p2.dy - p0.dy) / 6), p2.dx - (p3.dx - p1.dx) / 6,
-          keep(p2.dy - (p3.dy - p1.dy) / 6), p2.dx, p2.dy);
+      line.cubicTo(
+        p1.dx + (p2.dx - p0.dx) / 6,
+        keep(p1.dy + (p2.dy - p0.dy) / 6),
+        p2.dx - (p3.dx - p1.dx) / 6,
+        keep(p2.dy - (p3.dy - p1.dy) / 6),
+        p2.dx,
+        p2.dy,
+      );
     }
     final area = Path.from(line)
       ..lineTo(x(24), size.height)
@@ -188,7 +214,7 @@ class _DayCurvePainter extends CustomPainter {
     canvas.drawPath(
       line,
       Paint()
-        ..color = color
+        ..shader = LinearGradient(colors: [color2, color, color2]).createShader(whole)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5
         ..strokeJoin = StrokeJoin.round,
@@ -204,5 +230,6 @@ class _DayCurvePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DayCurvePainter old) => old.hours != hours || old.color != color || old.shown != shown;
+  bool shouldRepaint(_DayCurvePainter old) =>
+      old.hours != hours || old.color != color || old.color2 != color2 || old.shown != shown;
 }

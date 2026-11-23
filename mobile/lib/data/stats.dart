@@ -44,11 +44,11 @@ class Summary {
   const Summary(this.plays, this.minutes, this.tracks, this.artists);
 
   factory Summary.of(List<Play> plays) => Summary(
-        plays.length,
-        _minutes(plays),
-        plays.map((p) => p.trackKey).toSet().length,
-        plays.map((p) => p.artistKey).toSet().length,
-      );
+    plays.length,
+    _minutes(plays),
+    plays.map((p) => p.trackKey).toSet().length,
+    plays.map((p) => p.artistKey).toSet().length,
+  );
 }
 
 int _ms(Iterable<Play> plays) => plays.fold<int>(0, (sum, p) => sum + p.msPlayed);
@@ -81,21 +81,33 @@ List<MapEntry<String, List<Play>>> _ordered(List<Play> plays, String Function(Pl
     groups.putIfAbsent(keyOf(play), () => []).add(play);
   }
   DateTime last(List<Play> group) => group.map((p) => p.playedAt).reduce((a, b) => a.isAfter(b) ? a : b);
-  return groups.entries.toList()
-    ..sort((a, b) {
-      if (a.value.length != b.value.length) return b.value.length.compareTo(a.value.length);
-      final time = _ms(b.value).compareTo(_ms(a.value));
-      return time != 0 ? time : last(b.value).compareTo(last(a.value));
-    });
+  return groups.entries.toList()..sort((a, b) {
+    if (a.value.length != b.value.length) return b.value.length.compareTo(a.value.length);
+    final time = _ms(b.value).compareTo(_ms(a.value));
+    return time != 0 ? time : last(b.value).compareTo(last(a.value));
+  });
 }
 
-List<Ranked> _top(List<Play> plays, String Function(Play) keyOf, String Function(Play) title,
-        String Function(Play) subtitle, int limit) =>
-    _ordered(plays, keyOf)
-        .take(limit)
-        .map((e) => Ranked(e.key, title(e.value.first), subtitle(e.value.first), e.value.length, _minutes(e.value),
-            artist: e.value.first.artist, album: e.value.first.album))
-        .toList();
+List<Ranked> _top(
+  List<Play> plays,
+  String Function(Play) keyOf,
+  String Function(Play) title,
+  String Function(Play) subtitle,
+  int limit,
+) => _ordered(plays, keyOf)
+    .take(limit)
+    .map(
+      (e) => Ranked(
+        e.key,
+        title(e.value.first),
+        subtitle(e.value.first),
+        e.value.length,
+        _minutes(e.value),
+        artist: e.value.first.artist,
+        album: e.value.first.album,
+      ),
+    )
+    .toList();
 
 List<Ranked> topTracks(List<Play> plays, {int limit = 10}) =>
     _top(plays, trackKeyOf, (p) => p.name, (p) => p.artist, limit);
@@ -123,7 +135,12 @@ class RankChange {
 /// in the previous period is new (never heard before) or back. Songs heard before recording began look new too,
 /// so new and back are only told apart once the whole previous period was recorded. Nothing for all time.
 RankChange? Function(String key, int rank) rankChanges(
-    List<Play> all, Period period, int offset, DateTime now, String Function(Play) keyOf) {
+  List<Play> all,
+  Period period,
+  int offset,
+  DateTime now,
+  String Function(Play) keyOf,
+) {
   if (period == Period.all) return (_, _) => null;
   final range = periodRange(period, offset, now);
   final previousRange = periodRange(period, offset + 1, now);
@@ -168,14 +185,19 @@ class DetailTarget {
       DetailTarget(DetailKind.album, '${textKey(artist)}|${album.toLowerCase()}', album, artist: artist, album: album);
 
   /// A row of a top list of this kind
-  factory DetailTarget.ranked(DetailKind kind, Ranked row) => DetailTarget(kind, row.key, row.title,
-      artist: row.artist, album: kind == DetailKind.album ? row.title : row.album);
+  factory DetailTarget.ranked(DetailKind kind, Ranked row) => DetailTarget(
+    kind,
+    row.key,
+    row.title,
+    artist: row.artist,
+    album: kind == DetailKind.album ? row.title : row.album,
+  );
 
   String Function(Play) get keyOf => switch (kind) {
-        DetailKind.track => trackKeyOf,
-        DetailKind.artist => artistKeyOf,
-        DetailKind.album => albumKeyOf,
-      };
+    DetailKind.track => trackKeyOf,
+    DetailKind.artist => artistKeyOf,
+    DetailKind.album => albumKeyOf,
+  };
 
   List<Play> playsIn(List<Play> plays) => plays.where((p) => keyOf(p) == key).toList();
 
@@ -198,8 +220,12 @@ class Detail {
   static Detail? of(List<Play> plays) {
     if (plays.isEmpty) return null;
     final times = plays.map((p) => p.playedAt);
-    return Detail(plays.length, _minutes(plays), times.reduce((a, b) => a.isBefore(b) ? a : b),
-        times.reduce((a, b) => a.isAfter(b) ? a : b));
+    return Detail(
+      plays.length,
+      _minutes(plays),
+      times.reduce((a, b) => a.isBefore(b) ? a : b),
+      times.reduce((a, b) => a.isAfter(b) ? a : b),
+    );
   }
 }
 
@@ -234,6 +260,85 @@ const detailDailyLimit = 62;
     ],
     daily,
   );
+}
+
+/// A track's place among all tracks at the end of a day or month, as the desktop app's detail.journey
+class JourneyPoint {
+  final DateTime start;
+
+  /// Its place, null before its first play
+  final int? rank;
+
+  /// Its plays so far
+  final int plays;
+
+  const JourneyPoint(this.start, this.rank, this.plays);
+}
+
+/// The track's place among all tracks and its plays so far at the end of each day (or month, past
+/// [detailDailyLimit] days) from its first play, ranked as [topTracks] ranks them
+(List<JourneyPoint>, bool daily) journeyOf(List<Play> allPlays, String trackKey, DateTime now) {
+  final mine = allPlays.where((p) => p.trackKey == trackKey);
+  if (mine.isEmpty) return (const [], true);
+  final first = mine.map((p) => p.playedAt).reduce((a, b) => b.isBefore(a) ? b : a);
+  final start = DateTime(first.year, first.month, first.day);
+  final end = DateTime(now.year, now.month, now.day + 1);
+  final daily = end.difference(start).inDays <= detailDailyLimit;
+  final starts = <DateTime>[
+    if (daily)
+      for (var d = start; d.isBefore(end); d = DateTime(d.year, d.month, d.day + 1)) d
+    else
+      for (var m = DateTime(start.year, start.month); m.isBefore(end); m = DateTime(m.year, m.month + 1)) m,
+  ];
+  final ordered = [...allPlays]..sort((a, b) => a.playedAt.compareTo(b.playedAt));
+  // Per track: plays, milliseconds and last play so far, compared as _ordered orders them
+  final tallies = <String, (int, int, DateTime)>{};
+  bool ahead((int, int, DateTime) a, (int, int, DateTime) b) => a.$1 != b.$1
+      ? a.$1 > b.$1
+      : a.$2 != b.$2
+      ? a.$2 > b.$2
+      : a.$3.isAfter(b.$3);
+  final points = <JourneyPoint>[];
+  var index = 0;
+  for (var i = 0; i < starts.length; i++) {
+    final until = i + 1 < starts.length ? starts[i + 1] : end;
+    while (index < ordered.length && ordered[index].playedAt.isBefore(until)) {
+      final play = ordered[index++];
+      final (count, ms, _) = tallies[play.trackKey] ?? (0, 0, play.playedAt);
+      tallies[play.trackKey] = (count + 1, ms + play.msPlayed, play.playedAt);
+    }
+    final own = tallies[trackKey];
+    points.add(
+      own == null
+          ? JourneyPoint(starts[i], null, 0)
+          : JourneyPoint(starts[i], 1 + tallies.values.where((other) => ahead(other, own)).length, own.$1),
+    );
+  }
+  return (points, daily);
+}
+
+/// An artist's last days compared with as many days before them (the desktop app's detail.trend)
+const trendDays = 7;
+
+/// Plays of the last [trendDays] days and of as many days before them; [before] is null when the recording began
+/// after those days started, so there is nothing to compare with
+class RecentTrend {
+  final int recent;
+  final int? before;
+
+  const RecentTrend(this.recent, this.before);
+}
+
+/// The trend of [plays], or null when neither span had any; [began] is the first play recorded at all
+RecentTrend? trendOf(List<Play> plays, DateTime began, DateTime now) {
+  final end = DateTime(now.year, now.month, now.day + 1);
+  final middle = DateTime(end.year, end.month, end.day - trendDays);
+  final start = DateTime(end.year, end.month, end.day - 2 * trendDays);
+  final recent = plays.where((p) => !p.playedAt.isBefore(middle) && p.playedAt.isBefore(end)).length;
+  final before = plays.where((p) => !p.playedAt.isBefore(start) && p.playedAt.isBefore(middle)).length;
+  if (recent == 0 && before == 0) return null;
+  final first = DateTime(began.year, began.month, began.day);
+  return RecentTrend(recent, first.isAfter(start) ? null : before);
 }
 
 /// A track of an album's page: from Deezer's track list (with its length) and/or from the plays
@@ -523,7 +628,9 @@ const dayParts = ['night', 'morning', 'afternoon', 'evening'];
 /// The part of the day with the most of [hours]' plays, or null when none has a clear lead (40% of the plays), so
 /// an even spread is not called "mostly"
 String? dayPart(List<int> hours) {
-  final parts = [for (var start = 0; start < 24; start += 6) hours.sublist(start, start + 6).fold<int>(0, (a, b) => a + b)];
+  final parts = [
+    for (var start = 0; start < 24; start += 6) hours.sublist(start, start + 6).fold<int>(0, (a, b) => a + b),
+  ];
   final total = parts.fold<int>(0, (a, b) => a + b);
   var best = 0;
   for (var part = 1; part < 4; part++) {
@@ -550,8 +657,12 @@ DateTime _latest(Iterable<Play> plays) => plays.map((p) => p.playedAt).reduce((a
 
 /// Tracks or artists whose very first recorded play falls in the period, most played in it first, as the desktop
 /// app's new_tracks / new_artists
-List<Discovered> _firstHeard(List<Play> all, DateRange range, String Function(Play) keyOf,
-    Ranked Function(String key, List<Play> plays) row) {
+List<Discovered> _firstHeard(
+  List<Play> all,
+  DateRange range,
+  String Function(Play) keyOf,
+  Ranked Function(String key, List<Play> plays) row,
+) {
   final everything = <String, List<Play>>{};
   for (final play in all) {
     everything.putIfAbsent(keyOf(play), () => []).add(play);
@@ -565,20 +676,34 @@ List<Discovered> _firstHeard(List<Play> all, DateRange range, String Function(Pl
     ms[key] = _ms(inside);
     found.add(Discovered(row(key, inside), first, tracks: inside.map((p) => p.trackKey).toSet().length));
   });
-  return found
-    ..sort((a, b) {
-      if (a.row.plays != b.row.plays) return b.row.plays.compareTo(a.row.plays);
-      final time = ms[b.row.key]!.compareTo(ms[a.row.key]!);
-      return time != 0 ? time : b.at.compareTo(a.at);
-    });
+  return found..sort((a, b) {
+    if (a.row.plays != b.row.plays) return b.row.plays.compareTo(a.row.plays);
+    final time = ms[b.row.key]!.compareTo(ms[a.row.key]!);
+    return time != 0 ? time : b.at.compareTo(a.at);
+  });
 }
 
-List<Discovered> newTracks(List<Play> all, DateRange range) => _firstHeard(all, range, trackKeyOf,
-    (key, plays) => Ranked(key, plays.first.name, plays.first.artist, plays.length, _minutes(plays),
-        artist: plays.first.artist, album: plays.first.album));
+List<Discovered> newTracks(List<Play> all, DateRange range) => _firstHeard(
+  all,
+  range,
+  trackKeyOf,
+  (key, plays) => Ranked(
+    key,
+    plays.first.name,
+    plays.first.artist,
+    plays.length,
+    _minutes(plays),
+    artist: plays.first.artist,
+    album: plays.first.album,
+  ),
+);
 
-List<Discovered> newArtists(List<Play> all, DateRange range) => _firstHeard(all, range, artistKeyOf,
-    (key, plays) => Ranked(key, plays.first.artist, '', plays.length, _minutes(plays), artist: plays.first.artist));
+List<Discovered> newArtists(List<Play> all, DateRange range) => _firstHeard(
+  all,
+  range,
+  artistKeyOf,
+  (key, plays) => Ranked(key, plays.first.artist, '', plays.length, _minutes(plays), artist: plays.first.artist),
+);
 
 /// Tracks played at least [minPlays] times but not once in the last [days] days, most played first
 List<Discovered> forgotten(List<Play> all, DateTime now, {int days = 30, int minPlays = 3, int limit = 10}) {
@@ -588,10 +713,20 @@ List<Discovered> forgotten(List<Play> all, DateTime now, {int days = 30, int min
     if (plays.length < minPlays) break;
     final last = _latest(plays);
     if (!last.isBefore(since)) continue;
-    found.add(Discovered(
-        Ranked(key, plays.first.name, plays.first.artist, plays.length, _minutes(plays),
-            artist: plays.first.artist, album: plays.first.album),
-        last));
+    found.add(
+      Discovered(
+        Ranked(
+          key,
+          plays.first.name,
+          plays.first.artist,
+          plays.length,
+          _minutes(plays),
+          artist: plays.first.artist,
+          album: plays.first.album,
+        ),
+        last,
+      ),
+    );
   }
   return found.take(limit).toList();
 }
@@ -660,8 +795,9 @@ List<Milestone> milestones(List<Play> all) {
     }
     final track = trackPlays[play.trackKey] = (trackPlays[play.trackKey] ?? 0) + 1;
     if (trackSteps.contains(track)) {
-      found.add(Milestone(MilestoneKind.track, play.playedAt, track,
-          name: play.name, artist: play.artist, key: play.trackKey));
+      found.add(
+        Milestone(MilestoneKind.track, play.playedAt, track, name: play.name, artist: play.artist, key: play.trackKey),
+      );
     }
   }
   firstHeard.forEach((key, play) {
@@ -688,7 +824,8 @@ DateTime yearBack(DateTime moment) {
 }
 
 /// The month of [now] a year earlier, which the "this time last year" card looks back at
-DateRange yearAgoMonth(DateTime now) => DateRange(DateTime(now.year - 1, now.month), DateTime(now.year - 1, now.month + 1));
+DateRange yearAgoMonth(DateTime now) =>
+    DateRange(DateTime(now.year - 1, now.month), DateTime(now.year - 1, now.month + 1));
 
 /// The days in a row at which a streak earns its next title, in the manner of its genre (Level 1 at 3 days)
 const streakLevels = [3, 7, 14, 21, 30, 50, 100, 365];

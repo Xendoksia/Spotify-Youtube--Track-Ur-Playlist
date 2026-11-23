@@ -270,6 +270,33 @@ def top_tracks(start: datetime, end: datetime, limit: int = 10, artist_key: str 
             (*_range(start, end), *params, limit))]
 
 
+def rank_history(key: str, ends: list[datetime], db_path: Path = DB_PATH) -> list[tuple[int, int, int] | None]:
+    """The track's place among all tracks, how many tracks there were and its own plays, counting the plays before
+    each of the moments in ends (in order), ranked as top_tracks ranks them; None before its first play."""
+    with open_db(db_path) as db:
+        rows = db.execute("SELECT track_key, played_at, COALESCE(ms_played, 0) FROM listens ORDER BY played_at").fetchall()
+    # Per track: plays, milliseconds and last play so far, compared as top_tracks orders them
+    tallies: dict[str, list] = {}
+    places: list[tuple[int, int, int] | None] = []
+    index = 0
+    for end in ends:
+        until = to_utc(end)
+        while index < len(rows) and rows[index][1] < until:
+            track, played_at, ms = rows[index]
+            tally = tallies.setdefault(track, [0, 0, ""])
+            tally[0] += 1
+            tally[1] += ms
+            tally[2] = played_at
+            index += 1
+        mine = tallies.get(key)
+        if mine is None:
+            places.append(None)
+            continue
+        ahead = sum(1 for tally in tallies.values() if tally > mine)
+        places.append((ahead + 1, len(tallies), mine[0]))
+    return places
+
+
 def top_albums(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
     """Most played albums of the period; plays without an album name are left out."""
     with open_db(db_path) as db:

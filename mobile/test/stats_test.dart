@@ -2,35 +2,63 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:playlist_tracker/data/models.dart';
 import 'package:playlist_tracker/data/stats.dart';
 
-Play play(String artist, String name, DateTime at, {int minutes = 3, String album = 'Album', String? device}) =>
-    Play(
-      uid: '$artist|$name|$at',
-      deviceId: device ?? 'pc',
-      deviceName: device,
-      playedAt: at,
-      artist: artist,
-      name: name,
-      album: album,
-      msPlayed: minutes * 60000,
-    );
+Play play(String artist, String name, DateTime at, {int minutes = 3, String album = 'Album', String? device}) => Play(
+  uid: '$artist|$name|$at',
+  deviceId: device ?? 'pc',
+  deviceName: device,
+  playedAt: at,
+  artist: artist,
+  name: name,
+  album: album,
+  msPlayed: minutes * 60000,
+);
 
 PlaylistEvent event(EventKind kind, DateTime at, {String name = 'Song', String album = ''}) => PlaylistEvent(
-      uid: '$kind|$at|$name',
-      service: 'spotify',
-      playlistId: 'p1',
-      checkedAt: at,
-      kind: kind,
-      name: name,
-      artist: 'A',
-      album: album,
-      uri: 'spotify:track:$name',
-    );
+  uid: '$kind|$at|$name',
+  service: 'spotify',
+  playlistId: 'p1',
+  checkedAt: at,
+  kind: kind,
+  name: name,
+  artist: 'A',
+  album: album,
+  uri: 'spotify:track:$name',
+);
 
 void main() {
+  test('a track climbs among all tracks as it is played', () {
+    Play play(String name, String at) => Play(
+      uid: 'u',
+      deviceId: 'd',
+      playedAt: DateTime.parse(at),
+      artist: 'A',
+      name: name,
+      album: '',
+      msPlayed: 200000,
+    );
+    final plays = [
+      play('One', '2026-11-02 10:00'),
+      play('One', '2026-11-02 11:00'),
+      play('Two', '2026-11-03 10:00'),
+      play('Two', '2026-11-04 10:00'),
+      play('Two', '2026-11-04 11:00'),
+    ];
+    final (points, daily) = journeyOf(plays, plays[2].trackKey, DateTime(2026, 11, 4, 20));
+    expect(daily, isTrue);
+    expect([for (final p in points) (p.rank, p.plays)], [(2, 1), (1, 3)]);
+  });
+
   test('a play both the computer and the phone recorded counts once, keeping the computer play', () {
     Play at(String uid, String source, String name, int minute) => Play(
-        uid: uid, deviceId: source, playedAt: DateTime(2026, 11, 21, 12, minute), artist: 'Band', name: name,
-        album: '', msPlayed: 200000, source: source);
+      uid: uid,
+      deviceId: source,
+      playedAt: DateTime(2026, 11, 21, 12, minute),
+      artist: 'Band',
+      name: name,
+      album: '',
+      msPlayed: 200000,
+      source: source,
+    );
     final plays = [
       at('phone', 'android', 'Song', 1),
       at('pc', 'local', 'Song', 0),
@@ -110,7 +138,10 @@ void main() {
     test('a year has a bar for each month and all time one for each year', () {
       final now = DateTime(2026, 11, 7);
       expect(buckets(Period.year, periodRange(Period.year, 0, now), plays).length, 12);
-      final years = buckets(Period.all, periodRange(Period.all, 0, now), [...plays, play('D', 'Old', DateTime(2024, 5))]);
+      final years = buckets(Period.all, periodRange(Period.all, 0, now), [
+        ...plays,
+        play('D', 'Old', DateTime(2024, 5)),
+      ]);
       expect(years.map((b) => b.start.year), [2024, 2025, 2026]);
     });
 
@@ -147,8 +178,14 @@ void main() {
 
     test('rows of unknown kinds are skipped', () {
       final row = {
-        'uid': 'e1', 'service': 'spotify', 'playlist_id': 'p1', 'checked_at': '2026-11-07T10:00:00+03:00',
-        'event': 'SOMETHING_NEW', 'name': 'Song', 'artist': 'A', 'album': '',
+        'uid': 'e1',
+        'service': 'spotify',
+        'playlist_id': 'p1',
+        'checked_at': '2026-11-07T10:00:00+03:00',
+        'event': 'SOMETHING_NEW',
+        'name': 'Song',
+        'artist': 'A',
+        'album': '',
       };
       expect(PlaylistEvent.fromRow(row), isNull);
       expect(PlaylistEvent.fromRow({...row, 'event': 'REMOVED'})!.checkedAt, DateTime.utc(2026, 11, 7, 7).toLocal());
@@ -196,8 +233,10 @@ void main() {
 
     test('same place, and nothing for all time', () {
       final all = [play('A', 'One', DateTime(2026, 10, 1)), play('A', 'One', DateTime(2026, 11, 1))];
-      expect(rankChanges(all, Period.month, 0, now, trackKeyOf)(play('A', 'One', now).trackKey, 1)!.kind,
-          ChangeKind.same);
+      expect(
+        rankChanges(all, Period.month, 0, now, trackKeyOf)(play('A', 'One', now).trackKey, 1)!.kind,
+        ChangeKind.same,
+      );
       expect(rankChanges(all, Period.all, 0, now, trackKeyOf)(play('A', 'One', now).trackKey, 1), isNull);
     });
   });
@@ -222,7 +261,10 @@ void main() {
         play('A', 'One', DateTime(2026, 11, 3), minutes: 4),
         play('A', 'One', DateTime(2026, 11, 1), minutes: 2),
       ])!;
-      expect((detail.plays, detail.minutes, detail.first, detail.last), (2, 6, DateTime(2026, 11, 1), DateTime(2026, 11, 3)));
+      expect(
+        (detail.plays, detail.minutes, detail.first, detail.last),
+        (2, 6, DateTime(2026, 11, 1), DateTime(2026, 11, 3)),
+      );
       expect(Detail.of([]), isNull);
     });
 
@@ -325,20 +367,33 @@ void main() {
 
     test('counts worth marking are found in the order they were reached, newest first', () {
       final plays = [
-        for (var i = 0; i < 100; i++) play(i < 10 ? 'A' : 'B$i', i < 10 ? 'Hit' : 'Song$i', DateTime(2026, 11, 1, 0, i)),
+        for (var i = 0; i < 100; i++)
+          play(i < 10 ? 'A' : 'B$i', i < 10 ? 'Hit' : 'Song$i', DateTime(2026, 11, 1, 0, i)),
       ];
       final found = milestones(plays);
       expect(found.first.kind, MilestoneKind.total);
       expect(found.first.count, 100);
       final kinds = found.map((m) => (m.kind, m.count)).toSet();
-      expect(kinds, containsAll([(MilestoneKind.artist, 10), (MilestoneKind.track, 10), (MilestoneKind.met, 10),
-          (MilestoneKind.start, 0)]));
+      expect(
+        kinds,
+        containsAll([
+          (MilestoneKind.artist, 10),
+          (MilestoneKind.track, 10),
+          (MilestoneKind.met, 10),
+          (MilestoneKind.start, 0),
+        ]),
+      );
       expect(nextTotalStep(100), (250, 150));
       expect(yearBack(DateTime(2028, 2, 29)), DateTime(2027, 2, 28));
     });
 
     test('the highlights of a track page: most days in a row, best day and days of the week', () {
-      expect(longestRun([for (final d in [1, 2, 3, 5, 6, 9]) DateTime(2026, 11, d, 20)]), 3);
+      expect(
+        longestRun([
+          for (final d in [1, 2, 3, 5, 6, 9]) DateTime(2026, 11, d, 20),
+        ]),
+        3,
+      );
       expect(longestRun([DateTime(2026, 12, 31, 23), DateTime(2027, 1, 1, 1)]), 2);
       final plays = [
         play('A', 'Song', DateTime(2026, 11, 2, 9)),

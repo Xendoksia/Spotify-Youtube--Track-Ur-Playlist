@@ -1,4 +1,4 @@
-/// The color of a picture: the hue its vivid parts share most, as the desktop app's artwork.mood, in OKLCH so the
+/// The colors of a picture: the hue its vivid parts share most and a second one, as the desktop app's artwork.mood, in OKLCH so the
 /// lightness can be set per theme.
 library;
 
@@ -14,17 +14,113 @@ class Mood {
   final double hue;
   final double chroma;
 
-  const Mood(this.hue, this.chroma);
+  /// The picture's second color: another hue, or its greys as a faintly tinted grey, or null (the first is then
+  /// turned a little), as the desktop app's artwork._colors
+  final double? hue2;
+  final double? chroma2;
+
+  /// Extra lightness for yellows, which look like mustard and mud at the others' lightness
+  final double lift;
+
+  const Mood(this.hue, this.chroma, {this.hue2, this.chroma2, this.lift = 0});
+
+  double _lightness(Brightness brightness) => (brightness == Brightness.dark ? 0.56 : 0.5) + lift;
 
   /// The color at the theme's lightness, darker on light pages so white text stays readable on it
-  Color color(Brightness brightness) => oklchColor(brightness == Brightness.dark ? 0.56 : 0.5, chroma, hue);
+  Color color(Brightness brightness) => oklchColor(_lightness(brightness), chroma, hue);
+
+  /// The second color, a little lighter, for the two-tone curves
+  Color color2(Brightness brightness) =>
+      oklchColor(_lightness(brightness) + 0.1, chroma2 ?? chroma, hue2 ?? (hue + 55) % 360);
 }
 
 const _bins = 24;
-final _moods = <String, Future<Mood?>>{};
+// A second color: a hue at least this many bins from the first with this share of its weight, else the greys and
+// whites when they cover this much of the picture
+const _secondApart = 3;
+const _secondShare = 0.15;
+const _neutralShare = 0.2;
+const _neutralChroma = 0.015;
+// A mostly grey picture still lends its few colored pixels (a logo, a title) to the curves from this share
+const _accentShare = 0.01;
+const _moodShare = 0.06;
 
-/// The mood of the picture at [url], read from a small copy of the cached image
-Future<Mood?> moodOf(String url) => _moods[url] ??= () async {
+final _analyses = <String, Future<_Analysis?>>{};
+
+/// The picture's vivid pixels per hue (weight, sin and cos of the hue, highest chroma, pixels), its light enough grey
+/// and white pixels and all its pixels
+class _Analysis {
+  final List<List<double>> bins;
+  final int neutral;
+  final int total;
+
+  _Analysis(this.bins, this.neutral, this.total);
+
+  factory _Analysis.of(List<(int, int, int)> pixels) {
+    final bins = List.generate(_bins, (_) => [0.0, 0.0, 0.0, 0.0, 0.0]);
+    var neutral = 0;
+    for (final (r, g, b) in pixels) {
+      final (lightness, chroma, hue) = oklch(r, g, b);
+      // Near black, white or grey pixels say little about the picture's color
+      if (chroma < 0.04 || lightness <= 0.2 || lightness >= 0.92) {
+        // Greys and whites can still be its second color, near black would vanish on the dark page
+        if (lightness > 0.35) neutral++;
+        continue;
+      }
+      final slot = bins[(hue / 360 * _bins).floor() % _bins];
+      slot[0] += chroma;
+      slot[1] += chroma * math.sin(hue * math.pi / 180);
+      slot[2] += chroma * math.cos(hue * math.pi / 180);
+      slot[3] = math.max(slot[3], chroma);
+      slot[4] += 1;
+    }
+    return _Analysis(bins, neutral, pixels.length);
+  }
+
+  double _around(int i) => [-1, 0, 1].fold(0.0, (sum, d) => sum + bins[(i + d) % _bins][0]);
+
+  List<List<double>> _group(int i) => [
+    for (final d in [-1, 0, 1]) bins[(i + d) % _bins],
+  ];
+
+  static double _hueOf(List<List<double>> group) =>
+      (math.atan2(group.fold(0.0, (sum, s) => sum + s[1]), group.fold(0.0, (sum, s) => sum + s[2])) * 180 / math.pi) %
+      360;
+
+  static double _chromaOf(List<List<double>> group) => math.min(0.16, group.map((slot) => slot[3]).reduce(math.max));
+
+  /// The colors, or null when the first covers no more than [leastShare] of the picture
+  Mood? colors(double leastShare) {
+    // A hue and its two neighbours together, so a color split over two bins still wins
+    var best = 0;
+    for (var i = 1; i < _bins; i++) {
+      if (_around(i) > _around(best)) best = i;
+    }
+    final group = _group(best);
+    final count = group.fold(0.0, (sum, slot) => sum + slot[4]);
+    if (total == 0 || count / total <= leastShare) return null;
+    final hue = _hueOf(group);
+    int? second;
+    for (var i = 0; i < _bins; i++) {
+      final apart = math.min((i - best) % _bins, (best - i) % _bins);
+      if (apart >= _secondApart && (second == null || _around(i) > _around(second))) second = i;
+    }
+    double? hue2, chroma2;
+    if (second != null && _around(second) >= _around(best) * _secondShare) {
+      hue2 = _hueOf(_group(second));
+      chroma2 = _chromaOf(_group(second));
+    } else if (neutral / total >= _neutralShare) {
+      hue2 = hue;
+      chroma2 = _neutralChroma;
+    }
+    return Mood(hue, _chromaOf(group), hue2: hue2, chroma2: chroma2, lift: _lift(hue));
+  }
+}
+
+/// How much lighter a yellow or olive hue is shown than the others
+double _lift(double hue) => 0.14 * math.max(0.0, 1 - (hue - 95).abs() / 55);
+
+Future<_Analysis?> _analyse(String url) => _analyses[url] ??= () async {
   try {
     final provider = ResizeImage(CachedNetworkImageProvider(url), width: 40, height: 40);
     final done = Completer<ui.Image>();
@@ -45,49 +141,28 @@ Future<Mood?> moodOf(String url) => _moods[url] ??= () async {
     final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     image.dispose();
     if (bytes == null) return null;
-    return moodOfPixels([
+    return _Analysis.of([
       for (var i = 0; i + 3 < bytes.lengthInBytes; i += 4)
         (bytes.getUint8(i), bytes.getUint8(i + 1), bytes.getUint8(i + 2)),
     ]);
   } catch (_) {
-    _moods.remove(url);
+    _analyses.remove(url);
     return null;
   }
 }();
 
-/// The most common vivid hue of the pixels, or null for a grey picture
-Mood? moodOfPixels(List<(int, int, int)> pixels) {
-  // Per hue: weight, sin and cos of the hue, highest chroma, pixels
-  final bins = List.generate(_bins, (_) => [0.0, 0.0, 0.0, 0.0, 0.0]);
-  for (final (r, g, b) in pixels) {
-    final (lightness, chroma, hue) = oklch(r, g, b);
-    // Near black, white or grey pixels say little about the picture's color
-    if (chroma < 0.04 || lightness <= 0.2 || lightness >= 0.92) continue;
-    final slot = bins[(hue / 360 * _bins).floor() % _bins];
-    slot[0] += chroma;
-    slot[1] += chroma * math.sin(hue * math.pi / 180);
-    slot[2] += chroma * math.cos(hue * math.pi / 180);
-    slot[3] = math.max(slot[3], chroma);
-    slot[4] += 1;
-  }
-  double around(int i) => [-1, 0, 1].fold(0.0, (sum, d) => sum + bins[(i + d) % _bins][0]);
-  // A hue and its two neighbours together, so a color split over two bins still wins
-  var best = 0;
-  for (var i = 1; i < _bins; i++) {
-    if (around(i) > around(best)) best = i;
-  }
-  final group = [
-    for (final d in [-1, 0, 1]) bins[(best + d) % _bins],
-  ];
-  final count = group.fold(0.0, (sum, slot) => sum + slot[4]);
-  // A few colored pixels in a grey picture are not its color
-  if (pixels.isEmpty || count / pixels.length <= 0.06) return null;
-  final sin = group.fold(0.0, (sum, slot) => sum + slot[1]);
-  final cos = group.fold(0.0, (sum, slot) => sum + slot[2]);
-  final hue = (math.atan2(sin, cos) * 180 / math.pi) % 360;
-  final chroma = math.min(0.16, group.map((slot) => slot[3]).reduce(math.max));
-  return Mood(hue, chroma);
-}
+/// The mood of the picture at [url], read from a small copy of the cached image
+Future<Mood?> moodOf(String url) async => (await _analyse(url))?.colors(_moodShare);
+
+/// The two colors of a page's curves: as [moodOf], but a mostly grey picture's few colored pixels count, with its
+/// greys as the second color. Null for a picture without any color
+Future<Mood?> paletteOf(String url) async => (await _analyse(url))?.colors(_accentShare);
+
+/// The most common vivid hue of the pixels and their second color, or null for a grey picture
+Mood? moodOfPixels(List<(int, int, int)> pixels) => _Analysis.of(pixels).colors(_moodShare);
+
+/// The curves' colors of the pixels, as [paletteOf]
+Mood? paletteOfPixels(List<(int, int, int)> pixels) => _Analysis.of(pixels).colors(_accentShare);
 
 double _linear(int c) {
   final v = c / 255;

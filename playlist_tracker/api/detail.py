@@ -28,6 +28,10 @@ COLUMNS = ("track_key", "artist_key", listening.ALBUM)
 DAY_PARTS = ("night", "morning", "afternoon", "evening")
 # Share of the plays a part of the day needs to be called the usual one
 DAY_PART_LEAD = 0.4
+# An artist's last days compared with as many days before them
+TREND_DAYS = 7
+# The track's climb marks the day it first reached this place or better
+TOP_PLACES = 10
 
 _looked_up: set[tuple[str, str]] = set()
 _looked_up_lock = threading.Lock()
@@ -101,6 +105,92 @@ def timeline(column: str, key: str, info: dict) -> dict:
                         "tooltip": f"{month_name(month)} {year}\n{plays_text(value)}"})
         year, month = (year + 1, 1) if month == 12 else (year, month + 1)
     return {"title": t("stats.per_month"), "buckets": buckets}
+
+
+def journey(key: str, info: dict) -> dict:
+    """The track's place among all tracks and its plays so far at the end of each day (or month, as the timeline),
+    from its first play: where it started and stands, its best place and the day it first reached the top ten."""
+    first = listening.from_utc(info["first_played"]).astimezone()
+    today = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+    start = first.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = today + timedelta(days=1)
+    daily = (end - start).days <= DAILY_LIMIT
+    if daily:
+        starts = [start + timedelta(days=i) for i in range((end - start).days)]
+        nexts = starts[1:] + [end]
+    else:
+        starts, year, month = [], start.year, start.month
+        while (year, month) <= (today.year, today.month):
+            starts.append(start.replace(year=year, month=month, day=1))
+            year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+        nexts = starts[1:] + [end]
+    places = listening.rank_history(key, nexts)
+    when = (lambda day: f"{day.day} {month_name(day.month)}") if daily else \
+        (lambda day: f"{month_name(day.month)} {day.year}")
+    points = [{"label": str(day.day) if daily else f"{month_name(day.month, True)} {day.year % 100:02d}",
+               "rank": place[0] if place else None, "plays": place[2] if place else 0,
+               "tooltip": f"{when(day)}\n{t('detail.journey.rank', rank=number(place[0]))}  ·  {plays_text(place[2])}"
+                          if place else when(day)}
+              for day, place in zip(starts, places)]
+    ranked = [(i, place) for i, place in enumerate(places) if place]
+    if not ranked:
+        return {"title": t("detail.journey"), "points": points, "band": "", "plays_text": "", "summary": "",
+                "best": None, "best_text": "",
+                "top": None, "top_text": ""}
+    began, now, plays = ranked[0][1][0], ranked[-1][1][0], ranked[-1][1][2]
+    best = min(ranked, key=lambda item: (item[1][0], -item[0]))[0]
+    top = next((i for i, place in ranked if place[0] <= TOP_PLACES), None)
+    # Marked only when it is a day of its own, not the start or the best one it would cover
+    if top in (best, ranked[0][0]):
+        top = None
+    summary = "detail.journey.up" if now < began else "detail.journey.down" if now > began else "detail.journey.same"
+    return {
+        "title": t("detail.journey"), "points": points, "band": t("detail.journey.band", places=TOP_PLACES),
+        "plays_text": plays_text(plays),
+        "summary": t(summary, start=number(began), now=number(now), plays=plays_text(plays)),
+        "best": best, "best_text": t("detail.journey.best", rank=number(places[best][0])),
+        "top": top,
+        "top_text": t("detail.journey.top", when=when(starts[top])) if top is not None else "",
+    }
+
+
+def with_peak(timeline: dict) -> dict:
+    """The timeline with its most played day or month (the latest of equal ones) for the artist's curve."""
+    buckets = timeline["buckets"]
+    peak = max(range(len(buckets)), key=lambda i: (buckets[i]["value"], i))
+    if not buckets[peak]["value"]:
+        return {**timeline, "peak": None, "peak_text": ""}
+    when = buckets[peak]["tooltip"].split("\n")[0]
+    daily = timeline["title"] == t("stats.per_day")
+    return {**timeline, "peak": peak, "peak_text": t("detail.timeline.peak_day" if daily else "detail.timeline.peak", when=when)}
+
+
+def trend(column: str, key: str) -> dict | None:
+    """Plays of the last TREND_DAYS days against the same number of days before them: up, down or same, with the
+    change in percent when there were plays before. None when neither had any."""
+    today = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+    end = today + timedelta(days=1)
+    middle = end - timedelta(days=TREND_DAYS)
+    recent = sum(listening.timeline(middle, end, "month", column, key).values())
+    before = sum(listening.timeline(middle - timedelta(days=TREND_DAYS), middle, "month", column, key).values())
+    if not recent and not before:
+        return None
+    # Before the recording began there is nothing to compare with
+    start, _ = listening.period_range("all")
+    began = min(listening.timeline(start, end, "day"), default=None)
+    if not began or date.fromisoformat(began) > (middle - timedelta(days=TREND_DAYS)).date():
+        return {"direction": "", "change": "", "against": "",
+                "recent": t("detail.trend.recent", days=TREND_DAYS, plays=plays_text(recent))}
+    direction = "up" if recent > before else "down" if recent < before else "same"
+    if not before:
+        change, against = "", t("detail.trend.none_before", days=TREND_DAYS)
+    elif direction == "same":
+        change, against = "", t("detail.trend.same", days=TREND_DAYS)
+    else:
+        change = t("stats.percent", value=number(round(abs(recent - before) * 100 / before)))
+        against = t("detail.trend.against", days=TREND_DAYS)
+    return {"direction": direction, "change": change, "against": against,
+            "recent": t("detail.trend.recent", days=TREND_DAYS, plays=plays_text(recent))}
 
 
 def day_part(hours: list[int]) -> str | None:
@@ -215,6 +305,8 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
                   tile("last", 0, date_text(info["last_played"]), "text")]
 
     if kind == "artist":
+        page["timeline"] = with_peak(page["timeline"])
+        page["trend"] = trend(column, key)
         start, end = listening.period_range("all")
         page["tracks"] = {"title": t("detail.artist_tracks"), "pictures": True, "rows": [{
             **track_row(r, r["album"] or ""), "image": cover_url(r["artist"], r["album"], r["name"]),
@@ -226,6 +318,7 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
         page["hours"] = {"title": t("detail.track_hours"), "buckets": hour_buckets(hours), **day_curve(hours)}
         page["highlights"] = {"title": t("detail.highlights"), "items": highlights(key)}
         page["weekdays"] = weekdays(column, key)
+        page["journey"] = journey(key, info)
         page["album"] = None
         if info["album"]:
             album_key = listening.album_key(info["artist_key"], info["album_lower"])
@@ -241,4 +334,5 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
     # The page takes the color of its picture, as the statistics take their number one's
     picture = artwork.fetch_artist(title) if kind == "artist" else         artwork.fetch_cover(info["artist"], info["album"], info["name"])
     page["mood"] = artwork.mood(picture)
+    page["palette"] = artwork.palette(picture)
     return page

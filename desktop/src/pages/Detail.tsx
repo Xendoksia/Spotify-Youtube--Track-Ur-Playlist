@@ -11,10 +11,12 @@ import Hero, { HeroData } from "../components/Hero";
 import Icon, { IconName } from "../components/Icon";
 import Picture from "../components/Picture";
 import Tile, { TileData } from "../components/Tile";
+import RankJourney, { Journey } from "../components/RankJourney";
+import TimelineCurve, { Trend } from "../components/TimelineCurve";
 import TrackGrid from "../components/TrackGrid";
 import { DetailSkeleton } from "../components/Skeleton";
 import { useTexts } from "../i18n";
-import type { Mood } from "../mood";
+import { curveStyle, Mood } from "../mood";
 import { Column, useOpenDetail } from "../navigation";
 
 export interface Visit {
@@ -27,7 +29,9 @@ interface DetailData {
   title: string;
   hero: HeroData & { subtitle_link: Visit | null };
   tiles: TileData[];
-  timeline: { title: string; buckets: Bucket[] };
+  timeline: { title: string; buckets: Bucket[]; peak?: number | null; peak_text?: string };
+  trend?: Trend | null;
+  journey?: Journey;
   tracks?: { title: string; rows: BarRow[]; pictures: boolean };
   progress?: { share: number; text: string };
   hours?: { title: string; buckets: Bucket[]; peak: number | null; peak_text: string; summary: string };
@@ -35,6 +39,7 @@ interface DetailData {
   weekdays?: { title: string; summary: string; peak: number; buckets: Bucket[] };
   album?: { caption: string; key: string; title: string; image: string; heard: string; open: string } | null;
   mood: Mood | null;
+  palette: Mood | null;
 }
 
 export function DetailToolbar({ title, canForward, onBack, onForward, onClose }: {
@@ -149,7 +154,7 @@ export default function Detail({ visit, onLoaded }: {
   );
 
   return (
-    <div className="overview">
+    <div className="overview" style={curveStyle(data.palette)}>
       <Hero data={data.hero} caption={data.hero.caption} empty={empty} round={data.kind === "artist"}
             large onSubtitle={link ? () => open(link.column, link.key) : undefined} />
       <div className="tiles">
@@ -191,12 +196,19 @@ export default function Detail({ visit, onLoaded }: {
               <Weekdays data={data.weekdays} />
             </div>
           )}
-          {timeline}
+          {data.journey ? (
+            <Card icon="area" title={data.journey.title} summary={data.journey.summary}>
+              <RankJourney journey={data.journey} empty={empty} />
+            </Card>
+          ) : timeline}
         </>
       )}
       {data.kind === "artist" && (
         <>
-          {timeline}
+          <Card icon="calendar" title={data.timeline.title}>
+            <TimelineCurve buckets={data.timeline.buckets} peak={data.timeline.peak ?? null}
+                           peakText={data.timeline.peak_text ?? ""} trend={data.trend ?? null} empty={empty} />
+          </Card>
           {tracks}
         </>
       )}

@@ -249,7 +249,6 @@ def fill_missing_lengths(done: Callable[[], None]) -> None:
 
 # The colors of a picture: the hue its vivid parts share most, as OKLCH so the window can set the lightness
 _MOOD_BINS = 24
-_moods: dict[tuple[Path, float], dict | None] = {}
 
 
 def _oklch(r: int, g: int, b: int) -> tuple[float, float, float]:
@@ -266,26 +265,44 @@ def _oklch(r: int, g: int, b: int) -> tuple[float, float, float]:
     return lightness, (a * a + b * b) ** 0.5, math.degrees(math.atan2(b, a)) % 360
 
 
-def mood(path: Path | None) -> dict | None:
-    """{hue, chroma} of the picture's most common vivid hue, or None for a grey or missing picture."""
+# A second color of a picture: a hue at least this many bins from the first, with this share of its weight
+_SECOND_APART = 3
+_SECOND_SHARE = 0.15
+# Without such a hue, its greys and whites are its second color when they cover this much of it
+_NEUTRAL_SHARE = 0.2
+_NEUTRAL_CHROMA = 0.015
+# A mostly grey picture still lends its few colored pixels (a logo, a title) to the curves from this share
+_ACCENT_SHARE = 0.01
+_analyses: dict[tuple[Path, float], dict | None] = {}
+
+
+def _group_hue(group: list[list]) -> float:
+    return math.degrees(math.atan2(sum(s[1] for s in group), sum(s[2] for s in group))) % 360
+
+
+def _analyse(path: Path | None) -> dict | None:
+    """The picture's vivid pixels per hue (weight, sin and cos of the hue, highest chroma, pixels), its light
+    enough grey and white pixels and all its pixels, or None for a missing picture."""
     if not available or path is None or not path.exists():
         return None
     cache_key = (path, path.stat().st_mtime)
-    if cache_key in _moods:
-        return _moods[cache_key]
-    # Per hue: weight, sin and cos of the hue, highest chroma, pixels
+    if cache_key in _analyses:
+        return _analyses[cache_key]
     bins = [[0.0, 0.0, 0.0, 0.0, 0] for _ in range(_MOOD_BINS)]
     try:
         with Image.open(path) as image:
             pixels = image.convert("RGB").resize((40, 40)).getdata()
     except OSError:
         return None
-    total = 0.0
+    total = neutral = 0
     for r, g, b in pixels:
         lightness, chroma, hue = _oklch(r, g, b)
         total += 1
         # Near black, white or grey pixels say little about the picture's color
         if chroma < 0.04 or not 0.2 < lightness < 0.92:
+            # Greys and whites can still be its second color; near black would vanish on the dark page
+            if lightness > 0.35:
+                neutral += 1
             continue
         slot = bins[int(hue / 360 * _MOOD_BINS) % _MOOD_BINS]
         slot[0] += chroma
@@ -293,14 +310,51 @@ def mood(path: Path | None) -> dict | None:
         slot[2] += chroma * math.cos(math.radians(hue))
         slot[3] = max(slot[3], chroma)
         slot[4] += 1
-    # A hue and its two neighbours together, so a color split over two bins still wins
-    best = max(range(_MOOD_BINS), key=lambda i: sum(bins[(i + d) % _MOOD_BINS][0] for d in (-1, 0, 1)))
-    group = [bins[(best + d) % _MOOD_BINS] for d in (-1, 0, 1)]
-    count = sum(slot[4] for slot in group)
-    # A few colored pixels in a grey picture are not its color
-    result = None
-    if total and count / total > 0.06:
-        hue = math.degrees(math.atan2(sum(s[1] for s in group), sum(s[2] for s in group))) % 360
-        result = {"hue": round(hue, 1), "chroma": round(min(0.16, max(s[3] for s in group)), 3)}
-    _moods[cache_key] = result
+    _analyses[cache_key] = result = {"bins": bins, "neutral": neutral, "total": total}
     return result
+
+
+def _colors(analysis: dict, least_share: float) -> dict | None:
+    """{hue, chroma, hue2, chroma2, lift}: the most common vivid hue and the second color (another hue, or the
+    greys as a faintly tinted grey, or None when the window should turn the first a little), or None when the
+    first covers less than least_share of the picture."""
+    bins, total = analysis["bins"], analysis["total"]
+    weight = lambda i: sum(bins[(i + d) % _MOOD_BINS][0] for d in (-1, 0, 1))
+    # A hue and its two neighbours together, so a color split over two bins still wins
+    best = max(range(_MOOD_BINS), key=weight)
+    group = [bins[(best + d) % _MOOD_BINS] for d in (-1, 0, 1)]
+    if not total or sum(slot[4] for slot in group) / total <= least_share:
+        return None
+    hue = _group_hue(group)
+    colors = {"hue": round(hue, 1), "chroma": round(min(0.16, max(s[3] for s in group)), 3),
+              "hue2": None, "chroma2": None, "lift": _lift(hue)}
+    apart = [i for i in range(_MOOD_BINS)
+             if min((i - best) % _MOOD_BINS, (best - i) % _MOOD_BINS) >= _SECOND_APART]
+    second = max(apart, key=weight)
+    if weight(second) >= weight(best) * _SECOND_SHARE:
+        second_group = [bins[(second + d) % _MOOD_BINS] for d in (-1, 0, 1)]
+        colors.update(hue2=round(_group_hue(second_group), 1),
+                      chroma2=round(min(0.16, max(s[3] for s in second_group)), 3))
+    elif analysis["neutral"] / total >= _NEUTRAL_SHARE:
+        colors.update(hue2=colors["hue"], chroma2=_NEUTRAL_CHROMA)
+    return colors
+
+
+def _lift(hue: float) -> float:
+    """How much lighter a yellow or olive hue is shown than the others: at the window's even lightness they turn
+    to mustard and mud, most of all on the dark page."""
+    return round(0.14 * max(0.0, 1 - abs(hue - 95) / 55), 3)
+
+
+def mood(path: Path | None) -> dict | None:
+    """The picture's colors as _colors gives them, or None for a grey or missing picture: a few colored pixels
+    in a grey picture are not its color."""
+    analysis = _analyse(path)
+    return _colors(analysis, 0.06) if analysis else None
+
+
+def palette(path: Path | None) -> dict | None:
+    """The two colors of a page's curves: as mood(), but a mostly grey picture's few colored pixels count, with
+    its greys as the second color. None for a picture without any color."""
+    analysis = _analyse(path)
+    return _colors(analysis, _ACCENT_SHARE) if analysis else None

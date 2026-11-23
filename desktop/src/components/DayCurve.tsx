@@ -1,17 +1,17 @@
-/** The plays of the 24 hours as one soft curve in the page's color, over a faint band of night, dawn, day and
- * dusk, with the most played hour marked and each hour's count on hover (api/detail.py day_curve). */
+/** The plays of the 24 hours as one soft curve in the page's two colors, over a faint band of them for night and
+ * day, with the most played hour marked and each hour's count on hover (api/detail.py day_curve). */
 
 import { ReactNode, useState } from "react";
 import type { Bucket } from "./ColumnChart";
 
-const WIDTH = 720;
-const HEIGHT = 200;
-const TOP = 34;
+export const WIDTH = 720;
+export const HEIGHT = 200;
+export const TOP = 34;
 
-type Point = [number, number];
+export type Point = [number, number];
 
 /** A smooth line through the points (Catmull-Rom as cubic Béziers), kept between the top and the baseline */
-function smooth(points: Point[]): string {
+export function smooth(points: Point[]): string {
   const keep = (y: number) => Math.min(HEIGHT, Math.max(TOP / 2, y));
   let path = `M${points[1][0]},${points[1][1]}`;
   for (let i = 1; i < points.length - 2; i++) {
@@ -77,6 +77,11 @@ export default function DayCurve({ buckets, peak, peakText, empty }: {
               <stop offset="0.75" className="band-dusk" />
               <stop offset="1" className="band-night" />
             </linearGradient>
+            <linearGradient id="day-line" gradientUnits="userSpaceOnUse" x1="0" x2={WIDTH} y1="0" y2="0">
+              <stop offset="0" className="line-night" />
+              <stop offset="0.5" className="line-noon" />
+              <stop offset="1" className="line-night" />
+            </linearGradient>
             <linearGradient id="day-fill" x1="0" x2="0" y1="0" y2="1">
               <stop offset="0" className="fill-top" />
               <stop offset="1" className="fill-bottom" />
@@ -84,7 +89,7 @@ export default function DayCurve({ buckets, peak, peakText, empty }: {
           </defs>
           <rect width={WIDTH} height={HEIGHT} fill="url(#day-band)" rx="10" />
           <path d={area} fill="url(#day-fill)" />
-          <path d={line} className="day-curve-line" />
+          <path d={line} className="day-curve-line" style={{ stroke: "url(#day-line)" }} />
           {shown !== null && (
             <line x1={x(shown)} x2={x(shown)} y1={y(value(shown))} y2={HEIGHT} className="day-curve-guide" />
           )}

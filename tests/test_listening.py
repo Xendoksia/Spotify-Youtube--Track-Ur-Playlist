@@ -224,3 +224,16 @@ class StatisticsTest(ListeningTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RankHistoryTest(ListeningTestCase):
+    def test_a_track_climbs_as_it_is_played(self):
+        self.play("Slipknot", "Snuff", "2026-11-02 10:00")
+        self.play("Slipknot", "Snuff", "2026-11-02 11:00")
+        self.play("Evanescence", "Lithium", "2026-11-03 10:00")
+        self.play("Evanescence", "Lithium", "2026-11-04 10:00")
+        self.play("Evanescence", "Lithium", "2026-11-04 11:00")
+        ends = [utc("2026-11-03 00:00"), utc("2026-11-04 00:00"), utc("2026-11-05 00:00")]
+        places = listening.rank_history("evanescence|lithium", ends, db_path=self.db)
+        # Not played yet, then behind Snuff, then ahead of it
+        self.assertEqual(places, [None, (2, 2, 1), (1, 2, 3)])
