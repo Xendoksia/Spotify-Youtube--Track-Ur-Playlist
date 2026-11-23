@@ -1104,6 +1104,80 @@ polygon.web-before {
   border: 1.5px dashed var(--muted);
 }
 
+/* The milestones as a timeline (pages/Sections.tsx), its dots in the number one's color */
+.milestone-line {
+  --milestone-color: var(--mood);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stats-page:not(.has-mood) .milestone-line {
+  --milestone-color: var(--chart);
+}
+
+.milestone {
+  display: grid;
+  grid-template-columns: 72px 18px 1fr;
+  gap: 10px;
+}
+
+.milestone-date {
+  padding: 6px 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* The line runs down through every dot, from the first to the last */
+.milestone-dot {
+  position: relative;
+}
+
+.milestone-dot::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 8px;
+  width: 2px;
+  background: color-mix(in oklch, var(--milestone-color) 35%, var(--border));
+  content: "";
+}
+
+.milestone:first-child .milestone-dot::before {
+  top: 14px;
+}
+
+.milestone:last-child .milestone-dot::before {
+  bottom: calc(100% - 14px);
+}
+
+.milestone-dot::after {
+  position: absolute;
+  top: 8px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--milestone-color);
+  box-sizing: border-box;
+  content: "";
+}
+
+.milestone-text {
+  padding: 6px 0;
+}
+
+.milestone.clickable {
+  cursor: pointer;
+}
+
+.milestone.clickable:hover .milestone-text {
+  text-decoration: underline;
+}
+
 /* The hours round a clock face (components/HourClock.tsx), in the number one's color */
 .hour-clock {
   --clock-color: var(--mood);

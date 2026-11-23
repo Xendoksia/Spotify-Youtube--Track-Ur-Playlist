@@ -242,16 +242,19 @@ export function Milestones({ data }: { data: SectionsData["milestones"] }) {
   const open = useOpenDetail();
   return (
     <Card icon="flag" title={data.title} summary={data.summary}>
-      <ul className="plain-list">
-        {data.items.length === 0 && <li className="empty">{data.empty}</li>}
-        {data.items.map((item, index) => (
-          <li key={index} className={`plain-row${item.column ? " clickable" : ""}`}
-              onClick={item.column && open ? () => open(item.column!, item.key!) : undefined}>
-            <span className="plain-left">{item.date}</span>
-            <span>{item.text}</span>
-          </li>
-        ))}
-      </ul>
+      {data.items.length === 0 ? <p className="empty">{data.empty}</p> : (
+        // A timeline: a dot on a line for each, the date once for the ones of the same day
+        <ol className="milestone-line">
+          {data.items.map((item, index) => (
+            <li key={index} className={`milestone${item.column ? " clickable" : ""}`}
+                onClick={item.column && open ? () => open(item.column!, item.key!) : undefined}>
+              <span className="milestone-date">{item.date !== data.items[index - 1]?.date ? item.date : ""}</span>
+              <span className="milestone-dot" />
+              <span className="milestone-text">{item.text}</span>
+            </li>
+          ))}
+        </ol>
+      )}
     </Card>
   );
 }

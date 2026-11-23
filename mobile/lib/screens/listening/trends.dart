@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/mood.dart';
 import '../../data/genres.dart';
 import '../../data/models.dart';
 import '../../data/stats.dart';
@@ -143,29 +144,81 @@ class MilestonesCard extends StatelessWidget {
                 style: TextStyle(color: muted, fontSize: 13)),
           const SizedBox(height: 8),
           if (reached.isEmpty) Text(context.t('stats.milestones.none'), style: TextStyle(color: muted)),
-          for (final milestone in reached)
-            _row(context, _date(context, milestone.at), _text(context, milestone), _open(context, milestone)),
+          // A timeline: a dot on a line for each, the date once for the ones of the same day
+          for (final (index, milestone) in reached.indexed)
+            _row(
+              context,
+              index > 0 && _date(context, reached[index - 1].at) == _date(context, milestone.at)
+                  ? ''
+                  : _date(context, milestone.at),
+              _text(context, milestone),
+              _open(context, milestone),
+              first: index == 0,
+              last: index == reached.length - 1,
+            ),
         ],
       ),
     );
   }
 
-  Widget _row(BuildContext context, String left, String text, VoidCallback? onTap) => InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 64,
-                child: Text(left, style: TextStyle(color: Palette.of(context).muted, fontSize: 13)),
+  /// One milestone on the timeline: its date, its dot on the line in the page's color and its words, as the
+  /// desktop app's card
+  Widget _row(BuildContext context, String left, String text, VoidCallback? onTap,
+      {required bool first, required bool last}) {
+    final palette = Palette.of(context);
+    final color = MoodColor.of(context) ?? palette.chart;
+    final line = Color.lerp(palette.border, color, 0.35)!;
+    final card = Theme.of(context).colorScheme.surfaceContainer;
+    return InkWell(
+      onTap: onTap,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: 56,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Text(left, textAlign: TextAlign.right, style: TextStyle(color: palette.muted, fontSize: 13)),
               ),
-              Expanded(child: Text(text)),
-            ],
-          ),
+            ),
+            SizedBox(
+              width: 28,
+              child: Stack(
+                alignment: Alignment.topCenter,
+                children: [
+                  Positioned(
+                    top: first ? 12 : 0,
+                    bottom: last ? null : 0,
+                    height: last ? (first ? 0 : 12) : null,
+                    child: Container(width: 2, color: line),
+                  ),
+                  Positioned(
+                    top: 6,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: card, width: 2),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Text(text),
+              ),
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 
   static String _date(BuildContext context, DateTime at) =>
       context.dateFormat(at.year == DateTime.now().year ? 'd MMM' : 'd MMM y').format(at);
