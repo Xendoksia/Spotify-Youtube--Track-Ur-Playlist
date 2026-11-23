@@ -1638,6 +1638,18 @@ img.picture.loaded {
   transition: width 700ms cubic-bezier(0.33, 1, 0.68, 1);
 }
 
+/* On a track, artist or album page the bars take the two colors of its picture, as its curves do, and a picture
+ * without any color keeps the charts' green with a soft grey */
+.detail-page .progress-fill,
+.detail-page .track-share {
+  background: linear-gradient(90deg, var(--curve-2, oklch(from var(--chart) calc(l + 0.12) 0.015 h)),
+    var(--curve-1, var(--chart)));
+}
+
+.detail-page .track-share {
+  opacity: 0.85;
+}
+
 .pair.track-row {
   grid-template-columns: 2fr 3fr;
 }

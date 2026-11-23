@@ -17,6 +17,7 @@ from playlist_tracker.music import artist_info, artwork, listening
 from playlist_tracker.music.text import date_text, duration_text, hour_buckets, month_name, plays_text, summary_text, tracks_text
 
 ARTIST_TRACKS = 15
+ARTIST_ALBUMS = 10
 # More rows than there are tracks, to find one's place among all of them
 ALL_TRACKS = 1_000_000
 # Plays of tracks of an album fetched at most (the album's own tracks come from Deezer)
@@ -320,6 +321,11 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
         page["tracks"] = {"title": t("detail.artist_tracks"), "pictures": True, "rows": [{
             **track_row(r, r["album"] or ""), "image": cover_url(r["artist"], r["album"], r["name"]),
         } for r in listening.top_tracks(start, end, ARTIST_TRACKS, artist_key=key)]}
+        page["albums"] = {"title": t("detail.artist_albums"), "rows": [{
+            "key": listening.album_key(r["artist_key"], r["album_lower"]), "column": listening.ALBUM,
+            "title": r["album"], "subtitle": "", "value": r["plays"], "value_text": number(r["plays"]),
+            "detail": plays_text(r["plays"]), "image": cover_url(r["artist"], r["album"], r["name"]),
+        } for r in listening.top_albums(start, end, ARTIST_ALBUMS, artist_key=key)]}
 
     if kind == "track":
         start, end = listening.period_range("all")

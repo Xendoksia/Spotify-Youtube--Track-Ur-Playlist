@@ -35,6 +35,7 @@ interface DetailData {
   journey?: Journey;
   vinyl?: VinylData;
   tracks?: { title: string; rows: BarRow[]; pictures: boolean };
+  albums?: { title: string; rows: BarRow[] };
   progress?: { share: number; text: string };
   hours?: { title: string; buckets: Bucket[]; peak: number | null; peak_text: string; summary: string };
   highlights?: { title: string; items: { icon: IconName; label: string; value: string }[] };
@@ -217,6 +218,11 @@ export default function Detail({ visit, onLoaded }: {
                            peakText={data.timeline.peak_text ?? ""} trend={data.trend ?? null} empty={empty} />
           </Card>
           {tracks}
+          {data.albums && data.albums.rows.length > 0 && (
+            <Card icon="disc" title={data.albums.title}>
+              <TrackGrid rows={data.albums.rows} empty={empty} />
+            </Card>
+          )}
         </>
       )}
     </div>

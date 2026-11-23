@@ -297,16 +297,18 @@ def rank_history(key: str, ends: list[datetime], db_path: Path = DB_PATH) -> lis
     return places
 
 
-def top_albums(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
-    """Most played albums of the period; plays without an album name are left out."""
+def top_albums(start: datetime, end: datetime, limit: int = 10, artist_key: str | None = None,
+               db_path: Path = DB_PATH) -> list[dict]:
+    """Most played albums of the period, optionally of one artist only; plays without an album name are left out."""
     with open_db(db_path) as db:
         return [dict(r) for r in db.execute(
             "SELECT artist_key, LOWER(album) AS album_lower, MAX(artist) AS artist, MAX(album) AS album, "
             "MAX(name) AS name, COUNT(*) AS plays, "
             "MAX(played_at) AS last_played "
             "FROM listens WHERE played_at >= ? AND played_at < ? AND COALESCE(album, '') != '' "
+            "AND (? IS NULL OR artist_key = ?) "
             "GROUP BY artist_key, LOWER(album) ORDER BY plays DESC, SUM(ms_played) DESC, last_played DESC LIMIT ?",
-            (*_range(start, end), limit))]
+            (*_range(start, end), artist_key, artist_key, limit))]
 
 
 def top_artists(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
