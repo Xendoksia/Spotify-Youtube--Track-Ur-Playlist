@@ -439,6 +439,15 @@ class Bucket {
 
 /// The period split into bars: the days of a week or month, the months of a year, the years of all time (from
 /// the first play's year)
+/// The previous period's bars, to stand beside the period's own by their place in it (the first day by the first
+/// day): the previous week's or month's days, or the previous year's months. Null when the previous period has no
+/// plays, as before the first ones were recorded.
+List<Bucket>? previousBuckets(List<Play> all, Period period, int offset, DateTime now) {
+  final range = periodRange(period, offset + 1, now);
+  final plays = playsIn(all, range);
+  return plays.isEmpty ? null : buckets(period, range, plays);
+}
+
 List<Bucket> buckets(Period period, DateRange range, List<Play> plays) {
   final starts = <DateTime>[];
   switch (period) {

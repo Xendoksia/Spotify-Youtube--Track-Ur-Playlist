@@ -426,6 +426,17 @@ button {
   grid-template-columns: 3fr 2fr;
 }
 
+/* The timeline as tall as the hour clock beside it */
+.pair.charts .columns,
+.pair.charts .chart-empty {
+  height: 264px;
+}
+
+/* With the legend over it, the compared timeline stays as tall in all */
+.pair.charts .columns.compared {
+  height: 236px;
+}
+
 @media (max-width: 1100px) {
   .pair,
   .pair.charts {
@@ -876,6 +887,56 @@ img.picture.loaded {
   background: var(--chart-hover);
 }
 
+/* Beside the previous period's grey column, each takes half the column's width */
+.columns.compared .column-space {
+  gap: 2px;
+}
+
+.columns.compared .column-fill {
+  flex: 1;
+  width: auto;
+}
+
+.column-fill.previous,
+.column:hover .column-fill.previous {
+  background: var(--series-other);
+}
+
+.swatch.current {
+  background: var(--chart);
+}
+
+.swatch.previous {
+  background: var(--series-other);
+}
+
+/* The numbers over the columns, with room left over the tallest */
+.columns.numbered .column-space {
+  padding-top: 18px;
+}
+
+.columns.numbered .column-fill {
+  position: relative;
+}
+
+.column-value {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding-bottom: 3px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.column-fill.previous .column-value {
+  color: var(--muted);
+  font-weight: 400;
+}
+
 .column-label {
   height: 18px;
   margin-top: 4px;
@@ -888,6 +949,79 @@ img.picture.loaded {
 
 .chart-empty {
   height: 190px;
+}
+
+/* The hours round a clock face (components/HourClock.tsx), in the number one's color */
+.hour-clock {
+  --clock-color: var(--mood);
+  display: flex;
+  justify-content: center;
+}
+
+/* Without a picture's color the clock stays in the charts' green rather than taking the blue */
+.stats-page:not(.has-mood) .hour-clock {
+  --clock-color: var(--chart);
+}
+
+.hour-clock svg {
+  width: 100%;
+  max-width: 264px;
+  height: auto;
+  overflow: visible;
+}
+
+.hour-clock-ring {
+  fill: none;
+  stroke: var(--grid);
+}
+
+.hour-clock-ring.half {
+  stroke-dasharray: 2 4;
+}
+
+.hour-clock-slices {
+  transform-box: view-box;
+  transform-origin: center;
+  animation: clock-open 600ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.hour-clock-slice {
+  fill: var(--clock-color);
+  transition: opacity 150ms, fill 500ms ease;
+}
+
+.hour-clock-hit {
+  fill: transparent;
+}
+
+.hour-clock-mark,
+.hour-clock-caption {
+  fill: var(--muted);
+  font-size: 14px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.hour-clock-hour {
+  fill: var(--text);
+  font-size: 25px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+@keyframes clock-open {
+  from {
+    opacity: 0;
+    transform: scale(0.85) rotate(-20deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hour-clock-slices {
+    animation: none;
+  }
 }
 
 /* Card details */

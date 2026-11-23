@@ -10,6 +10,7 @@ import '../../theme/palette.dart';
 import '../../widgets/artwork_image.dart';
 import '../../widgets/cards.dart';
 import '../../widgets/format.dart';
+import '../../widgets/hour_clock.dart';
 import '../../widgets/skeleton.dart';
 import '../../widgets/sparkline.dart';
 import 'collage_card.dart';
@@ -148,6 +149,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
     final trackChange = rankChanges(all, _period, _offset, now, trackKeyOf);
     final artistChange = rankChanges(all, _period, _offset, now, artistKeyOf);
     final days = trend(_period, range, plays, now);
+    final previousTimeline = _period == Period.all ? null : previousBuckets(all, _period, _offset, now);
     final yearAgo = yearAgoMonth(now);
     final yearAgoPlays = playsIn(all, yearAgo);
     _findMood(tracks.firstOrNull, artists.firstOrNull);
@@ -288,21 +290,27 @@ class _ListeningScreenState extends State<ListeningScreen> {
                       ),
                       gap,
                       SectionCard(
-                        title: context.t('stats.chart'),
-                        child: ListeningChart(period: _period, buckets: buckets(_period, range, plays)),
+                        // Plays, as on the desktop app: per day of a week or month, per month of a year, per year of all
+                        title: context.t(switch (_period) {
+                          Period.week || Period.month => 'stats.per_day',
+                          Period.year => 'stats.per_month',
+                          Period.all => 'stats.per_year',
+                        }),
+                        child: ListeningChart(
+                          period: _period,
+                          plays: true,
+                          buckets: buckets(_period, range, plays),
+                          values: true,
+                          previous: previousTimeline,
+                          legend: previousTimeline == null
+                              ? null
+                              : (context.t('stats.this.${_period.name}'), context.t('stats.previous.${_period.name}')),
+                        ),
                       ),
                       gap,
                       SectionCard(
                         title: context.t('stats.hours'),
-                        child: ListeningChart(
-                          period: Period.all,
-                          plays: true,
-                          buckets: [
-                            for (final (hour, count) in playsPerHour(plays).indexed)
-                              Bucket(DateTime(2000, 1, 1, hour), 0, count),
-                          ],
-                          label: (context, start) => start.hour.toString().padLeft(2, '0'),
-                        ),
+                        child: HourClock(hours: playsPerHour(plays)),
                       ),
                       gap,
                       Discoveries(store: widget.store, period: _period, range: range, plays: plays),

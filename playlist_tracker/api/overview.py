@@ -58,7 +58,7 @@ def overview(period: str, offset: int) -> dict:
             "detail": summary_text(plays_text(r["plays"]), tracks_text(r["tracks"]), minutes=r["minutes"]),
             "change": artist_change(r["key"], rank), "image": artist_url(r["name"]),
         } for rank, r in enumerate(artists[1:], start=2)],
-        "timeline": timeline(period, start, end),
+        "timeline": timeline(period, start, end, offset),
         "hours": {"title": t("stats.hours"), "buckets": hour_buckets(listening.hours(start, end))},
         "mood": period_mood(tracks[:1], artists[:1]),
     }
@@ -169,7 +169,7 @@ def rank_changes(period: str, offset: int, start: datetime, column: str):
     return change
 
 
-def timeline(period: str, start: datetime, end: datetime) -> dict:
+def timeline(period: str, start: datetime, end: datetime, offset: int = 0) -> dict:
     if period in ("week", "month"):
         counts = listening.timeline(start, end, "day")
         days = [start + timedelta(days=i) for i in range((end - start).days)]
@@ -178,7 +178,7 @@ def timeline(period: str, start: datetime, end: datetime) -> dict:
             "value": counts.get(day.strftime("%Y-%m-%d"), 0),
             "tooltip": f"{day.day} {month_name(day.month)}\n{plays_text(counts.get(day.strftime('%Y-%m-%d'), 0))}",
         } for day in days]
-        return {"title": t("stats.per_day"), "buckets": buckets}
+        return {"title": t("stats.per_day"), "buckets": buckets, **previous_timeline(period, offset, len(buckets))}
     counts = listening.timeline(start, end, "month")
     months = []
     year, month = start.year, start.month
@@ -200,4 +200,28 @@ def timeline(period: str, start: datetime, end: datetime) -> dict:
         if period == "all":
             label += f" {year % 100:02d}"
         buckets.append({"label": label, "value": value, "tooltip": f"{month_name(month)} {year}\n{plays_text(value)}"})
-    return {"title": t("stats.per_month"), "buckets": buckets}
+    result = {"title": t("stats.per_month"), "buckets": buckets}
+    if period == "year":
+        result.update(previous_timeline(period, offset, len(buckets)))
+    return result
+
+
+def previous_timeline(period: str, offset: int, count: int) -> dict:
+    """The previous week's days, month's days or year's months beside the period's own, by their place in it (the
+    first day by the first day), with the legend's names; a day the previous month did not have is None. Nothing
+    when the previous period has no plays."""
+    start, end = listening.period_range(period, offset + 1)
+    if period == "year":
+        counts = listening.timeline(start, end, "month")
+        values = [(f"{month_name(month)} {start.year}", counts.get(f"{start.year}-{month:02d}", 0))
+                  for month in range(1, 13)]
+    else:
+        counts = listening.timeline(start, end, "day")
+        days = [start + timedelta(days=i) for i in range((end - start).days)]
+        values = [(f"{day.day} {month_name(day.month)}", counts.get(day.strftime("%Y-%m-%d"), 0)) for day in days]
+    if not any(value for _, value in values):
+        # Nothing to set beside the period, as before the first plays were recorded
+        return {}
+    previous = [{"value": value, "tooltip": f"{when}\n{plays_text(value)}"} for when, value in values[:count]]
+    return {"previous": previous + [None] * (count - len(previous)),
+            "legend": {"current": t(f"stats.this.{period}"), "previous": t(f"stats.previous.{period}")}}

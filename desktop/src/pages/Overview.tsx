@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { get } from "../api";
 import BarList, { BarRow } from "../components/BarList";
 import Card from "../components/Card";
-import ColumnChart, { Bucket } from "../components/ColumnChart";
+import ColumnChart, { Bucket, Comparison } from "../components/ColumnChart";
 import Hero, { HeroData } from "../components/Hero";
+import HourClock from "../components/HourClock";
 import Icon from "../components/Icon";
 import Inbox from "../components/Inbox";
 import Tile, { TileData } from "../components/Tile";
@@ -32,7 +33,8 @@ interface OverviewData {
   artist_hero: HeroData | null;
   top_tracks: BarRow[];
   top_artists: BarRow[];
-  timeline: { title: string; buckets: Bucket[] };
+  /** With the previous period's columns beside them, except for all time */
+  timeline: { title: string; buckets: Bucket[] } & Partial<Comparison>;
   hours: { title: string; buckets: Bucket[] };
   /** The number one's color as OKLCH hue and chroma; the page sets the lightness for the theme */
   mood: Mood | null;
@@ -149,10 +151,12 @@ export default function Overview({ hidden, openSummary, inboxVersion }: {
           </div>
           <div className="pair charts">
             <Card icon="calendar" title={data.timeline.title}>
-              <ColumnChart buckets={data.timeline.buckets} empty={empty} />
+              <ColumnChart buckets={data.timeline.buckets} empty={empty} values
+                           comparison={data.timeline.previous && data.timeline.legend
+                             ? { previous: data.timeline.previous, legend: data.timeline.legend } : null} />
             </Card>
             <Card icon="clock" title={data.hours.title}>
-              <ColumnChart buckets={data.hours.buckets} empty={empty} />
+              <HourClock buckets={data.hours.buckets} empty={empty} />
             </Card>
           </div>
           {sections && (
