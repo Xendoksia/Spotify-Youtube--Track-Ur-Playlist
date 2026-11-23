@@ -35,7 +35,8 @@ class ListeningScreen extends StatefulWidget {
 }
 
 class _ListeningScreenState extends State<ListeningScreen> {
-  var _period = Period.month;
+  // Opens on the current week, as the desktop app does
+  var _period = Period.week;
   var _offset = 0;
   var _recentShown = recentStep;
   var _wrappedChecked = false;

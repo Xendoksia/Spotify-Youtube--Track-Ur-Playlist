@@ -49,6 +49,9 @@ void main() {
   testWidgets('listening shows the totals and the top tracks', (tester) async {
     await pump(tester, (store) => ListeningScreen(store: store, onRefresh: noRefresh));
     expect(find.text('Plays'), findsOneWidget);
+    // The screen opens on the current week, which on a Monday holds only one of the plays: all time holds them all
+    await tester.tap(find.text('All time'));
+    await tester.pumpAndSettle();
     // Further down the page
     await tester.scrollUntilVisible(find.text('Top tracks'), 300, scrollable: find.byType(Scrollable).first);
     expect(find.text('First song'), findsWidgets);
