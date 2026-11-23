@@ -141,6 +141,17 @@ def artist_keys(artist_key: str, db_path: Path = DB_PATH) -> list[str]:
     return sorted(found) or [artist_key]
 
 
+def main_artist_key(artist_key: str, db_path: Path = DB_PATH) -> str:
+    """The artist a stored artist key stands for: a collaboration's first artist, else the key itself."""
+    with open_db(db_path) as db:
+        names = _artist_names(db)
+    known = known_artists(name for name, _ in names)
+    for name, stored in names:
+        if stored == artist_key:
+            return key(credited(name, known)[0])
+    return artist_key
+
+
 def artist_name(artist_key: str, db_path: Path = DB_PATH) -> str | None:
     """An artist's name as written, also when it is only heard in collaborations."""
     with open_db(db_path) as db:

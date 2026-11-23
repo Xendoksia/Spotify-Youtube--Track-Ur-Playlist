@@ -251,6 +251,8 @@ class CreditsTest(ListeningTestCase):
         self.assertEqual(listening.artist_keys("simon", self.db), ["simon"])
         self.play("Cem Adrian, Mark Eliyahu", "Seni Dert Etmeler", "2026-11-04 11:00")
         self.play("Mark Eliyahu, Cem Adrian", "Derinlerde", "2026-11-04 12:00")
+        self.assertEqual(listening.main_artist_key("şanışer, sena şener", self.db), "şanışer")
+        self.assertEqual(listening.main_artist_key("şanışer", self.db), "şanışer")
         # Both are first in a collaboration, so each is credited for both songs
         self.assertEqual(len(listening.artist_keys("mark eliyahu", self.db)), 2)
         names = {a["name"]: a["plays"] for a in listening.credited_artists(self.db)}

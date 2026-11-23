@@ -200,8 +200,11 @@ class DetailTarget {
   factory DetailTarget.track(Play play) =>
       DetailTarget(DetailKind.track, play.trackKey, play.name, artist: play.artist, album: play.album);
 
-  factory DetailTarget.artist(String artist) =>
-      DetailTarget(DetailKind.artist, textKey(artist), artist, artist: artist);
+  /// An artist by name; a collaboration's name, as a track gives it, stands for its first artist
+  factory DetailTarget.artist(String artist) {
+    final name = credited(artist, soloArtistKeys).first;
+    return DetailTarget(DetailKind.artist, textKey(name), name, artist: name);
+  }
 
   factory DetailTarget.album(String artist, String album) =>
       DetailTarget(DetailKind.album, '${textKey(artist)}|${album.toLowerCase()}', album, artist: artist, album: album);

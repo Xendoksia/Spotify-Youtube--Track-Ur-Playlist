@@ -266,6 +266,9 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
     list looked up in the background were found, so the window can ask again."""
     if column not in COLUMNS:
         raise ValueError(column)
+    # A collaboration's name, as a track links it, opens its first artist's page
+    if column == "artist_key":
+        key = listening.main_artist_key(key)
     info = listening.detail(column, key)
     if not info:
         return None
