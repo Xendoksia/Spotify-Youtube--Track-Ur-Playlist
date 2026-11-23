@@ -23,10 +23,12 @@ class SectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(children: [
-              Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
-              ?trailing,
-            ]),
+            Row(
+              children: [
+                Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
+                ?trailing,
+              ],
+            ),
             const SizedBox(height: 12),
             child,
           ],
@@ -52,13 +54,18 @@ class StatTile extends StatelessWidget {
   final List<TrendPoint>? trend;
 
   const StatTile({super.key, required this.label, required this.value, this.note})
-      : count = null,
-        format = null,
-        trend = null;
+    : count = null,
+      format = null,
+      trend = null;
 
-  const StatTile.count(
-      {super.key, required this.label, required int this.count, required this.format, this.note, this.trend})
-      : value = '';
+  const StatTile.count({
+    super.key,
+    required this.label,
+    required int this.count,
+    required this.format,
+    this.note,
+    this.trend,
+  }) : value = '';
 
   @override
   Widget build(BuildContext context) {
@@ -92,6 +99,52 @@ class StatTile extends StatelessWidget {
   }
 }
 
+/// A share as a rounded bar that grows to it, in one color or running from [colors].$1 into [colors].$2
+class ShareBar extends StatelessWidget {
+  final double share;
+  final double height;
+  final Color color;
+  final (Color, Color)? colors;
+  final Color background;
+
+  const ShareBar({
+    super.key,
+    required this.share,
+    required this.color,
+    required this.background,
+    this.colors,
+    this.height = 4,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(height / 2),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: share),
+        duration: changeDuration,
+        curve: changeCurve,
+        builder: (context, share, _) => Container(
+          height: height,
+          color: background,
+          alignment: Alignment.centerLeft,
+          child: FractionallySizedBox(
+            widthFactor: share.clamp(0.0, 1.0),
+            heightFactor: 1,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors == null ? color : null,
+                gradient: colors == null ? null : LinearGradient(colors: [colors!.$2, colors!.$1]),
+                borderRadius: BorderRadius.circular(height / 2),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// A numbered top list with a bar showing each row's plays against the first's
 class RankedList extends StatelessWidget {
   final List<Ranked> rows;
@@ -108,7 +161,18 @@ class RankedList extends StatelessWidget {
   /// The first row's number: 2 under a card showing the number one
   final int firstRank;
 
-  const RankedList({super.key, required this.rows, this.change, this.image, this.onTap, this.firstRank = 1});
+  /// The bars' two colors on a page with a picture (its first and second), else the charts' green
+  final (Color, Color)? colors;
+
+  const RankedList({
+    super.key,
+    required this.rows,
+    this.change,
+    this.image,
+    this.onTap,
+    this.firstRank = 1,
+    this.colors,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -130,10 +194,15 @@ class RankedList extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${index + firstRank}',
-                            style: TextStyle(color: palette.muted, fontWeight: FontWeight.w600)),
+                        Text(
+                          '${index + firstRank}',
+                          style: TextStyle(color: palette.muted, fontWeight: FontWeight.w600),
+                        ),
                         if (change?.call(row.key, index + firstRank) case final moved?)
-                          Padding(padding: const EdgeInsets.only(top: 2), child: ChangePill(change: moved)),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: ChangePill(change: moved),
+                          ),
                       ],
                     ),
                   ),
@@ -144,24 +213,18 @@ class RankedList extends StatelessWidget {
                       children: [
                         Text(row.title, maxLines: 1, overflow: TextOverflow.ellipsis),
                         if (row.subtitle.isNotEmpty)
-                          Text(row.subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: palette.muted, fontSize: 13)),
-                        const SizedBox(height: 4),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
-                          child: TweenAnimationBuilder<double>(
-                            tween: Tween(end: row.plays / most),
-                            duration: changeDuration,
-                            curve: changeCurve,
-                            builder: (context, share, _) => LinearProgressIndicator(
-                              value: share,
-                              minHeight: 4,
-                              color: palette.chart,
-                              backgroundColor: palette.border,
-                            ),
+                          Text(
+                            row.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: palette.muted, fontSize: 13),
                           ),
+                        const SizedBox(height: 4),
+                        ShareBar(
+                          share: row.plays / most,
+                          color: palette.chart,
+                          colors: colors,
+                          background: palette.border,
                         ),
                       ],
                     ),
@@ -204,10 +267,7 @@ class MessageView extends StatelessWidget {
           Icon(icon, size: 40, color: Palette.of(context).muted),
           const SizedBox(height: 12),
           Text(text, textAlign: TextAlign.center),
-          if (action != null) ...[
-            const SizedBox(height: 16),
-            FilledButton(onPressed: onAction, child: Text(action!)),
-          ],
+          if (action != null) ...[const SizedBox(height: 16), FilledButton(onPressed: onAction, child: Text(action!))],
         ],
       ),
     );
@@ -247,29 +307,37 @@ class ChangePill extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 24),
       padding: EdgeInsets.symmetric(horizontal: icon == null ? 6 : 5),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(9)),
-      child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-        if (icon != null) Icon(icon, size: 13, color: color),
-        if (label.isNotEmpty)
-          Text(label,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (icon != null) Icon(icon, size: 13, color: color),
+          if (label.isNotEmpty)
+            Text(
+              label,
               style: TextStyle(
-                  color: color,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  height: 1,
-                  fontFeatures: const [FontFeature.tabularFigures()])),
-      ]),
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                height: 1,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
 
 /// What a number one's rank change means, beside its pill ("#3 in the previous period")
 String changeNote(BuildContext context, RankChange change, int rank) => switch (change.kind) {
-      ChangeKind.same => context.t('stats.change.same'),
-      ChangeKind.fresh => context.t('stats.change.new_long'),
-      ChangeKind.back => context.t('stats.change.back_long'),
-      ChangeKind.up || ChangeKind.down => context.t('stats.change.was',
-          {'rank': rank + (change.kind == ChangeKind.up ? change.count : -change.count)}),
-    };
+  ChangeKind.same => context.t('stats.change.same'),
+  ChangeKind.fresh => context.t('stats.change.new_long'),
+  ChangeKind.back => context.t('stats.change.back_long'),
+  ChangeKind.up || ChangeKind.down => context.t('stats.change.was', {
+    'rank': rank + (change.kind == ChangeKind.up ? change.count : -change.count),
+  }),
+};
 
 /// The number one track or artist of the period, large with its picture, as the desktop app's hero cards
 class HeroCard extends StatelessWidget {
@@ -320,31 +388,47 @@ class HeroCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(caption.toUpperCase(),
-                        style: TextStyle(color: palette.muted, fontSize: 11, fontWeight: FontWeight.w600,
-                            letterSpacing: 0.8)),
+                    Text(
+                      caption.toUpperCase(),
+                      style: TextStyle(
+                        color: palette.muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text(title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                    ),
                     if (subtitle.isNotEmpty)
-                      Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: palette.muted)),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: palette.muted),
+                      ),
                     const SizedBox(height: 4),
                     Text(detail, style: const TextStyle(fontSize: 13)),
                     if (change case final moved?)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
-                        child: Row(children: [
-                          ChangePill(change: moved),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(changeNote(context, moved, 1),
+                        child: Row(
+                          children: [
+                            ChangePill(change: moved),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                changeNote(context, moved, 1),
                                 maxLines: 2,
-                                style: TextStyle(color: palette.muted, fontSize: 12, fontWeight: FontWeight.w600)),
-                          ),
-                        ]),
+                                style: TextStyle(color: palette.muted, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                   ],
                 ),

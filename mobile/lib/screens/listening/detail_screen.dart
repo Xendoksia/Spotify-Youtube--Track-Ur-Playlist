@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../data/artwork.dart';
@@ -169,6 +171,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 SectionCard(
                   title: context.t('stats.top_tracks'),
                   child: RankedList(
+                    colors: _curveColors(context),
                     rows: topTracks(plays, limit: 15),
                     image: (row) => ArtworkImage.cover(
                       artist: row.artist,
@@ -184,6 +187,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   SectionCard(
                     title: context.t('stats.top_albums'),
                     child: RankedList(
+                      colors: _curveColors(context),
                       rows: topAlbums(plays),
                       image: (row) => ArtworkImage.album(
                         artist: row.artist,
@@ -413,6 +417,7 @@ class _DetailScreenState extends State<DetailScreen> {
         final tracklist = snapshot.data;
         final rows = albumTracks(plays, tracklist);
         final heard = rows.where((row) => row.played != null).length;
+        final most = rows.fold(0, (most, row) => math.max(most, row.played?.plays ?? 0));
         return SectionCard(
           title: tracklist == null
               ? context.t('detail.tracks')
@@ -426,6 +431,8 @@ class _DetailScreenState extends State<DetailScreen> {
                 _AlbumTrackRow(
                   number: tracklist != null && index < tracklist.length ? index + 1 : null,
                   track: row,
+                  share: most == 0 ? 0 : (row.played?.plays ?? 0) / most,
+                  colors: _curveColors(context),
                   onTap: row.played == null
                       ? null
                       : () => _open(
@@ -614,7 +621,17 @@ class _AlbumTrackRow extends StatelessWidget {
   final AlbumTrack track;
   final VoidCallback? onTap;
 
-  const _AlbumTrackRow({required this.number, required this.track, this.onTap});
+  /// Its plays against the album's most played track, as a thin line under it in the cover's colors
+  final double share;
+  final (Color, Color) colors;
+
+  const _AlbumTrackRow({
+    required this.number,
+    required this.track,
+    required this.share,
+    required this.colors,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -645,6 +662,10 @@ class _AlbumTrackRow extends StatelessWidget {
                   ),
                   if (length != null && length > 0)
                     Text(context.length(length), style: TextStyle(color: palette.muted, fontSize: 13)),
+                  if (share > 0) ...[
+                    const SizedBox(height: 4),
+                    ShareBar(share: share, height: 2, color: colors.$1, colors: colors, background: Colors.transparent),
+                  ],
                 ],
               ),
             ),
