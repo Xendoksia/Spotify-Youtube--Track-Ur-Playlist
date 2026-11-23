@@ -2291,17 +2291,21 @@ polygon.web-before {
   gap: 12px;
 }
 
+/* The card is as tall as the hours' curve beside it: a large cover fills it, the words beside it in its middle */
 .album-card-body {
   display: flex;
+  flex: 1;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
 }
 
 .album-card-picture {
-  width: 96px;
-  height: 96px;
+  width: 168px;
+  height: 168px;
   flex: none;
-  font-size: 32px;
+  font-size: 48px;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
 }
 
 .album-card-text {
@@ -2312,7 +2316,7 @@ polygon.web-before {
 }
 
 .album-card-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
 }
 
