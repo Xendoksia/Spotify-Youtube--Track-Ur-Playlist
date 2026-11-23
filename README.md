@@ -228,8 +228,9 @@ when it runs from the code:
 | `artwork/` | Cached album covers and artist photos |
 
 All of them are listed in `.gitignore` and are never committed. The app connects only to Spotify and Google /
-YouTube, plus Deezer's public search to find album covers that Windows did not provide and artist photos (only
-the artist and track names are sent, no account is involved).
+YouTube, plus Deezer's public search to find album covers that Windows did not provide, artist photos, and the
+artists related to the ones you play most for the suggestions (only artist and track names and Deezer ids are sent,
+no account is involved).
 
 ## Files
 
@@ -249,4 +250,4 @@ the artist and track names are sent, no account is involved).
 | `playlist_tracker/migrate.py` | Copies an earlier version's data into the installed app's folder |
 | `playlist_tracker/core/` | Settings (`config.py`), English and Turkish texts (`i18n.py`), account and sync, shared formats |
 | `playlist_tracker/playlists/` | Spotify and YouTube clients, login redirect, playlist history and comparison (`history.py`) |
-| `playlist_tracker/music/` | Listening history (`listening.py`), recording what Spotify plays (`nowplaying.py`), covers and artist photos (`artwork.py`), artist facts (`artist_info.py`), album collage, the summary's rules |
+| `playlist_tracker/music/` | Listening history (`listening.py`), recording what Spotify plays (`nowplaying.py`), covers and artist photos (`artwork.py`), artist facts (`artist_info.py`), artists and tracks to discover (`recommend.py`), album collage, the summary's rules |
