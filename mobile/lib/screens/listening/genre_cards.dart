@@ -1,8 +1,11 @@
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../data/genres.dart';
 import '../../data/models.dart';
+import '../../data/mood.dart';
 import '../../data/stats.dart';
 import '../../l10n/strings.dart';
 import '../../theme/palette.dart';
@@ -23,10 +26,32 @@ String capitalized(String name) => name.isEmpty ? name : name[0].toUpperCase() +
 
 /// Share of the period's plays per genre, as the desktop app's genres card; it fills in as the genres arrive
 class GenresCard extends StatelessWidget {
+  static const ringCount = 4;
+  static const webAxes = 6;
+
+  /// The families the web always shows enough of to make a shape, when the period has fewer
+  static const webDefaults = ['metal', 'rock', 'pop'];
+
   final List<Play> all;
   final List<Play> plays;
 
-  const GenresCard({super.key, required this.all, required this.plays});
+  /// The previous period's plays, whose families the web outlines; null for all time
+  final List<Play>? previous;
+  final Period period;
+
+  const GenresCard({super.key, required this.all, required this.plays, required this.period, this.previous});
+
+  /// The share of each genre family of the plays by genre, as the desktop app's family_shares
+  static Map<String, double> _families(Map<String, int> plays) {
+    final total = plays.values.fold<int>(0, (a, b) => a + b);
+    final families = <String, double>{};
+    if (total == 0) return families;
+    for (final MapEntry(key: name, value: count) in plays.entries) {
+      final family = genreFamily(name);
+      families[family] = (families[family] ?? 0) + count / total;
+    }
+    return families;
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -34,7 +59,6 @@ class GenresCard extends StatelessWidget {
         builder: (context, _) {
           final result = genreShares(all, plays);
           final muted = Palette.of(context).muted;
-          String percent(int value) => context.t('stats.percent', {'value': value});
           final names = [for (final genre in result.genres) capitalized(genre.name)];
           final parts = [
             if (names.isNotEmpty)
@@ -55,20 +79,280 @@ class GenresCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 if (result.genres.isEmpty)
                   Text(context.t('stats.genres.none'), style: TextStyle(color: muted))
-                else
-                  RankedList(
-                    rows: [
-                      for (final genre in result.genres.take(genreCount))
-                        Ranked(genre.name, capitalized(genre.name),
-                            '${percent(share(genre.plays, result.total))}  ·  ${genre.artists.take(3).join(', ')}',
-                            genre.plays, 0),
-                    ],
-                  ),
+                else ...[
+                  _ring(context, result.genres, result.known),
+                  const SizedBox(height: 20),
+                  _web(context, {for (final genre in result.genres) genre.name: genre.plays}, previous, period),
+                ],
               ],
             ),
           );
         },
       );
+}
+
+/// The ring of the biggest genres and the rest in the genres' colors, the biggest named in the middle, with the
+/// slices' names and shares beside it, as the desktop app's GenreRing
+Widget _ring(BuildContext context, List<GenreShare> genres, int known) {
+  final colors = seriesColors(context);
+  final palette = Palette.of(context);
+  String percent(int value) => context.t('stats.percent', {'value': value});
+  final rest = genres.skip(GenresCard.ringCount).fold<int>(0, (sum, genre) => sum + genre.plays);
+  final slices = [
+    for (final (index, genre) in genres.take(GenresCard.ringCount).indexed)
+      (colors[index], capitalized(genre.name), genre.plays),
+    if (rest > 0) (otherColor(context), context.t('stats.genre_shift.other'), rest),
+  ];
+  return Row(
+    children: [
+      SizedBox(
+        width: 132,
+        height: 132,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _RingPainter([for (final (color, _, plays) in slices) (color, plays / known)]),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 30),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(slices.first.$2,
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  Text(percent(share(slices.first.$3, known)), style: TextStyle(fontSize: 11, color: palette.muted)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(width: 16),
+      Expanded(
+        child: Column(
+          children: [
+            for (final (color, name, plays) in slices)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13))),
+                    Text(percent(share(plays, known)), style: TextStyle(fontSize: 13, color: palette.muted)),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _RingPainter extends CustomPainter {
+  /// Each slice's color and share of the circle
+  final List<(Color, double)> slices;
+
+  _RingPainter(this.slices);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const width = 22.0;
+    final rect = Rect.fromCircle(center: size.center(Offset.zero), radius: size.shortestSide / 2 - width / 2);
+    final gap = slices.length > 1 ? 0.03 : 0.0;
+    var angle = -math.pi / 2;
+    for (final (color, part) in slices) {
+      final sweep = part * 2 * math.pi;
+      if (sweep > gap) {
+        canvas.drawArc(
+          rect,
+          angle + gap / 2,
+          sweep - gap,
+          false,
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = width,
+        );
+      }
+      angle += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) => old.slices != slices;
+}
+
+/// The genre families' weight as a web, the period's shape in the page's color over the previous period's dashed
+/// outline, as the desktop app's FamilyWeb. The distance from the middle grows with the square root of the share,
+/// so a family of a few percent still shows beside one of half the plays.
+Widget _web(BuildContext context, Map<String, int> plays, List<Play>? previous, Period period) {
+  final palette = Palette.of(context);
+  final now = GenresCard._families(plays);
+  var before = <String, double>{};
+  if (previous != null && previous.isNotEmpty) {
+    final counts = <String, int>{};
+    for (final artist in topArtists(previous, limit: 1 << 30)) {
+      if (Genres.instance.mainGenre(artist.key) case final genre?) {
+        counts[genre] = (counts[genre] ?? 0) + artist.plays;
+      }
+    }
+    before = GenresCard._families(counts);
+  }
+  final names = ({...now.keys, ...before.keys}..remove('other')).toList()
+    ..sort((a, b) {
+      final byNow = (now[b] ?? 0).compareTo(now[a] ?? 0);
+      return byNow != 0 ? byNow : (before[b] ?? 0).compareTo(before[a] ?? 0);
+    });
+  final axes = names.take(GenresCard.webAxes).toList();
+  for (final name in GenresCard.webDefaults) {
+    if (axes.length >= 3) break;
+    if (!axes.contains(name)) axes.add(name);
+  }
+  final color = MoodColor.of(context) ?? palette.chart;
+  final compared = before.isNotEmpty;
+  Widget swatch(Widget mark, String name) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [mark, const SizedBox(width: 6), Text(name, style: TextStyle(fontSize: 12, color: palette.muted))],
+  );
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      if (compared)
+        Wrap(spacing: 16, children: [
+          swatch(
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
+            ),
+            context.t('stats.this.${period.name}'),
+          ),
+          swatch(
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                border: Border.all(color: palette.muted, width: 1.5),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            context.t('stats.previous.${period.name}'),
+          ),
+        ]),
+      SizedBox(
+        height: 220,
+        width: double.infinity,
+        child: CustomPaint(
+          painter: _WebPainter(
+            names: [for (final name in axes) context.t('stats.family.$name')],
+            now: [for (final name in axes) now[name] ?? 0],
+            before: compared ? [for (final name in axes) before[name] ?? 0] : null,
+            color: color,
+            grid: palette.border,
+            muted: palette.muted,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class _WebPainter extends CustomPainter {
+  final List<String> names;
+  final List<double> now;
+  final List<double>? before;
+  final Color color;
+  final Color grid;
+  final Color muted;
+
+  _WebPainter({
+    required this.names,
+    required this.now,
+    required this.before,
+    required this.color,
+    required this.grid,
+    required this.muted,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2 - 26;
+    final most = [...now, ...?before].fold<double>(0.01, math.max);
+    Offset point(int index, double part) {
+      final angle = index / names.length * 2 * math.pi;
+      final r = radius * math.sqrt(part / most);
+      return center + Offset(r * math.sin(angle), -r * math.cos(angle));
+    }
+
+    Path shape(List<double> parts) {
+      final path = Path()..moveTo(point(0, parts[0]).dx, point(0, parts[0]).dy);
+      for (var i = 1; i < parts.length; i++) {
+        path.lineTo(point(i, parts[i]).dx, point(i, parts[i]).dy);
+      }
+      return path..close();
+    }
+
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = grid;
+    for (final ring in const [0.25, 0.5, 1.0]) {
+      canvas.drawPath(shape(List.filled(names.length, ring * most)), line);
+    }
+    for (var i = 0; i < names.length; i++) {
+      final end = point(i, most);
+      canvas.drawLine(center, end, line);
+      final label = TextPainter(
+        text: TextSpan(text: names[i], style: TextStyle(fontSize: 11, color: muted)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      // Just past the spoke's end, leaning away from the middle
+      final at = center + (end - center) * 1.14;
+      final dx = at.dx < center.dx - 4 ? -label.width : at.dx > center.dx + 4 ? 0.0 : -label.width / 2;
+      label.paint(canvas, Offset(at.dx + dx, at.dy - label.height / 2));
+    }
+    if (before case final previous?) {
+      final dashed = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = muted;
+      for (final metric in shape(previous).computeMetrics()) {
+        for (var d = 0.0; d < metric.length; d += 8) {
+          canvas.drawPath(metric.extractPath(d, math.min(d + 4, metric.length)), dashed);
+        }
+      }
+    }
+    final web = shape(now);
+    canvas.drawPath(web, Paint()..color = color.withValues(alpha: 0.3));
+    canvas.drawPath(
+      web,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeJoin = StrokeJoin.round
+        ..color = color,
+    );
+    for (var i = 0; i < names.length; i++) {
+      canvas.drawCircle(point(i, now[i]), 3.5, Paint()..color = color);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WebPainter old) =>
+      old.names != names || old.now != now || old.before != before || old.color != color;
 }
 
 /// How the share of the period's main genres changed over it, as the desktop app's GenreShift: per day of a week,

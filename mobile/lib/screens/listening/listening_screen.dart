@@ -334,7 +334,12 @@ class _ListeningScreenState extends State<ListeningScreen> {
                       ],
                       MilestonesCard(store: widget.store, range: range),
                       gap,
-                      GenresCard(all: all, plays: plays),
+                      GenresCard(
+                        all: all,
+                        plays: plays,
+                        period: _period,
+                        previous: _period == Period.all ? null : playsIn(all, periodRange(_period, _offset + 1, now)),
+                      ),
                       gap,
                       GenreShiftCard(period: _period, range: range, plays: plays),
                       gap,

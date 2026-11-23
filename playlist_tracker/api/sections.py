@@ -347,11 +347,14 @@ def genres(period: str, offset: int, arrived: Callable[[], None]) -> dict:
     """The genre share and the genres over time. Genres are looked up one artist at a time in the
     background; arrived() is called as each is found, so the window can ask again."""
     period, offset, start, end = period_bounds(period, offset)
-    return {"genres": genre_share(start, end, arrived), "shift": genre_shift(period, start, end)}
+    previous = None if period == "all" else listening.period_range(period, offset + 1)
+    return {"genres": genre_share(start, end, arrived, period, previous), "shift": genre_shift(period, start, end)}
 
 
-def genre_share(start: datetime, end: datetime, arrived: Callable[[], None]) -> dict:
-    """Share of the period's plays per genre; an artist's plays count for its main genre."""
+def genre_share(start: datetime, end: datetime, arrived: Callable[[], None], period: str = "all",
+                previous: tuple[datetime, datetime] | None = None) -> dict:
+    """Share of the period's plays per genre; an artist's plays count for its main genre. With it the ring of the
+    biggest genres and the genre families against the previous period (when given)."""
     artists = listening.top_artists(start, end, -1)
     total = sum(a["plays"] for a in artists)
     found: dict[str, dict] = {}
@@ -376,14 +379,84 @@ def genre_share(start: datetime, end: datetime, arrived: Callable[[], None]) -> 
                        count=number(len(names))))
     if waiting:
         parts.append(t("stats.genres.loading", count=number(waiting)))
+    known = sum(genre["plays"] for _, genre in ordered)
     return {
         "title": t("stats.genres"), "summary": "  ·  ".join(parts), "empty": t("stats.genres.none"),
         "waiting": waiting,
+        "ring": genre_ring(ordered, known),
+        "families": family_web({name: genre["plays"] for name, genre in ordered}, period, previous),
         "rows": [{
             "key": name, "title": capitalized(name), "subtitle": ", ".join(genre["artists"][:3]),
             "value": genre["plays"], "value_text": percent(share(genre["plays"], total)),
             "detail": f"{plays_text(genre['plays'])}\n" + t("stats.genres.artists", names=", ".join(genre["artists"][:5])),
         } for name, genre in ordered[:GENRE_COUNT]],
+    }
+
+
+RING_COUNT = 4
+WEB_AXES = 6
+# The families the web always shows enough of to make a shape, when the period has fewer
+WEB_DEFAULTS = ("metal", "rock", "pop")
+
+
+def genre_ring(ordered: list[tuple[str, dict]], known: int) -> list[dict]:
+    """The ring's slices: the biggest genres (series 0-3) and the rest of the known ones ("other"), as shares of
+    the plays whose genre is known."""
+    slices = [{"series": index, "text": capitalized(name), "share": genre["plays"] / known,
+               "percent": percent(share(genre["plays"], known))}
+              for index, (name, genre) in enumerate(ordered[:RING_COUNT])]
+    rest = sum(genre["plays"] for _, genre in ordered[RING_COUNT:])
+    if rest:
+        slices.append({"series": "other", "text": t("stats.genre_shift.other"), "share": rest / known,
+                       "percent": percent(share(rest, known))})
+    return slices
+
+
+def family_shares(plays: dict[str, int]) -> dict[str, float]:
+    """The share of each genre family (wrapped.GENRE_FAMILIES) of the plays by genre"""
+    from playlist_tracker.api.wrapped import genre_family
+    total = sum(plays.values())
+    families: dict[str, float] = {}
+    for name, count in plays.items():
+        family = genre_family(name)
+        families[family] = families.get(family, 0) + count / total
+    return families
+
+
+def family_web(plays: dict[str, int], period: str, previous: tuple[datetime, datetime] | None) -> dict | None:
+    """The genre families' shares for the web: up to six axes, the period's biggest families first, beside the
+    previous period's shares when there are (its artists' genres as far as they are known)."""
+    if not plays:
+        return None
+    now = family_shares(plays)
+    before: dict[str, float] = {}
+    if previous:
+        counts: dict[str, int] = {}
+        for artist in listening.top_artists(previous[0], previous[1], -1):
+            if genre := main_genre(artist["key"]):
+                counts[genre] = counts.get(genre, 0) + artist["plays"]
+        before = family_shares(counts) if counts else {}
+    names = sorted((name for name in set(now) | set(before) if name != "other"),
+                   key=lambda name: (-now.get(name, 0), -before.get(name, 0)))[:WEB_AXES]
+    for name in WEB_DEFAULTS:
+        if len(names) >= 3:
+            break
+        if name not in names:
+            names.append(name)
+    legend = {"current": t(f"stats.this.{period}"), "previous": t(f"stats.previous.{period}")} if before else None
+
+    def tooltip(name: str) -> str:
+        lines = [t(f"stats.family.{name}")]
+        lines.append(f"{legend['current']}: {percent(round(100 * now.get(name, 0)))}" if legend
+                     else percent(round(100 * now.get(name, 0))))
+        if legend:
+            lines.append(f"{legend['previous']}: {percent(round(100 * before.get(name, 0)))}")
+        return "\n".join(lines)
+
+    return {
+        "axes": [{"name": t(f"stats.family.{name}"), "now": now.get(name, 0),
+                  "before": before.get(name, 0) if before else None, "tooltip": tooltip(name)} for name in names],
+        "legend": legend,
     }
 
 

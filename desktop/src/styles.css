@@ -962,6 +962,148 @@ img.picture.loaded {
   height: 190px;
 }
 
+/* The genres as a ring beside the genre families as a web (components/GenreWheel.tsx) */
+.genre-wheel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.genre-ring {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.genre-ring svg {
+  width: 100%;
+  max-width: 180px;
+  height: auto;
+}
+
+.ring-slice {
+  transition: opacity 150ms;
+}
+
+.ring-slice:hover {
+  opacity: 0.8;
+}
+
+.ring-0 { fill: var(--series-0); }
+.ring-1 { fill: var(--series-1); }
+.ring-2 { fill: var(--series-2); }
+.ring-3 { fill: var(--series-3); }
+.ring-other { fill: var(--series-other); }
+
+.ring-name,
+.ring-share {
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.ring-name {
+  fill: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ring-share {
+  fill: var(--muted);
+  font-size: 12px;
+}
+
+.ring-legend {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.ring-legend li {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.ring-legend-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ring-legend-share {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.swatch.series-other {
+  background: var(--series-other);
+}
+
+.family-web {
+  --web-color: var(--mood);
+  display: grid;
+  gap: 4px;
+}
+
+/* Without a picture's color the web stays in the charts' green rather than taking the blue */
+.stats-page:not(.has-mood) .family-web {
+  --web-color: var(--chart);
+}
+
+.family-web svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.web-ring {
+  fill: none;
+  stroke: var(--grid);
+}
+
+.web-spoke {
+  stroke: var(--grid);
+}
+
+.web-name {
+  fill: var(--muted);
+  font-size: 11px;
+  dominant-baseline: middle;
+}
+
+polygon.web-now {
+  fill: var(--web-color);
+  fill-opacity: 0.3;
+  stroke: var(--web-color);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+}
+
+polygon.web-before {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.5px;
+  stroke-dasharray: 4 4;
+}
+
+.web-dot {
+  fill: var(--web-color);
+}
+
+.swatch.web-now {
+  background: var(--web-color);
+}
+
+.swatch.web-before {
+  border: 1.5px dashed var(--muted);
+}
+
 /* The hours round a clock face (components/HourClock.tsx), in the number one's color */
 .hour-clock {
   --clock-color: var(--mood);

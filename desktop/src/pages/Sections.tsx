@@ -3,6 +3,7 @@
 
 import BarList, { BarRow } from "../components/BarList";
 import Card from "../components/Card";
+import { FamilyWeb, GenreRing, RingSlice } from "../components/GenreWheel";
 import Picture from "../components/Picture";
 import Sigil from "../components/Sigil";
 import { Column, useOpenDetail } from "../navigation";
@@ -48,7 +49,11 @@ export interface SectionsData {
 }
 
 export interface GenresData {
-  genres: { title: string; summary: string; empty: string; waiting: number; rows: BarRow[] };
+  genres: {
+    title: string; summary: string; empty: string; waiting: number; rows: BarRow[];
+    /** The biggest genres and the rest as a ring, and the genre families as a web (api/sections.py) */
+    ring: RingSlice[]; families: FamilyWeb | null;
+  };
   shift: {
     title: string; summary: string; empty: string;
     legend: { series: Series; text: string }[]; columns: StackedColumn[];
@@ -255,7 +260,14 @@ export function Genres({ data }: { data: GenresData["genres"] | null }) {
   if (!data) return <CardSkeleton />;
   return (
     <Card icon="tag" title={data.title} summary={data.summary}>
-      <BarList rows={data.rows} empty={data.empty} />
+      {data.ring.length === 0 || !data.families ? (
+        <p className="empty">{data.empty}</p>
+      ) : (
+        <div className="genre-wheel">
+          <GenreRing slices={data.ring} />
+          <FamilyWeb data={data.families} />
+        </div>
+      )}
     </Card>
   );
 }
