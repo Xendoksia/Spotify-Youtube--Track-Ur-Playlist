@@ -962,6 +962,71 @@ img.picture.loaded {
   height: 190px;
 }
 
+/* The genres' places as ribbons (components/GenreRibbons.tsx) */
+.genre-ribbons svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.ribbon path {
+  fill: none;
+  stroke-width: 10px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  animation: draw-line 900ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.ribbon circle {
+  stroke: var(--surface);
+  stroke-width: 2px;
+  transition: r 150ms;
+}
+
+.ribbon-0 { stroke: var(--series-0); fill: var(--series-0); }
+.ribbon-1 { stroke: var(--series-1); fill: var(--series-1); }
+.ribbon-2 { stroke: var(--series-2); fill: var(--series-2); }
+.ribbon-3 { stroke: var(--series-3); fill: var(--series-3); }
+
+.ribbon-0 path, .ribbon-1 path, .ribbon-2 path, .ribbon-3 path {
+  fill: none;
+}
+
+.ribbon-place,
+.ribbon-label {
+  fill: var(--muted);
+  font-size: 12px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.ribbon-place {
+  text-anchor: end;
+}
+
+.ribbon-name {
+  fill: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  dominant-baseline: middle;
+}
+
+.ribbon-column {
+  fill: var(--hover);
+}
+
+.ribbon-hit {
+  fill: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ribbon path {
+    animation: none;
+  }
+}
+
 /* The hours round a clock face (components/HourClock.tsx), in the number one's color */
 .hour-clock {
   --clock-color: var(--mood);
