@@ -26,7 +26,7 @@ String capitalized(String name) => name.isEmpty ? name : name[0].toUpperCase() +
 
 /// Share of the period's plays per genre, as the desktop app's genres card; it fills in as the genres arrive
 class GenresCard extends StatelessWidget {
-  static const ringCount = 4;
+  static const ringCount = 6;
   static const webAxes = 6;
 
   /// The families the web always shows enough of to make a shape, when the period has fewer
@@ -94,7 +94,13 @@ class GenresCard extends StatelessWidget {
 /// The ring of the biggest genres and the rest in the genres' colors, the biggest named in the middle, with the
 /// slices' names and shares beside it, as the desktop app's GenreRing
 Widget _ring(BuildContext context, List<GenreShare> genres, int known) {
-  final colors = seriesColors(context);
+  // The genres' four colors and two more, as the desktop app's --series-4 and --series-5
+  final colors = [
+    ...seriesColors(context),
+    ...Theme.of(context).brightness == Brightness.dark
+        ? const [Color(0xFF9B6FE8), Color(0xFFE0628F)]
+        : const [Color(0xFF8A5CD6), Color(0xFFD1477A)],
+  ];
   final palette = Palette.of(context);
   String percent(int value) => context.t('stats.percent', {'value': value});
   final rest = genres.skip(GenresCard.ringCount).fold<int>(0, (sum, genre) => sum + genre.plays);

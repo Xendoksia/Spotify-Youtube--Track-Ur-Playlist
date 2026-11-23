@@ -393,14 +393,14 @@ def genre_share(start: datetime, end: datetime, arrived: Callable[[], None], per
     }
 
 
-RING_COUNT = 4
+RING_COUNT = 6
 WEB_AXES = 6
 # The families the web always shows enough of to make a shape, when the period has fewer
 WEB_DEFAULTS = ("metal", "rock", "pop")
 
 
 def genre_ring(ordered: list[tuple[str, dict]], known: int) -> list[dict]:
-    """The ring's slices: the biggest genres (series 0-3) and the rest of the known ones ("other"), as shares of
+    """The ring's slices: the biggest genres (series 0-5) and the rest of the known ones ("other"), as shares of
     the plays whose genre is known."""
     slices = [{"series": index, "text": capitalized(name), "share": genre["plays"] / known,
                "percent": percent(share(genre["plays"], known))}

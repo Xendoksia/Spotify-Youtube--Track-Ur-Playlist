@@ -26,6 +26,8 @@
   --series-1: #eb6834;
   --series-2: #1baf7a;
   --series-3: #eda100;
+  --series-4: #8a5cd6;
+  --series-5: #d1477a;
   --series-other: #b6bbc3;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 4px 16px rgb(0 0 0 / 0.05);
   --radius: 16px;
@@ -67,6 +69,8 @@
     --series-1: #d95926;
     --series-2: #199e70;
     --series-3: #c98500;
+    --series-4: #9b6fe8;
+    --series-5: #e0628f;
     --series-other: #4a505a;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.2);
     --mood-l: 0.56;
@@ -102,6 +106,8 @@
   --series-1: #d95926;
   --series-2: #199e70;
   --series-3: #c98500;
+  --series-4: #9b6fe8;
+  --series-5: #e0628f;
   --series-other: #4a505a;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.2);
   --mood-l: 0.56;
@@ -963,11 +969,18 @@ img.picture.loaded {
 }
 
 /* The genres as a ring beside the genre families as a web (components/GenreWheel.tsx) */
+/* The card takes the height of the collage beside it: the ring and the web grow into it, in its middle */
+.card.genres {
+  display: flex;
+  flex-direction: column;
+}
+
 .genre-wheel {
   display: grid;
+  flex: 1;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  align-items: start;
+  align-items: center;
 }
 
 .genre-ring {
@@ -978,7 +991,7 @@ img.picture.loaded {
 
 .genre-ring svg {
   width: 100%;
-  max-width: 180px;
+  max-width: 230px;
   height: auto;
 }
 
@@ -994,6 +1007,8 @@ img.picture.loaded {
 .ring-1 { fill: var(--series-1); }
 .ring-2 { fill: var(--series-2); }
 .ring-3 { fill: var(--series-3); }
+.ring-4 { fill: var(--series-4); }
+.ring-5 { fill: var(--series-5); }
 .ring-other { fill: var(--series-other); }
 
 .ring-name,
@@ -1452,6 +1467,8 @@ polygon.web-before {
 .series-1 { background: var(--series-1); }
 .series-2 { background: var(--series-2); }
 .series-3 { background: var(--series-3); }
+.series-4 { background: var(--series-4); }
+.series-5 { background: var(--series-5); }
 .series-other { background: var(--series-other); }
 
 /* The curve of a track's hours (components/DayCurve.tsx) */

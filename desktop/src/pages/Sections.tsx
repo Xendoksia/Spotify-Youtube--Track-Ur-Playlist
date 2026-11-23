@@ -255,7 +255,7 @@ export function Milestones({ data }: { data: SectionsData["milestones"] }) {
 export function Genres({ data }: { data: GenresData["genres"] | null }) {
   if (!data) return <CardSkeleton />;
   return (
-    <Card icon="tag" title={data.title} summary={data.summary}>
+    <Card icon="tag" title={data.title} summary={data.summary} className="genres">
       {data.ring.length === 0 || !data.families ? (
         <p className="empty">{data.empty}</p>
       ) : (

@@ -64,7 +64,8 @@ export function GenreRing({ slices }: { slices: RingSlice[] }) {
 export function FamilyWeb({ data }: { data: FamilyWeb }) {
   const size = 220;
   const center = size / 2;
-  const radius = 72;
+  // Room left round it for the families' names
+  const radius = 80;
   const count = data.axes.length;
   const most = Math.max(...data.axes.map((axis) => Math.max(axis.now, axis.before ?? 0)), 0.01);
   const point = (index: number, share: number) => {
