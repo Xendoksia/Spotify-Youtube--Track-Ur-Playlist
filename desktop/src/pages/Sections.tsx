@@ -6,8 +6,7 @@ import Card from "../components/Card";
 import Picture from "../components/Picture";
 import Sigil from "../components/Sigil";
 import { Column, useOpenDetail } from "../navigation";
-import GenreRibbons from "../components/GenreRibbons";
-import { Series, StackedColumn } from "../components/StackedColumns";
+import StackedColumns, { Series, seriesClass, StackedColumn } from "../components/StackedColumns";
 import { CardSkeleton } from "../components/Skeleton";
 
 interface YearAgoRow {
@@ -112,7 +111,17 @@ export function GenreShift({ data }: { data: GenresData["shift"] | null }) {
   if (!data) return <CardSkeleton />;
   return (
     <Card icon="area" title={data.title} summary={data.summary}>
-      <GenreRibbons columns={data.columns} legend={data.legend} empty={data.empty} />
+      {data.legend.length > 0 && (
+        <div className="legend">
+          {data.legend.map((item) => (
+            <span key={item.series} className="legend-item">
+              <span className={`swatch ${seriesClass(item.series)}`} />
+              {item.text}
+            </span>
+          ))}
+        </div>
+      )}
+      <StackedColumns columns={data.columns} empty={data.empty} />
     </Card>
   );
 }

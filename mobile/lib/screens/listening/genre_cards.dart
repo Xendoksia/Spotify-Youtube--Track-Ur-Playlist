@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/genres.dart';
@@ -133,8 +134,10 @@ class GenreShiftCard extends StatelessWidget {
               .map((e) => e.key)
               .toList();
           final colors = seriesColors(context);
+          final other = otherColor(context);
           final muted = Palette.of(context).muted;
           String percent(int value) => context.t('stats.percent', {'value': value});
+          final others = known - top.fold<int>(0, (sum, name) => sum + totals[name]!);
           final unit = yearly ? 'year' : period.name;
 
           String label(DateTime key) {
@@ -159,34 +162,44 @@ class GenreShiftCard extends StatelessWidget {
                 if (known == 0)
                   Text(context.t('stats.genres.none'), style: TextStyle(color: muted))
                 else ...[
+                  Wrap(spacing: 14, runSpacing: 4, children: [
+                    for (final (index, name) in top.indexed)
+                      _legend(colors[index], '${capitalized(name)}  ${percent(share(totals[name]!, known))}'),
+                    if (others > 0)
+                      _legend(other, '${context.t('stats.genre_shift.other')}  ${percent(share(others, known))}'),
+                  ]),
+                  const SizedBox(height: 12),
                   SizedBox(
-                    height: 30.0 * top.length + 40,
-                    child: CustomPaint(
-                      size: Size.infinite,
-                      painter: _RibbonsPainter(
-                        labels: [for (final key in keys) label(key)],
-                        places: [
-                          for (final key in keys)
-                            if (buckets[key] case final genres?)
-                              // The biggest share first, the bigger genre of the period on a tie
-                              (top.indexed.toList()..sort((a, b) {
-                                    final byShare = (genres[b.$2] ?? 0).compareTo(genres[a.$2] ?? 0);
-                                    return byShare != 0 ? byShare : a.$1.compareTo(b.$1);
-                                  }))
-                                  .map((e) => e.$1)
-                                  .toList()
-                            else
-                              null,
-                        ],
-                        names: [
-                          for (final name in top) '${capitalized(name)}  ${percent(share(totals[name]!, known))}',
-                        ],
-                        colors: colors,
-                        text: Theme.of(context).colorScheme.onSurface,
-                        muted: muted,
-                        ring: Theme.of(context).colorScheme.surfaceContainer,
+                    height: 170,
+                    child: BarChart(BarChartData(
+                      maxY: 1,
+                      borderData: FlBorderData(show: false),
+                      gridData: const FlGridData(show: false),
+                      barTouchData: BarTouchData(enabled: false),
+                      titlesData: FlTitlesData(
+                        topTitles: const AxisTitles(),
+                        rightTitles: const AxisTitles(),
+                        leftTitles: const AxisTitles(),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            getTitlesWidget: (value, meta) {
+                              final index = value.toInt();
+                              final every = keys.length <= 7 ? 1 : (keys.length / 6).ceil();
+                              if (index >= keys.length || index % every != 0) return const SizedBox.shrink();
+                              return SideTitleWidget(
+                                meta: meta,
+                                child: Text(label(keys[index]), style: TextStyle(fontSize: 11, color: muted)),
+                              );
+                            },
+                          ),
+                        ),
                       ),
-                    ),
+                      barGroups: [
+                        for (final (index, key) in keys.indexed) _column(index, buckets[key] ?? {}, top, colors, other,
+                            keys.length > 12 ? 8.0 : 18.0),
+                      ],
+                    )),
                   ),
                 ],
               ],
@@ -194,99 +207,37 @@ class GenreShiftCard extends StatelessWidget {
           );
         },
       );
-}
 
-/// The main genres' places in each column (the day of a week, the week of a month, the month of a year) as thick
-/// ribbons in their colors, the first place at the top, so a genre that overtakes another crosses over it, as the
-/// desktop app's GenreRibbons. Columns without a known genre are passed over, and the names stand at the ribbons'
-/// ends with the genre's share of the period.
-class _RibbonsPainter extends CustomPainter {
-  final List<String> labels;
-
-  /// Each column's genres (their index in [names]) from the first place down, or null for a column without any
-  final List<List<int>?> places;
-  final List<String> names;
-  final List<Color> colors;
-  final Color text;
-  final Color muted;
-
-  /// The card's color, round the dots so a crossing ribbon is cut cleanly
-  final Color ring;
-
-  _RibbonsPainter({
-    required this.labels,
-    required this.places,
-    required this.names,
-    required this.colors,
-    required this.text,
-    required this.muted,
-    required this.ring,
-  });
-
-  TextPainter _text(String value, TextStyle style, double width) =>
-      TextPainter(text: TextSpan(text: value, style: style), textDirection: TextDirection.ltr, maxLines: 1, ellipsis: '…')
-        ..layout(maxWidth: width);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final heard = [for (final (index, order) in places.indexed) if (order != null) index];
-    if (heard.isEmpty || names.isEmpty) return;
-    const left = 16.0, top = 10.0, bottom = 26.0;
-    final nameStyle = TextStyle(color: text, fontSize: 12, fontWeight: FontWeight.w600);
-    final nameWidth = names.map((n) => _text(n, nameStyle, double.infinity).width).reduce((a, b) => a > b ? a : b);
-    final right = (nameWidth + 14).clamp(0.0, size.width * 0.42);
-    final plot = size.width - left - right;
-    final row = names.length > 1 ? (size.height - top - bottom) / (names.length - 1) : 0.0;
-    double x(int index) => left + (index + 0.5) / places.length * plot;
-    double y(int place) => top + place * row;
-
-    final placeStyle = TextStyle(color: muted, fontSize: 11);
-    for (var place = 0; place < names.length; place++) {
-      final number = _text('${place + 1}', placeStyle, left);
-      number.paint(canvas, Offset(left - 8 - number.width, y(place) - number.height / 2));
-    }
-    final every = places.length <= 7 ? 1 : (places.length / 6).ceil();
-    for (var index = 0; index < labels.length; index += every) {
-      final label = _text(labels[index], placeStyle, plot / labels.length * every + 8);
-      label.paint(canvas, Offset(x(index) - label.width / 2, size.height - label.height));
-    }
-
-    for (var genre = 0; genre < names.length; genre++) {
-      final points = [for (final index in heard) Offset(x(index), y(places[index]!.indexOf(genre)))];
-      final color = colors[genre % colors.length];
-      if (points.length > 1) {
-        canvas.drawPath(
-          _smooth(points),
-          Paint()
-            ..color = color
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 8
-            ..strokeCap = StrokeCap.round
-            ..strokeJoin = StrokeJoin.round,
-        );
+  static BarChartGroupData _column(
+      int x, Map<String, int> genres, List<String> top, List<Color> colors, Color other, double width) {
+    final total = genres.values.fold<int>(0, (sum, plays) => sum + plays);
+    final items = <BarChartRodStackItem>[];
+    var from = 0.0;
+    if (total > 0) {
+      final parts = [
+        for (final (index, name) in top.indexed) ((genres[name] ?? 0) / total, colors[index]),
+        ((total - top.fold<int>(0, (sum, name) => sum + (genres[name] ?? 0))) / total, other),
+      ];
+      for (final (part, color) in parts) {
+        if (part == 0) continue;
+        items.add(BarChartRodStackItem(from, from + part, color));
+        from += part;
       }
-      for (final point in points) {
-        canvas.drawCircle(point, 5.5, Paint()..color = ring);
-        canvas.drawCircle(point, 4, Paint()..color = color);
-      }
-      final name = _text(names[genre], nameStyle, right - 10);
-      name.paint(canvas, Offset(points.last.dx + 10, points.last.dy - name.height / 2));
     }
+    return BarChartGroupData(x: x, barRods: [
+      BarChartRodData(
+        toY: total > 0 ? 1 : 0,
+        width: width,
+        rodStackItems: items,
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(3),
+      ),
+    ]);
   }
 
-  /// A soft line through the points (Catmull-Rom as cubic Béziers), as the desktop app's smooth()
-  static Path _smooth(List<Offset> points) {
-    final p = [points.first, ...points, points.last];
-    final path = Path()..moveTo(p[1].dx, p[1].dy);
-    for (var i = 1; i < p.length - 2; i++) {
-      final c1 = p[i] + (p[i + 1] - p[i - 1]) / 6;
-      final c2 = p[i + 1] - (p[i + 2] - p[i]) / 6;
-      path.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p[i + 1].dx, p[i + 1].dy);
-    }
-    return path;
-  }
-
-  @override
-  bool shouldRepaint(_RibbonsPainter old) =>
-      old.labels != labels || old.places != places || old.names != names || old.colors != colors || old.text != text;
+  static Widget _legend(Color color, String text) => Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(width: 6),
+        Text(text, style: const TextStyle(fontSize: 13)),
+      ]);
 }
