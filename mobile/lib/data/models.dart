@@ -10,15 +10,23 @@ List<String> nameVariants(String artist) {
   return {artist, first}.where((name) => name.isNotEmpty).toList();
 }
 
-final _creditSeparators = RegExp(r',|&| feat\.? | ft\.? | x ', caseSensitive: false);
+// Collaborations list their artists with commas (or "feat."); an ampersand is left alone, as bands such as
+// "Judge & Jury" or "Simon & Garfunkel" carry one in their name
+final _creditSeparators = RegExp(r',| feat\.? | ft\.? ', caseSensitive: false);
+
+List<String> _creditParts(String artist) {
+  final parts = artist.split(_creditSeparators).map((part) => part.trim()).where((part) => part.isNotEmpty).toList();
+  return parts.isEmpty ? [artist] : parts;
+}
+
+/// The keys of artists heard on their own or first in a collaboration, as the desktop app's known_artists
+Set<String> knownArtists(Iterable<String> names) => {for (final name in names) textKey(_creditParts(name).first)};
 
 /// The artists one artist name credits, as the desktop app's listening.credited: a collaboration such as
-/// "Şanışer, Sena Şener" is its artists when one of them is also heard on their own ([soloKeys]), so a band named
-/// "Simon & Garfunkel" stays one
-List<String> credited(String artist, Set<String> soloKeys) {
-  final parts = artist.split(_creditSeparators).map((part) => part.trim()).where((part) => part.isNotEmpty).toList();
-  if (parts.length > 1 && parts.any((part) => soloKeys.contains(textKey(part)))) return parts;
-  return [artist];
+/// "Şanışer, Sena Şener" goes to its first artist, and to its others too when they are [known] artists themselves
+List<String> credited(String artist, Set<String> known) {
+  final parts = _creditParts(artist);
+  return [parts.first, ...parts.skip(1).where((part) => known.contains(textKey(part)))];
 }
 
 /// A time as the desktop app writes it for syncing: UTC with microseconds, so such texts sort by time.

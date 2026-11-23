@@ -47,7 +47,8 @@ class Summary {
     plays.length,
     _minutes(plays),
     plays.map((p) => p.trackKey).toSet().length,
-    plays.map((p) => p.artistKey).toSet().length,
+    // Artists as the rankings count them, a collaboration for the artists it credits
+    plays.expand(artistKeysOf).toSet().length,
   );
 }
 
@@ -73,12 +74,27 @@ String trackKeyOf(Play play) => play.trackKey;
 String artistKeyOf(Play play) => play.artistKey;
 String albumKeyOf(Play play) => '${play.artistKey}|${play.album.toLowerCase()}';
 
+/// The artists heard on their own across all plays, which decides how a collaboration is credited (credited);
+/// the store sets it whenever the plays load
+Set<String> soloArtistKeys = {};
+
+void rememberSoloArtists(List<Play> all) => soloArtistKeys = knownArtists(all.map((play) => play.artist));
+
+/// The artists a play counts for: a collaboration's credited artists, else its own
+List<String> artistKeysOf(Play play) => [for (final name in credited(play.artist, soloArtistKeys)) textKey(name)];
+
 /// The plays grouped by key, most played first; ties go to the one listened to longer, then to the one played
 /// last, as in the desktop app
-List<MapEntry<String, List<Play>>> _ordered(List<Play> plays, String Function(Play) keyOf) {
+List<MapEntry<String, List<Play>>> _ordered(List<Play> plays, String Function(Play) keyOf) =>
+    _orderedBy(plays, (play) => [keyOf(play)]);
+
+/// As [_ordered], a play counting for every key it has (a collaboration for each artist it credits)
+List<MapEntry<String, List<Play>>> _orderedBy(List<Play> plays, List<String> Function(Play) keysOf) {
   final groups = <String, List<Play>>{};
   for (final play in plays) {
-    groups.putIfAbsent(keyOf(play), () => []).add(play);
+    for (final key in keysOf(play)) {
+      groups.putIfAbsent(key, () => []).add(play);
+    }
   }
   DateTime last(List<Play> group) => group.map((p) => p.playedAt).reduce((a, b) => a.isAfter(b) ? a : b);
   return groups.entries.toList()..sort((a, b) {
@@ -112,8 +128,12 @@ List<Ranked> _top(
 List<Ranked> topTracks(List<Play> plays, {int limit = 10}) =>
     _top(plays, trackKeyOf, (p) => p.name, (p) => p.artist, limit);
 
-List<Ranked> topArtists(List<Play> plays, {int limit = 10}) =>
-    _top(plays, artistKeyOf, (p) => p.artist, (p) => '', limit);
+/// A collaboration counts for the artists it credits, not as an artist of its own
+List<Ranked> topArtists(List<Play> plays, {int limit = 10}) => _orderedBy(plays, artistKeysOf).take(limit).map((e) {
+  final play = e.value.first;
+  final name = credited(play.artist, soloArtistKeys).firstWhere((n) => textKey(n) == e.key, orElse: () => play.artist);
+  return Ranked(e.key, name, '', e.value.length, _minutes(e.value), artist: name, album: play.album);
+}).toList();
 
 /// Plays without an album name are left out
 List<Ranked> topAlbums(List<Play> plays, {int limit = 10}) =>
@@ -144,10 +164,12 @@ RankChange? Function(String key, int rank) rankChanges(
   if (period == Period.all) return (_, _) => null;
   final range = periodRange(period, offset, now);
   final previousRange = periodRange(period, offset + 1, now);
+  // Artists are ranked by the artists collaborations credit, as topArtists ranks them
+  List<String> keysOf(Play play) => keyOf == artistKeyOf ? artistKeysOf(play) : [keyOf(play)];
   final previous = {
-    for (final (index, entry) in _ordered(playsIn(all, previousRange), keyOf).indexed) entry.key: index + 1,
+    for (final (index, entry) in _orderedBy(playsIn(all, previousRange), keysOf).indexed) entry.key: index + 1,
   };
-  final known = all.where((p) => p.playedAt.isBefore(range.start)).map(keyOf).toSet();
+  final known = all.where((p) => p.playedAt.isBefore(range.start)).expand(keysOf).toSet();
   final first = all.isEmpty ? null : all.map((p) => p.playedAt).reduce((a, b) => a.isBefore(b) ? a : b);
   final recordedBefore = first != null && !first.isAfter(previousRange.start);
   return (key, rank) {
@@ -202,7 +224,7 @@ class DetailTarget {
   /// Its plays; an artist's include the collaborations crediting them
   List<Play> playsIn(List<Play> plays) {
     if (kind != DetailKind.artist) return plays.where((p) => keyOf(p) == key).toList();
-    final solo = {for (final play in plays) play.artistKey};
+    final solo = knownArtists(plays.map((play) => play.artist));
     return plays
         .where((p) => p.artistKey == key || credited(p.artist, solo).any((name) => textKey(name) == key))
         .toList();
@@ -326,7 +348,7 @@ class JourneyPoint {
 
 /// Every artist with their plays, collaborations counted for each artist they credit, most played first
 List<Ranked> creditedArtists(List<Play> plays) {
-  final solo = {for (final play in plays) play.artistKey};
+  final solo = knownArtists(plays.map((play) => play.artist));
   final names = <String, String>{};
   final counts = <String, int>{};
   final ms = <String, int>{};
@@ -770,7 +792,7 @@ class Diversity {
 
   factory Diversity.of(List<Play> all, DateRange range) {
     final plays = playsIn(all, range);
-    final top5 = _ordered(plays, artistKeyOf).take(5).fold<int>(0, (sum, e) => sum + e.value.length);
+    final top5 = _orderedBy(plays, artistKeysOf).take(5).fold<int>(0, (sum, e) => sum + e.value.length);
     final firsts = <String, DateTime>{};
     for (final play in all) {
       final first = firsts[play.trackKey];

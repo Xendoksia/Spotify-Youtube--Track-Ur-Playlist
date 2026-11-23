@@ -105,16 +105,26 @@ def name_variants(artist: str) -> list[str]:
     return list(dict.fromkeys(name for name in (artist, first) if name))
 
 
-_CREDIT_SEPARATORS = re.compile(r",|&| feat\.? | ft\.? | x ", flags=re.IGNORECASE)
+# Collaborations list their artists with commas (or "feat."); an ampersand is left alone, as bands such as
+# "Judge & Jury" or "Simon & Garfunkel" carry one in their name
+_CREDIT_SEPARATORS = re.compile(r",| feat\.? | ft\.? ", flags=re.IGNORECASE)
 
 
-def credited(artist: str, solo_keys: set[str]) -> list[str]:
-    """The artists one artist name credits: a collaboration such as "Şanışer, Sena Şener" is its artists when one
-    of them is also heard on their own (solo_keys), so a band named "Simon & Garfunkel" stays one."""
-    parts = [part.strip() for part in _CREDIT_SEPARATORS.split(artist or "") if part.strip()]
-    if len(parts) > 1 and any(key(part) in solo_keys for part in parts):
-        return parts
-    return [artist]
+def _credit_parts(artist: str) -> list[str]:
+    return [part.strip() for part in _CREDIT_SEPARATORS.split(artist or "") if part.strip()] or [artist]
+
+
+def known_artists(names) -> set[str]:
+    """The keys of artists heard on their own or first in a collaboration: the others of a collaboration are
+    credited only when they are among them."""
+    return {key(_credit_parts(name)[0]) for name in names}
+
+
+def credited(artist: str, known: set[str]) -> list[str]:
+    """The artists one artist name credits: a collaboration such as "Şanışer, Sena Şener" goes to its first artist,
+    and to its others too when they are known artists (known_artists) themselves."""
+    parts = _credit_parts(artist)
+    return [parts[0]] + [part for part in parts[1:] if key(part) in known]
 
 
 def _artist_names(db: sqlite3.Connection) -> list[tuple[str, str]]:
@@ -125,7 +135,7 @@ def artist_keys(artist_key: str, db_path: Path = DB_PATH) -> list[str]:
     """The stored artist keys whose plays belong to an artist: its own and those of collaborations crediting it."""
     with open_db(db_path) as db:
         names = _artist_names(db)
-    solo = {stored for _, stored in names}
+    solo = known_artists(name for name, _ in names)
     found = {stored for name, stored in names
              if stored == artist_key or artist_key in {key(part) for part in credited(name, solo)}}
     return sorted(found) or [artist_key]
@@ -135,7 +145,7 @@ def artist_name(artist_key: str, db_path: Path = DB_PATH) -> str | None:
     """An artist's name as written, also when it is only heard in collaborations."""
     with open_db(db_path) as db:
         names = _artist_names(db)
-    solo = {stored for _, stored in names}
+    solo = known_artists(name for name, _ in names)
     for name, stored in names:
         for part in credited(name, solo):
             if key(part) == artist_key:
@@ -147,7 +157,7 @@ def credited_artists(db_path: Path = DB_PATH) -> list[dict]:
     """Every artist with their plays, collaborations counted for each artist they credit, most played first."""
     with open_db(db_path) as db:
         rows = db.execute("SELECT artist, artist_key, track_key FROM listens").fetchall()
-    solo = {r[1] for r in rows}
+    solo = known_artists(r[0] for r in rows)
     artists: dict[str, dict] = {}
     for artist, _, track in rows:
         for part in credited(artist, solo):
@@ -299,24 +309,42 @@ def _range(start: datetime, end: datetime) -> tuple[str, str]:
     return to_utc(start), to_utc(end)
 
 
+def _credited_count(names, known: set[str]) -> int:
+    """How many different artists some artist names credit, a collaboration counting for its artists."""
+    return len({key(part) for name in names for part in credited(name, known)})
+
+
 def summary(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
     with open_db(db_path) as db:
-        return dict(db.execute(
+        row = dict(db.execute(
             "SELECT COUNT(*) AS plays, COALESCE(SUM(ms_played), 0) / 60000 AS minutes, "
-            "COUNT(DISTINCT track_key) AS tracks, COUNT(DISTINCT artist_key) AS artists "
+            "COUNT(DISTINCT track_key) AS tracks "
             "FROM listens WHERE played_at >= ? AND played_at < ?", _range(start, end)).fetchone())
+        known = known_artists(name for name, _ in _artist_names(db))
+        names = [r[0] for r in db.execute("SELECT DISTINCT artist FROM listens WHERE played_at >= ? AND played_at < ?",
+                                          _range(start, end))]
+    row["artists"] = _credited_count(names, known)
+    return row
 
 
 def summary_by(start: datetime, end: datetime, bucket: str, db_path: Path = DB_PATH) -> dict[str, dict]:
     """summary() per local day ('%Y-%m-%d'), month ('%Y-%m') or year ('%Y')."""
     pattern = {"day": "%Y-%m-%d", "month": "%Y-%m", "year": "%Y"}[bucket]
     with open_db(db_path) as db:
-        return {r["bucket"]: {name: r[name] for name in ("plays", "minutes", "tracks", "artists")}
-                for r in db.execute(
+        buckets = {r["bucket"]: {name: r[name] for name in ("plays", "minutes", "tracks")}
+                   for r in db.execute(
             "SELECT strftime(?, played_at, 'localtime') AS bucket, COUNT(*) AS plays, "
-            "COALESCE(SUM(ms_played), 0) / 60000 AS minutes, "
-            "COUNT(DISTINCT track_key) AS tracks, COUNT(DISTINCT artist_key) AS artists "
+            "COALESCE(SUM(ms_played), 0) / 60000 AS minutes, COUNT(DISTINCT track_key) AS tracks "
             "FROM listens WHERE played_at >= ? AND played_at < ? GROUP BY bucket", (pattern, *_range(start, end)))}
+        known = known_artists(name for name, _ in _artist_names(db))
+        names: dict[str, set[str]] = {}
+        for bucket, artist in db.execute(
+                "SELECT DISTINCT strftime(?, played_at, 'localtime'), artist FROM listens "
+                "WHERE played_at >= ? AND played_at < ?", (pattern, *_range(start, end))):
+            names.setdefault(bucket, set()).add(artist)
+    for bucket, values in buckets.items():
+        values["artists"] = _credited_count(names.get(bucket, ()), known)
+    return buckets
 
 
 def top_tracks(start: datetime, end: datetime, limit: int = 10, artist_key: str | None = None,
@@ -375,12 +403,24 @@ def top_albums(start: datetime, end: datetime, limit: int = 10, artist_key: str 
 
 
 def top_artists(start: datetime, end: datetime, limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
+    """Most played artists of the period (all of them for a negative limit); a collaboration counts for the artists
+    it credits (credited), not as an artist of its own."""
     with open_db(db_path) as db:
-        return [dict(r) for r in db.execute(
-            "SELECT artist_key AS key, MAX(artist) AS name, COUNT(*) AS plays, COUNT(DISTINCT track_key) AS tracks, "
-            "COALESCE(SUM(ms_played), 0) / 60000 AS minutes "
-            "FROM listens WHERE played_at >= ? AND played_at < ? "
-            "GROUP BY artist_key ORDER BY plays DESC, SUM(ms_played) DESC, MAX(played_at) DESC LIMIT ?", (*_range(start, end), limit))]
+        solo = known_artists(name for name, _ in _artist_names(db))
+        rows = db.execute("SELECT artist, track_key, COALESCE(ms_played, 0), played_at FROM listens "
+                          "WHERE played_at >= ? AND played_at < ?", _range(start, end)).fetchall()
+    artists: dict[str, dict] = {}
+    for artist, track, ms, played_at in rows:
+        for part in credited(artist, solo):
+            entry = artists.setdefault(key(part), {"key": key(part), "name": part, "plays": 0, "ms": 0, "last": "",
+                                                   "track_keys": set()})
+            entry["plays"] += 1
+            entry["ms"] += ms
+            entry["last"] = max(entry["last"], played_at)
+            entry["track_keys"].add(track)
+    ordered = sorted(artists.values(), key=lambda a: (a["plays"], a["ms"], a["last"]), reverse=True)
+    return [{"key": a["key"], "name": a["name"], "plays": a["plays"], "tracks": len(a["track_keys"]),
+             "minutes": a["ms"] // 60000} for a in (ordered if limit < 0 else ordered[:limit])]
 
 
 def _first_heard(start: datetime, end: datetime, column: str, fields: str, db_path: Path) -> list[dict]:
@@ -423,17 +463,16 @@ def diversity(start: datetime, end: datetime, db_path: Path = DB_PATH) -> dict:
     period = _range(start, end)
     with open_db(db_path) as db:
         row = dict(db.execute(
-            "SELECT COUNT(*) AS plays, COUNT(DISTINCT track_key) AS tracks, COUNT(DISTINCT artist_key) AS artists "
+            "SELECT COUNT(*) AS plays, COUNT(DISTINCT track_key) AS tracks "
             "FROM listens WHERE played_at >= ? AND played_at < ?", period).fetchone())
-        row["top5"] = db.execute(
-            "SELECT COALESCE(SUM(plays), 0) FROM (SELECT COUNT(*) AS plays FROM listens "
-            "WHERE played_at >= ? AND played_at < ? GROUP BY artist_key ORDER BY plays DESC LIMIT 5)",
-            period).fetchone()[0]
         row["new"] = db.execute(
             "WITH firsts AS (SELECT track_key, MIN(played_at) AS first_played FROM listens GROUP BY track_key) "
             "SELECT COUNT(*) FROM listens l JOIN firsts f USING (track_key) "
             "WHERE l.played_at >= ? AND l.played_at < ? AND f.first_played >= ? AND f.first_played < ?",
             period * 2).fetchone()[0]
+    # Artists as the rankings count them, a collaboration for the artists it credits
+    row["artists"] = summary(start, end, db_path)["artists"]
+    row["top5"] = sum(a["plays"] for a in top_artists(start, end, 5, db_path))
     return row
 
 

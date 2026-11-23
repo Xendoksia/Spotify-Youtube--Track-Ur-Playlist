@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/models.dart';
 import '../data/repository.dart';
+import '../data/stats.dart';
 
 /// Everything the screens show, loaded from Supabase at once and again when the user pulls to refresh
 class DataStore extends ChangeNotifier {
@@ -25,6 +26,7 @@ class DataStore extends ChangeNotifier {
     try {
       final results = await Future.wait([repository.plays(), repository.trackedPlaylists(), repository.events()]);
       plays = results[0] as List<Play>;
+      rememberSoloArtists(plays);
       playlists = results[1] as List<TrackedPlaylist>;
       events = results[2] as List<PlaylistEvent>;
       loaded = true;
@@ -37,7 +39,6 @@ class DataStore extends ChangeNotifier {
     }
   }
 
-  List<PlaylistEvent> eventsOf(TrackedPlaylist playlist) => events
-      .where((e) => e.service == playlist.service && e.playlistId == playlist.playlistId)
-      .toList();
+  List<PlaylistEvent> eventsOf(TrackedPlaylist playlist) =>
+      events.where((e) => e.service == playlist.service && e.playlistId == playlist.playlistId).toList();
 }

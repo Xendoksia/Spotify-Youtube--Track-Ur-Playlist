@@ -33,7 +33,8 @@ void main() {
       play('Simon & Garfunkel', 'The Boxer', 'C'),
     ];
     expect(searchPlays(plays, 'sanis')!.artists.map((a) => (a.title, a.plays)), [('Şanışer', 2)]);
-    expect(searchPlays(plays, 'sena')!.artists.single.title, 'Sena Şener');
+    // Not heard alone, so the collaboration goes only to its first artist
+    expect(searchPlays(plays, 'sena')!.artists, isEmpty);
     expect(searchPlays(plays, 'simon')!.artists.single.title, 'Simon & Garfunkel');
   });
 

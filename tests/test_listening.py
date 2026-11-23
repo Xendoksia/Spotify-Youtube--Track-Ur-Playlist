@@ -245,12 +245,18 @@ class CreditsTest(ListeningTestCase):
         self.play("Şanışer, Sena Şener", "Yağmurlar", "2026-11-03 10:00")
         self.play("Simon & Garfunkel", "The Boxer", "2026-11-04 10:00")
         self.assertEqual(listening.artist_keys("şanışer", self.db), ["şanışer", "şanışer, sena şener"])
-        self.assertEqual(listening.artist_keys("sena şener", self.db), ["şanışer, sena şener"])
-        self.assertEqual(listening.artist_name("sena şener", self.db), "Sena Şener")
-        # Neither half of the band is heard alone, so it stays one artist
+        # Not heard alone, so the collaboration goes only to its first artist
+        self.assertIsNone(listening.artist_name("sena şener", self.db))
+        # An ampersand is part of a band's name
         self.assertEqual(listening.artist_keys("simon", self.db), ["simon"])
+        self.play("Cem Adrian, Mark Eliyahu", "Seni Dert Etmeler", "2026-11-04 11:00")
+        self.play("Mark Eliyahu, Cem Adrian", "Derinlerde", "2026-11-04 12:00")
+        # Both are first in a collaboration, so each is credited for both songs
+        self.assertEqual(len(listening.artist_keys("mark eliyahu", self.db)), 2)
         names = {a["name"]: a["plays"] for a in listening.credited_artists(self.db)}
-        self.assertEqual(names, {"Şanışer": 2, "Sena Şener": 1, "Simon & Garfunkel": 1})
+        self.assertEqual(names, {"Şanışer": 2, "Simon & Garfunkel": 1, "Cem Adrian": 2, "Mark Eliyahu": 2})
+        ranked = listening.top_artists(utc("2026-11-01 00:00"), utc("2026-11-05 00:00"), -1, db_path=self.db)
+        self.assertEqual({a["name"]: a["plays"] for a in ranked}, names)
         start, end = utc("2026-11-01 00:00"), utc("2026-11-05 00:00")
         tracks = listening.top_tracks(start, end, artist_key="şanışer", db_path=self.db)
         self.assertEqual({t["name"] for t in tracks}, {"Görünce", "Yağmurlar"})
