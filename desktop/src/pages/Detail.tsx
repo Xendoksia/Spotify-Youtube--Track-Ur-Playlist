@@ -13,6 +13,7 @@ import Picture from "../components/Picture";
 import Tile, { TileData } from "../components/Tile";
 import RankJourney, { Journey } from "../components/RankJourney";
 import TimelineCurve, { Trend } from "../components/TimelineCurve";
+import Vinyl, { VinylData } from "../components/Vinyl";
 import TrackGrid from "../components/TrackGrid";
 import { DetailSkeleton } from "../components/Skeleton";
 import { useTexts } from "../i18n";
@@ -32,6 +33,7 @@ interface DetailData {
   timeline: { title: string; buckets: Bucket[]; peak?: number | null; peak_text?: string };
   trend?: Trend | null;
   journey?: Journey;
+  vinyl?: VinylData;
   tracks?: { title: string; rows: BarRow[]; pictures: boolean };
   progress?: { share: number; text: string };
   hours?: { title: string; buckets: Bucket[]; peak: number | null; peak_text: string; summary: string };
@@ -163,8 +165,13 @@ export default function Detail({ visit, onLoaded }: {
       {data.kind === "album" && (
         <>
           {data.progress && <AlbumProgress progress={data.progress} />}
+          {data.vinyl && data.tracks ? (
+            <Card icon="disc" title={data.vinyl.title}>
+              <Vinyl rows={data.tracks.rows} data={data.vinyl}
+                     onOpen={(row) => row.column && open(row.column, row.key)} />
+            </Card>
+          ) : timeline}
           {tracks}
-          {timeline}
         </>
       )}
       {data.kind === "track" && (

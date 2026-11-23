@@ -1009,6 +1009,94 @@ img.picture.loaded {
 .timeline-curve .line-faint { stop-color: var(--day-color-2); stop-opacity: 0.8; }
 .timeline-curve .line-full { stop-color: var(--day-color); stop-opacity: 1; }
 
+/* An album as a record (components/Vinyl.tsx): slices from the cover's second color at the label to its first at
+ * the rim, the most played one fully lit */
+.vinyl {
+  align-items: center;
+}
+
+.vinyl-record {
+  width: min(100%, 360px);
+  height: auto;
+  overflow: visible;
+}
+
+.vinyl .vinyl-from { stop-color: var(--day-color-2); }
+.vinyl .vinyl-to { stop-color: var(--day-color); }
+
+.vinyl-disc { fill: var(--bg); }
+
+.vinyl-groove {
+  fill: none;
+  stroke: var(--grid);
+  stroke-opacity: 0.6;
+}
+
+.vinyl-slice {
+  opacity: 0.8;
+  transition: opacity 150ms;
+}
+
+.vinyl-slice.best,
+.vinyl-slice.hovered {
+  opacity: 1;
+}
+
+.vinyl-slice.unheard {
+  fill: var(--grid);
+  opacity: 0.8;
+}
+
+.vinyl-hit {
+  fill: transparent;
+}
+
+.vinyl-hit.clickable {
+  cursor: pointer;
+}
+
+.vinyl-number {
+  fill: var(--muted);
+  font-size: 11px;
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.vinyl-rim { fill: var(--surface); }
+
+.vinyl-label {
+  fill: var(--day-color);
+  fill-opacity: 0.2;
+}
+
+.vinyl-count {
+  fill: var(--text);
+  font-size: 20px;
+  font-weight: 700;
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+.vinyl-caption {
+  fill: var(--muted);
+  font-size: 11px;
+  text-anchor: middle;
+}
+
+.vinyl-line {
+  margin: 0;
+  min-height: 1.4em;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+.vinyl-line strong {
+  color: var(--text);
+}
+
 /* A track's climb among all tracks (components/RankJourney.tsx): its line runs from the cover's second color into
  * its first, over the shaded top ten, with the places on a scale beside it */
 .journey .journey-from { stop-color: var(--day-color-2); }

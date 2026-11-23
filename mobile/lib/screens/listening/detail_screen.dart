@@ -13,6 +13,7 @@ import '../../widgets/day_curve.dart';
 import '../../widgets/format.dart';
 import '../../widgets/rank_journey.dart';
 import '../../widgets/timeline_curve.dart';
+import '../../widgets/vinyl.dart';
 import 'listening_chart.dart';
 
 /// Opens the page of a track, artist or album
@@ -161,8 +162,8 @@ class _DetailScreenState extends State<DetailScreen> {
                 _weekdays(context, plays),
                 gap,
               ],
-              if (target.kind == DetailKind.album) ...[_albumTracks(context, plays), gap],
-              _chart(context, plays),
+              if (target.kind == DetailKind.album) ...[_albumVinyl(context, plays), gap, _albumTracks(context, plays)],
+              if (target.kind != DetailKind.album) _chart(context, plays),
               if (target.kind == DetailKind.artist) ...[
                 gap,
                 SectionCard(
@@ -377,6 +378,34 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   /// The album's tracks in album order once Deezer's list comes, the played ones until then
+  /// The album as a record of its tracks in album order, each slice as long as it was played
+  Widget _albumVinyl(BuildContext context, List<Play> plays) {
+    return FutureBuilder<List<(String, int)>?>(
+      future: _tracklist,
+      builder: (context, snapshot) {
+        final (color, color2) = _curveColors(context);
+        return SectionCard(
+          title: context.t('detail.vinyl'),
+          child: Vinyl(
+            tracks: albumTracks(plays, snapshot.data),
+            complete: snapshot.data != null,
+            color: color,
+            color2: color2,
+            onOpen: (track) => _open(
+              DetailTarget(
+                DetailKind.track,
+                track.played!.key,
+                track.played!.title,
+                artist: target.artist,
+                album: target.album,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _albumTracks(BuildContext context, List<Play> plays) {
     return FutureBuilder<List<(String, int)>?>(
       future: _tracklist,

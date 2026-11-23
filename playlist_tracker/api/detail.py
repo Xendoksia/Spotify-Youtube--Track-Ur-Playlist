@@ -298,6 +298,15 @@ def detail(column: str, key: str, arrived: Callable[[], None]) -> dict | None:
             "text": t("detail.album_progress", percent=t("stats.percent", value=round(share * 100)))
                     if tracks else t("detail.album_progress_unknown"),
         }
+        # The album as a record of its tracks in album order, each slice as long as it was played
+        best = rows.index(favorite) if favorite and favorite["value"] else None
+        page["vinyl"] = {
+            "title": t("detail.vinyl"),
+            "summary": t("detail.vinyl.summary", number=number(best + 1), title=favorite["title"]) if best is not None
+                       else "",
+            "center": f"{number(heard)}/{number(len(rows))}" if tracks else number(heard),
+            "caption": t("detail.vinyl.caption"),
+        }
         page["tracks"] = {"title": t("detail.album_tracks", heard=number(heard), total=number(len(rows)))
                           if tracks else t("detail.artist_tracks"), "rows": rows, "pictures": False}
     else:
