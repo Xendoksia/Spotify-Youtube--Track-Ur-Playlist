@@ -978,9 +978,15 @@ img.picture.loaded {
 .genre-wheel {
   display: grid;
   flex: 1;
-  grid-template-columns: 1fr 1fr;
+  /* Columns that can shrink below their longest genre's name, which is cut short instead, so the card never
+     grows wider than the page */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
   align-items: center;
+}
+
+.genre-wheel > * {
+  min-width: 0;
 }
 
 .genre-ring {
@@ -1040,7 +1046,7 @@ img.picture.loaded {
 
 .ring-legend li {
   display: grid;
-  grid-template-columns: 10px 1fr auto;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
 }
