@@ -79,13 +79,22 @@ class StatTile extends StatelessWidget {
             Text(label, style: TextStyle(color: Palette.of(context).muted, fontSize: 13)),
             const SizedBox(height: 4),
             if (count == null)
-              Text(value, style: style)
+              // One line in every tile, a long date shrinking to fit instead of wrapping and growing its tile
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(value, style: style, maxLines: 1, softWrap: false),
+              )
             else
               TweenAnimationBuilder<double>(
                 tween: Tween(end: count!.toDouble()),
                 duration: changeDuration,
                 curve: changeCurve,
-                builder: (context, shown, _) => Text(format!(shown.round()), style: style),
+                builder: (context, shown, _) => FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(format!(shown.round()), style: style, maxLines: 1, softWrap: false),
+                ),
               ),
             if (note != null) ...[
               const SizedBox(height: 2),

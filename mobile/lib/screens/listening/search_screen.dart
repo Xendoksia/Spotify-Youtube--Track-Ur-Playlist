@@ -104,7 +104,8 @@ class _SearchScreenState extends State<SearchScreen> {
           controller: _text,
           autofocus: true,
           textInputAction: TextInputAction.search,
-          decoration: InputDecoration(hintText: context.t('search.placeholder'), border: InputBorder.none),
+          // Short enough for the bar on a narrow phone, kept to one line either way
+          decoration: InputDecoration(hintText: context.t('search.hint'), hintMaxLines: 1, border: InputBorder.none),
           onChanged: _typed,
           onSubmitted: (_) => _run(),
         ),
