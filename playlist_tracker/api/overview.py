@@ -51,17 +51,28 @@ def overview(period: str, offset: int) -> dict:
             "value": r["plays"], "value_text": number(r["plays"]),
             "detail": summary_text(plays_text(r["plays"]), minutes=r["minutes"]),
             "change": track_change(r["key"], rank), "image": cover_url(r["artist"], r["album"], r["name"]),
+            "colors": picture_colors(artwork.cover_path(r["artist"], r["album"], r["name"])),
         } for rank, r in enumerate(tracks[1:], start=2)],
         "top_artists": [{
             "key": r["key"], "rank": rank, "title": r["name"], "subtitle": tracks_text(r["tracks"]),
             "value": r["plays"], "value_text": number(r["plays"]),
             "detail": summary_text(plays_text(r["plays"]), tracks_text(r["tracks"]), minutes=r["minutes"]),
             "change": artist_change(r["key"], rank), "image": artist_url(r["name"]),
+            "colors": picture_colors(artwork.artist_path(r["name"])),
         } for rank, r in enumerate(artists[1:], start=2)],
         "timeline": timeline(period, start, end, offset),
         "hours": {"title": t("stats.hours"), "buckets": hour_buckets(listening.hours(start, end))},
         "mood": period_mood(tracks[:1], artists[:1]),
     }
+
+
+def picture_colors(path) -> dict | None:
+    """A ranked row's two colors for its bar, from its cover or photo once it is downloaded (the window asks for
+    the picture itself, so a row without it yet keeps the charts' green until the next refresh). A picture without
+    any color gives two greys, as its bar would look odd in green among the colored ones."""
+    if not path.exists():
+        return None
+    return artwork.palette(path) or {"hue": 0, "chroma": 0, "hue2": None, "chroma2": None, "lift": 0}
 
 
 def period_mood(tracks: list[dict], artists: list[dict]) -> dict | None:

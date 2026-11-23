@@ -250,6 +250,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
                             rows: tracks.sublist(1),
                             firstRank: 2,
                             change: trackChange,
+                            picture: (row) => Artwork.instance.cover(row.artist, row.album, row.title),
                             image: (row) => ArtworkImage.cover(
                               artist: row.artist,
                               album: row.album,
@@ -269,6 +270,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
                             rows: artists.sublist(1),
                             firstRank: 2,
                             change: artistChange,
+                            picture: (row) => Artwork.instance.artistPhoto(row.artist),
                             image: (row) =>
                                 ArtworkImage.artist(artist: row.artist, hero: heroTag(DetailKind.artist, row.key, 1)),
                             onTap: (row) =>
@@ -281,6 +283,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
                         title: context.t('stats.top_albums'),
                         child: RankedList(
                           rows: topAlbums(plays),
+                          picture: (row) => Artwork.instance.albumCover(row.artist, row.album),
                           image: (row) => ArtworkImage.album(
                             artist: row.artist,
                             album: row.album,

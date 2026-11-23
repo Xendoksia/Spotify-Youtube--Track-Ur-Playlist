@@ -1,3 +1,4 @@
+import { curveStyle, Mood } from "../mood";
 import { Column, useOpenDetail } from "../navigation";
 import Change, { RankChange } from "./Change";
 import Picture from "./Picture";
@@ -14,9 +15,12 @@ export interface BarRow {
   image?: string;
   /** The page a row opens when it names its own (a track not heard yet has null and opens nothing) */
   column?: Column | null;
+  /** The two colors of its cover or photo, which its bar takes, else the charts' green */
+  colors?: Mood | null;
 }
 
-/** Rows with a bar as long as their value, optionally ranked and with a picture; bars grow to new values.
+/** Rows with a bar as long as their value, optionally ranked and with a picture; bars grow to new values, each
+ * in the two colors of its picture when the row has them.
  * A click on a row opens its page: column names the kind of all rows, or each row names its own. */
 export default function BarList({ rows, empty, round = false, column }: {
   rows: BarRow[]; empty: string; round?: boolean; column?: Column;
@@ -35,7 +39,7 @@ export default function BarList({ rows, empty, round = false, column }: {
         const clickable = Boolean(open && target);
         return (
           <li key={row.key} className={`bar-row${clickable ? " clickable" : ""}`}
-              style={{ gridTemplateColumns: columns }}
+              style={{ gridTemplateColumns: columns, ...curveStyle(row.colors) }}
               title={`${row.title}\n${row.subtitle}\n${row.detail}${row.change ? `\n${row.change.long}` : ""}`}
               onClick={clickable ? () => open!(target!, row.key) : undefined}>
             {ranked && <span className="rank">{row.rank}</span>}
@@ -46,7 +50,7 @@ export default function BarList({ rows, empty, round = false, column }: {
                 <span className="bar-subtitle">{row.subtitle}</span>
               </div>
               <div className="bar-track">
-                <div className="bar-fill" style={{ width: `${(row.value * 100) / most}%` }} />
+                <div className={`bar-fill${row.colors ? " colored" : ""}`} style={{ width: `${(row.value * 100) / most}%` }} />
               </div>
             </div>
             <span className="bar-value">{row.value_text}</span>

@@ -835,8 +835,19 @@ img.picture.loaded {
   transition: width var(--change);
 }
 
+/* A ranked row's bar in the two colors of its cover or photo, from the second to the first */
+.bar-fill.colored {
+  background: linear-gradient(90deg, var(--curve-2), var(--curve-1));
+}
+
 .bar-row:hover .bar-fill {
   background: var(--chart-hover);
+}
+
+/* A colored bar keeps its colors under the pointer, a little brighter */
+.bar-row:hover .bar-fill.colored {
+  background: linear-gradient(90deg, var(--curve-2), var(--curve-1));
+  filter: brightness(1.15);
 }
 
 .bar-value {

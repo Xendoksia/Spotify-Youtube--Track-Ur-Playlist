@@ -173,6 +173,9 @@ class RankedList extends StatelessWidget {
   /// The bars' two colors on a page with a picture (its first and second), else the charts' green
   final (Color, Color)? colors;
 
+  /// The address of the row's cover or photo, whose two colors its own bar takes
+  final Future<String?> Function(Ranked row)? picture;
+
   const RankedList({
     super.key,
     required this.rows,
@@ -181,6 +184,7 @@ class RankedList extends StatelessWidget {
     this.onTap,
     this.firstRank = 1,
     this.colors,
+    this.picture,
   });
 
   @override
@@ -229,12 +233,19 @@ class RankedList extends StatelessWidget {
                             style: TextStyle(color: palette.muted, fontSize: 13),
                           ),
                         const SizedBox(height: 4),
-                        ShareBar(
-                          share: row.plays / most,
-                          color: palette.chart,
-                          colors: colors,
-                          background: palette.border,
-                        ),
+                        if (picture != null && colors == null)
+                          _PictureBar(
+                            share: row.plays / most,
+                            name: row.key,
+                            picture: () => picture!(row),
+                          )
+                        else
+                          ShareBar(
+                            share: row.plays / most,
+                            color: palette.chart,
+                            colors: colors,
+                            background: palette.border,
+                          ),
                       ],
                     ),
                   ),
@@ -253,6 +264,58 @@ class RankedList extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// A ranked row's bar in the two colors of its cover or photo, as on the desktop app: the charts' green until they
+/// are known, and two greys for a picture without any color, which would look odd in green among colored bars
+class _PictureBar extends StatefulWidget {
+  final double share;
+
+  /// The row's key, under which its colors are kept for the next time it is shown
+  final String name;
+  final Future<String?> Function() picture;
+
+  const _PictureBar({required this.share, required this.name, required this.picture});
+
+  /// The colors found so far, by row (null for a picture without any), so a row shown again is colored at once
+  static final _known = <String, Mood?>{};
+
+  @override
+  State<_PictureBar> createState() => _PictureBarState();
+}
+
+class _PictureBarState extends State<_PictureBar> {
+  @override
+  void initState() {
+    super.initState();
+    if (!_PictureBar._known.containsKey(widget.name)) _find();
+  }
+
+  Future<void> _find() async {
+    final url = await widget.picture();
+    if (url == null) return;
+    final colors = await paletteOf(url);
+    _PictureBar._known[widget.name] = colors;
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Palette.of(context);
+    final brightness = Theme.of(context).brightness;
+    final known = _PictureBar._known.containsKey(widget.name);
+    final colors = _PictureBar._known[widget.name];
+    return ShareBar(
+      share: widget.share,
+      color: palette.chart,
+      colors: !known
+          ? null
+          : colors == null
+          ? (palette.muted, Color.lerp(palette.muted, palette.border, 0.6)!)
+          : (colors.color(brightness), colors.color2(brightness)),
+      background: palette.border,
     );
   }
 }
