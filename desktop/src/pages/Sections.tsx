@@ -7,7 +7,8 @@ import { FamilyWeb, GenreRing, RingSlice } from "../components/GenreWheel";
 import Picture from "../components/Picture";
 import Sigil from "../components/Sigil";
 import { Column, useOpenDetail } from "../navigation";
-import StackedColumns, { Series, seriesClass, StackedColumn } from "../components/StackedColumns";
+import GenreRibbons from "../components/GenreRibbons";
+import { Series, StackedColumn } from "../components/StackedColumns";
 import { CardSkeleton } from "../components/Skeleton";
 
 interface YearAgoRow {
@@ -115,18 +116,8 @@ export function Diversity({ data }: { data: SectionsData["diversity"] }) {
 export function GenreShift({ data }: { data: GenresData["shift"] | null }) {
   if (!data) return <CardSkeleton />;
   return (
-    <Card icon="area" title={data.title} summary={data.summary}>
-      {data.legend.length > 0 && (
-        <div className="legend">
-          {data.legend.map((item) => (
-            <span key={item.series} className="legend-item">
-              <span className={`swatch ${seriesClass(item.series)}`} />
-              {item.text}
-            </span>
-          ))}
-        </div>
-      )}
-      <StackedColumns columns={data.columns} empty={data.empty} />
+    <Card icon="area" title={data.title} summary={data.summary} className="genre-shift">
+      <GenreRibbons columns={data.columns} legend={data.legend} empty={data.empty} />
     </Card>
   );
 }
@@ -243,14 +234,16 @@ export function Milestones({ data }: { data: SectionsData["milestones"] }) {
   return (
     <Card icon="flag" title={data.title} summary={data.summary}>
       {data.items.length === 0 ? <p className="empty">{data.empty}</p> : (
-        // A timeline: a dot on a line for each, the date once for the ones of the same day
-        <ol className="milestone-line">
-          {data.items.map((item, index) => (
-            <li key={index} className={`milestone${item.column ? " clickable" : ""}`}
+        // A timeline across the card, the oldest on the left, each one's words over and under the line in turn
+        <ol className="milestone-line" style={{ gridTemplateColumns: `repeat(${data.items.length}, 1fr)` }}>
+          {[...data.items].reverse().map((item, index) => (
+            <li key={index} className={`milestone${index % 2 ? " under" : ""}${item.column ? " clickable" : ""}`}
                 onClick={item.column && open ? () => open(item.column!, item.key!) : undefined}>
-              <span className="milestone-date">{item.date !== data.items[index - 1]?.date ? item.date : ""}</span>
+              <span className="milestone-words">
+                <span className="milestone-date">{item.date}</span>
+                <span className="milestone-text">{item.text}</span>
+              </span>
               <span className="milestone-dot" />
-              <span className="milestone-text">{item.text}</span>
             </li>
           ))}
         </ol>

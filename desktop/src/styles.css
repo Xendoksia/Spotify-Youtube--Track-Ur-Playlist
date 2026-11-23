@@ -1104,9 +1104,11 @@ polygon.web-before {
   border: 1.5px dashed var(--muted);
 }
 
-/* The milestones as a timeline (pages/Sections.tsx), its dots in the number one's color */
+/* The milestones as a timeline across the card (pages/Sections.tsx), its dots in the number one's color, each
+ * one's words over the line and the next one's under it, so neighbours have twice the room */
 .milestone-line {
   --milestone-color: var(--mood);
+  display: grid;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1117,57 +1119,85 @@ polygon.web-before {
 }
 
 .milestone {
-  display: grid;
-  grid-template-columns: 72px 18px 1fr;
-  gap: 10px;
-}
-
-.milestone-date {
-  padding: 6px 0;
-  color: var(--muted);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-/* The line runs down through every dot, from the first to the last */
-.milestone-dot {
   position: relative;
+  height: 200px;
 }
 
-.milestone-dot::before {
+/* The line through the middle, from the first dot to the last */
+.milestone::before {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 8px;
-  width: 2px;
+  top: 99px;
+  right: 0;
+  left: 0;
+  height: 2px;
   background: color-mix(in oklch, var(--milestone-color) 35%, var(--border));
   content: "";
 }
 
-.milestone:first-child .milestone-dot::before {
-  top: 14px;
+.milestone:first-child::before {
+  left: 50%;
 }
 
-.milestone:last-child .milestone-dot::before {
-  bottom: calc(100% - 14px);
+.milestone:last-child::before {
+  right: 50%;
 }
 
-.milestone-dot::after {
+.milestone-dot {
   position: absolute;
-  top: 8px;
-  left: 3px;
-  width: 12px;
-  height: 12px;
+  top: 93px;
+  left: calc(50% - 7px);
+  width: 14px;
+  height: 14px;
   border: 2px solid var(--surface);
   border-radius: 50%;
   background: var(--milestone-color);
-  box-sizing: border-box;
-  content: "";
+}
+
+.milestone-words {
+  position: absolute;
+  bottom: 116px;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 180%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.milestone.under .milestone-words {
+  top: 116px;
+  bottom: auto;
+}
+
+/* The ends lean inward so they stay inside the card */
+.milestone:first-child .milestone-words {
+  left: calc(50% - 7px);
+  width: 160%;
+  transform: none;
+  text-align: left;
+}
+
+.milestone:last-child .milestone-words {
+  right: calc(50% - 7px);
+  left: auto;
+  width: 160%;
+  transform: none;
+  text-align: right;
+}
+
+.milestone-date {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .milestone-text {
-  padding: 6px 0;
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .milestone.clickable {
@@ -1176,6 +1206,87 @@ polygon.web-before {
 
 .milestone.clickable:hover .milestone-text {
   text-decoration: underline;
+}
+
+.milestone.clickable:hover .milestone-dot {
+  transform: scale(1.25);
+}
+
+/* The genres' places as ribbons (components/GenreRibbons.tsx) */
+.card.genre-shift {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fills what the card has left; the drawing sits over it so it never makes the card taller itself */
+.genre-ribbons {
+  position: relative;
+  flex: 1;
+  min-height: 190px;
+}
+
+.genre-ribbons svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: visible;
+}
+
+.ribbon path {
+  fill: none;
+  stroke-width: 10px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  animation: draw-line 900ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.ribbon circle {
+  stroke: var(--surface);
+  stroke-width: 2px;
+  transition: r 150ms;
+}
+
+.ribbon-0 { stroke: var(--series-0); fill: var(--series-0); }
+.ribbon-1 { stroke: var(--series-1); fill: var(--series-1); }
+.ribbon-2 { stroke: var(--series-2); fill: var(--series-2); }
+.ribbon-3 { stroke: var(--series-3); fill: var(--series-3); }
+
+.ribbon-0 path, .ribbon-1 path, .ribbon-2 path, .ribbon-3 path {
+  fill: none;
+}
+
+.ribbon-place,
+.ribbon-label {
+  fill: var(--muted);
+  font-size: 12px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.ribbon-place {
+  text-anchor: end;
+}
+
+.ribbon-name {
+  fill: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  dominant-baseline: middle;
+}
+
+.ribbon-column {
+  fill: var(--hover);
+}
+
+.ribbon-hit {
+  fill: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ribbon path {
+    animation: none;
+  }
 }
 
 /* The hours round a clock face (components/HourClock.tsx), in the number one's color */
