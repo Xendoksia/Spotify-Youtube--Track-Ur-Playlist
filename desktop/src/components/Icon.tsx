@@ -6,6 +6,7 @@ const GLYPHS = {
   star: "", tag: "", history: "", disc: "",
   layers: "", area: "", flag: "", bell: "",
   list: "", account: "", sync: "", device: "", help: "", settings: "",
+  search: "",
   music: "", check: "", link: "", add: "", download: "", play: "", pause: "", share: "",
 } as const;
 

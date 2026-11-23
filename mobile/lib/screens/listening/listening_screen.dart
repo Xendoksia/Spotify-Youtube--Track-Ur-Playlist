@@ -18,6 +18,7 @@ import 'discoveries.dart';
 import 'genre_cards.dart';
 import 'listening_chart.dart';
 import 'period_bar.dart';
+import 'search_screen.dart';
 import 'trends.dart';
 import 'wrapped_screen.dart';
 
@@ -156,7 +157,18 @@ class _ListeningScreenState extends State<ListeningScreen> {
         period: _period,
         offset: _offset,
         range: range,
-        trailing: WrappedInboxButton(store: widget.store),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: context.t('search.placeholder'),
+              icon: const Icon(Icons.search),
+              onPressed: () =>
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchScreen(store: widget.store))),
+            ),
+            WrappedInboxButton(store: widget.store),
+          ],
+        ),
         onPeriod: (period) => setState(() {
           _direction = 0;
           _period = period;
@@ -169,113 +181,154 @@ class _ListeningScreenState extends State<ListeningScreen> {
       ),
       gap,
       // Rows rather than a grid with a fixed aspect ratio, so the tiles grow with the phone's font size
-      Row(children: [
-        Expanded(child: _tile(context, 'stats.plays', summary.plays, previous?.plays, context.number, days, (s) => s.plays)),
-        const SizedBox(width: 8),
-        Expanded(
-            child: _tile(context, 'stats.time', summary.minutes, previous?.minutes, context.minutes, days, (s) => s.minutes)),
-      ]),
+      Row(
+        children: [
+          Expanded(
+            child: _tile(context, 'stats.plays', summary.plays, previous?.plays, context.number, days, (s) => s.plays),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _tile(
+              context,
+              'stats.time',
+              summary.minutes,
+              previous?.minutes,
+              context.minutes,
+              days,
+              (s) => s.minutes,
+            ),
+          ),
+        ],
+      ),
       const SizedBox(height: 8),
-      Row(children: [
-        Expanded(
-            child: _tile(context, 'stats.tracks', summary.tracks, previous?.tracks, context.number, days, (s) => s.tracks)),
-        const SizedBox(width: 8),
-        Expanded(
-            child:
-                _tile(context, 'stats.artists', summary.artists, previous?.artists, context.number, days, (s) => s.artists)),
-      ]),
+      Row(
+        children: [
+          Expanded(
+            child: _tile(
+              context,
+              'stats.tracks',
+              summary.tracks,
+              previous?.tracks,
+              context.number,
+              days,
+              (s) => s.tracks,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _tile(
+              context,
+              'stats.artists',
+              summary.artists,
+              previous?.artists,
+              context.number,
+              days,
+              (s) => s.artists,
+            ),
+          ),
+        ],
+      ),
       gap,
       // The tiles count to the new numbers; the cards under them change with the period, each by itself:
       // straight in the list rather than in one column, so only the cards on the screen are built when the period
       // changes
-      for (final (index, card) in (plays.isEmpty
-            ? [MessageView(icon: Icons.music_off, text: context.t('stats.empty'))]
-            : [
-              _trackHero(context, tracks.first, trackChange),
-              const SizedBox(height: 8),
-              _artistHero(context, artists.first, plays, artistChange),
-              if (tracks.length > 1) ...[
-                gap,
-                SectionCard(
-                  title: context.t('stats.top_tracks'),
-                  child: RankedList(
-                    rows: tracks.sublist(1),
-                    firstRank: 2,
-                    change: trackChange,
-                    image: (row) => ArtworkImage.cover(
-                        artist: row.artist,
-                        album: row.album,
-                        name: row.title,
-                        hero: heroTag(DetailKind.track, row.key, 1)),
-                    onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.track, row)),
-                  ),
-                ),
-              ],
-              if (artists.length > 1) ...[
-                gap,
-                SectionCard(
-                  title: context.t('stats.top_artists'),
-                  child: RankedList(
-                    rows: artists.sublist(1),
-                    firstRank: 2,
-                    change: artistChange,
-                    image: (row) =>
-                        ArtworkImage.artist(artist: row.artist, hero: heroTag(DetailKind.artist, row.key, 1)),
-                    onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.artist, row)),
-                  ),
-                ),
-              ],
-              gap,
-              SectionCard(
-                title: context.t('stats.top_albums'),
-                child: RankedList(
-                  rows: topAlbums(plays),
-                  image: (row) => ArtworkImage.album(
-                      artist: row.artist, album: row.album, hero: heroTag(DetailKind.album, row.key, 1)),
-                  onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.album, row)),
-                ),
-              ),
-              gap,
-              SectionCard(
-                title: context.t('stats.chart'),
-                child: ListeningChart(period: _period, buckets: buckets(_period, range, plays)),
-              ),
-              gap,
-              SectionCard(
-                title: context.t('stats.hours'),
-                child: ListeningChart(
-                  period: Period.all,
-                  plays: true,
-                  buckets: [
-                    for (final (hour, count) in playsPerHour(plays).indexed)
-                      Bucket(DateTime(2000, 1, 1, hour), 0, count),
-                  ],
-                  label: (context, start) => start.hour.toString().padLeft(2, '0'),
-                ),
-              ),
-              gap,
-              Discoveries(store: widget.store, period: _period, range: range, plays: plays),
-              gap,
-              DiversityCard(store: widget.store, period: _period, offset: _offset, range: range, plays: plays),
-              gap,
-              StreakCard(store: widget.store),
-              gap,
-              if (yearAgoPlays.isNotEmpty) ...[
-                YearAgoCard(
-                    store: widget.store,
-                    month: yearAgo.start,
-                    plays: yearAgoPlays,
-                    thisMonth: playsIn(all, periodRange(Period.month, 0, now))),
-                gap,
-              ],
-              MilestonesCard(store: widget.store, range: range),
-              gap,
-              GenresCard(all: all, plays: plays),
-              gap,
-              GenreShiftCard(period: _period, range: range, plays: plays),
-              gap,
-              CollageCard(store: widget.store, plays: plays),
-              ]).indexed)
+      for (final (index, card)
+          in (plays.isEmpty
+                  ? [MessageView(icon: Icons.music_off, text: context.t('stats.empty'))]
+                  : [
+                      _trackHero(context, tracks.first, trackChange),
+                      const SizedBox(height: 8),
+                      _artistHero(context, artists.first, plays, artistChange),
+                      if (tracks.length > 1) ...[
+                        gap,
+                        SectionCard(
+                          title: context.t('stats.top_tracks'),
+                          child: RankedList(
+                            rows: tracks.sublist(1),
+                            firstRank: 2,
+                            change: trackChange,
+                            image: (row) => ArtworkImage.cover(
+                              artist: row.artist,
+                              album: row.album,
+                              name: row.title,
+                              hero: heroTag(DetailKind.track, row.key, 1),
+                            ),
+                            onTap: (row) =>
+                                openDetail(context, widget.store, DetailTarget.ranked(DetailKind.track, row)),
+                          ),
+                        ),
+                      ],
+                      if (artists.length > 1) ...[
+                        gap,
+                        SectionCard(
+                          title: context.t('stats.top_artists'),
+                          child: RankedList(
+                            rows: artists.sublist(1),
+                            firstRank: 2,
+                            change: artistChange,
+                            image: (row) =>
+                                ArtworkImage.artist(artist: row.artist, hero: heroTag(DetailKind.artist, row.key, 1)),
+                            onTap: (row) =>
+                                openDetail(context, widget.store, DetailTarget.ranked(DetailKind.artist, row)),
+                          ),
+                        ),
+                      ],
+                      gap,
+                      SectionCard(
+                        title: context.t('stats.top_albums'),
+                        child: RankedList(
+                          rows: topAlbums(plays),
+                          image: (row) => ArtworkImage.album(
+                            artist: row.artist,
+                            album: row.album,
+                            hero: heroTag(DetailKind.album, row.key, 1),
+                          ),
+                          onTap: (row) => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.album, row)),
+                        ),
+                      ),
+                      gap,
+                      SectionCard(
+                        title: context.t('stats.chart'),
+                        child: ListeningChart(period: _period, buckets: buckets(_period, range, plays)),
+                      ),
+                      gap,
+                      SectionCard(
+                        title: context.t('stats.hours'),
+                        child: ListeningChart(
+                          period: Period.all,
+                          plays: true,
+                          buckets: [
+                            for (final (hour, count) in playsPerHour(plays).indexed)
+                              Bucket(DateTime(2000, 1, 1, hour), 0, count),
+                          ],
+                          label: (context, start) => start.hour.toString().padLeft(2, '0'),
+                        ),
+                      ),
+                      gap,
+                      Discoveries(store: widget.store, period: _period, range: range, plays: plays),
+                      gap,
+                      DiversityCard(store: widget.store, period: _period, offset: _offset, range: range, plays: plays),
+                      gap,
+                      StreakCard(store: widget.store),
+                      gap,
+                      if (yearAgoPlays.isNotEmpty) ...[
+                        YearAgoCard(
+                          store: widget.store,
+                          month: yearAgo.start,
+                          plays: yearAgoPlays,
+                          thisMonth: playsIn(all, periodRange(Period.month, 0, now)),
+                        ),
+                        gap,
+                      ],
+                      MilestonesCard(store: widget.store, range: range),
+                      gap,
+                      GenresCard(all: all, plays: plays),
+                      gap,
+                      GenreShiftCard(period: _period, range: range, plays: plays),
+                      gap,
+                      CollageCard(store: widget.store, plays: plays),
+                    ])
+              .indexed)
         card is SizedBox
             ? card
             : _Appear(key: ValueKey('$_period/$_offset/$index'), direction: _direction, child: card),
@@ -292,12 +345,23 @@ class _ListeningScreenState extends State<ListeningScreen> {
     ];
   }
 
-  StatTile _tile(BuildContext context, String label, int value, int? before, String Function(int) format, Trend days,
-      int Function(Summary) of) {
+  StatTile _tile(
+    BuildContext context,
+    String label,
+    int value,
+    int? before,
+    String Function(int) format,
+    Trend days,
+    int Function(Summary) of,
+  ) {
     final change = before == null ? null : percentChange(value, before);
     String? note;
     if (change != null) {
-      final arrow = change > 0 ? '▲' : change < 0 ? '▼' : '=';
+      final arrow = change > 0
+          ? '▲'
+          : change < 0
+          ? '▼'
+          : '=';
       note = '$arrow ${context.t('stats.percent', {'value': change.abs()})}  ${context.t('stats.vs.${_period.name}')}';
     }
     final when = context.dateFormat(switch (days.unit) {
@@ -319,7 +383,11 @@ class _ListeningScreenState extends State<ListeningScreen> {
 
   /// Looks up the color of the number one's cover once per number one; grey covers keep the usual colors
   void _findMood(Ranked? track, Ranked? artist) {
-    final which = track != null ? 'track|${track.key}' : artist != null ? 'artist|${artist.key}' : null;
+    final which = track != null
+        ? 'track|${track.key}'
+        : artist != null
+        ? 'artist|${artist.key}'
+        : null;
     if (which == _moodOf) return;
     _moodOf = which;
     if (which == null) {
@@ -342,15 +410,20 @@ class _ListeningScreenState extends State<ListeningScreen> {
       [context.plays(row.plays), if (row.minutes > 0) context.minutes(row.minutes)].join('  ·  ');
 
   Widget _trackHero(BuildContext context, Ranked top, RankChange? Function(String, int) change) => HeroCard(
-        caption: context.t('stats.hero.track'),
-        title: top.title,
-        subtitle: top.artist,
-        detail: _detail(context, top),
-        change: change(top.key, 1),
-        image: ArtworkImage.cover(
-            artist: top.artist, album: top.album, name: top.title, size: 88, hero: heroTag(DetailKind.track, top.key, 1)),
-        onTap: () => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.track, top)),
-      );
+    caption: context.t('stats.hero.track'),
+    title: top.title,
+    subtitle: top.artist,
+    detail: _detail(context, top),
+    change: change(top.key, 1),
+    image: ArtworkImage.cover(
+      artist: top.artist,
+      album: top.album,
+      name: top.title,
+      size: 88,
+      hero: heroTag(DetailKind.track, top.key, 1),
+    ),
+    onTap: () => openDetail(context, widget.store, DetailTarget.ranked(DetailKind.track, top)),
+  );
 
   Widget _artistHero(BuildContext context, Ranked top, List<Play> plays, RankChange? Function(String, int) change) {
     final tracks = plays.where((p) => p.artistKey == top.key).map((p) => p.trackKey).toSet().length;
@@ -396,8 +469,10 @@ class _AppearState extends State<_Appear> with SingleTickerProviderStateMixin {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      FadeTransition(opacity: _curve, child: SlideTransition(position: _slide, child: widget.child));
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: _curve,
+    child: SlideTransition(position: _slide, child: widget.child),
+  );
 }
 
 /// How many recent plays show at first, and how many more each tap on "Show more" adds
@@ -423,7 +498,10 @@ class _RecentPlays extends StatelessWidget {
         for (final MapEntry(key: day, value: dayPlays) in byDay(plays, limit: shown)) ...[
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 4),
-            child: Text(context.day(day), style: TextStyle(color: muted, fontWeight: FontWeight.w600)),
+            child: Text(
+              context.day(day),
+              style: TextStyle(color: muted, fontWeight: FontWeight.w600),
+            ),
           ),
           for (final play in dayPlays)
             InkWell(
@@ -432,14 +510,21 @@ class _RecentPlays extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
                   children: [
-                    SizedBox(width: 48, child: Text(context.time(play.playedAt), style: TextStyle(color: muted))),
+                    SizedBox(
+                      width: 48,
+                      child: Text(context.time(play.playedAt), style: TextStyle(color: muted)),
+                    ),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(play.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                          Text(play.artist,
-                              maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: muted, fontSize: 13)),
+                          Text(
+                            play.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: muted, fontSize: 13),
+                          ),
                         ],
                       ),
                     ),

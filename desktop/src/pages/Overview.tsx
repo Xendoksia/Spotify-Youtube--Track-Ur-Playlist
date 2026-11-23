@@ -11,6 +11,7 @@ import { OverviewSkeleton } from "../components/Skeleton";
 import { useTexts } from "../i18n";
 import { Mood, moodStyle } from "../mood";
 import { useOpenDetail } from "../navigation";
+import SearchBox from "../components/SearchBox";
 import {
   Collage, Discoveries, Diversity, Genres, GenresData, GenreShift, Milestones, SectionsData, Streak, YearAgo,
 } from "./Sections";
@@ -121,6 +122,7 @@ export default function Overview({ hidden, openSummary, inboxVersion }: {
         </button>
         <h1 className="period-title">{data?.title}</h1>
         <span className="spacer" />
+        <SearchBox />
         <Inbox openSummary={openSummary} version={inboxVersion} />
       </header>
 
