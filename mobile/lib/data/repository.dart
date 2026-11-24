@@ -26,10 +26,36 @@ class Repository {
     return withoutDuplicates(rows.map(Play.fromRow).toList());
   }
 
-  Future<List<TrackedPlaylist>> trackedPlaylists() async {
-    final rows = await _db.from('tracked_playlists').select('service,playlist_id,name').eq('tracked', true);
+  /// Every playlist the desktop app knows: tracked, found in an account, or neither
+  Future<List<TrackedPlaylist>> playlists() async {
+    final rows = await _db.from('tracked_playlists').select('service,playlist_id,name,tracked,seen,size,found_at');
     return rows.map(TrackedPlaylist.fromRow).toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
+
+  /// Track a playlist or not; the desktop app takes it at its next sync, the latest change winning. A playlist
+  /// added by link has no name until the desktop app checks it
+  Future<void> setTracking(String service, String playlistId, bool tracked, {String? name}) async {
+    await _db.from('tracked_playlists').upsert({
+      'user_id': _db.auth.currentUser!.id,
+      'service': service,
+      'playlist_id': playlistId,
+      'name': ?name,
+      'tracked': tracked,
+      'seen': true,
+      'changed_at': utcStamp(DateTime.now()),
+    }, onConflict: 'user_id,service,playlist_id');
+  }
+
+  Future<PlaylistStatus> playlistStatus() async =>
+      PlaylistStatus.fromRow(await _db.from('playlist_status').select().maybeSingle());
+
+  /// Ask the desktop app to check the tracked playlists, which it does at its next sync
+  Future<void> requestCheck() async {
+    await _db.from('playlist_status').upsert({
+      'user_id': _db.auth.currentUser!.id,
+      'check_requested_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'user_id');
   }
 
   Future<List<PlaylistEvent>> events() async {

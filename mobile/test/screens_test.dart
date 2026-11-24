@@ -69,10 +69,24 @@ void main() {
     await pump(tester, (store) => PlaylistsScreen(store: store, onRefresh: noRefresh), language: 'tr');
     expect(find.text('Road trip'), findsOneWidget);
     expect(find.text('Bütün değişiklikler'), findsOneWidget);
-    expect(find.text('Song'), findsWidgets);
+    expect(find.text('Takip et'), findsNothing);
     await tester.tap(find.text('Road trip'));
     await tester.pumpAndSettle();
     expect(find.text('Silindi'), findsOneWidget);
     expect(find.text('Song'), findsOneWidget);
+  });
+
+  test('playlist links of both services, as the desktop app reads them', () {
+    expect(parsePlaylistLink('https://open.spotify.com/playlist/0QByaaaaaaaaaaaaaaaaaa?si=x'),
+        ('spotify', '0QByaaaaaaaaaaaaaaaaaa'));
+    expect(parsePlaylistLink('https://www.youtube.com/playlist?list=PLabcdefgh123'), ('youtube', 'PLabcdefgh123'));
+    expect(parsePlaylistLink('https://www.youtube.com/watch?v=abc'), isNull);
+    expect(parsePlaylistLink('https://www.youtube.com/watch?v=abc&list=RDabcdefgh'), isNull);
+  });
+
+  test('a check asked for on the phone waits until the desktop app checks after it', () {
+    final asked = DateTime(2026, 11, 25, 10);
+    expect(PlaylistStatus(checkRequestedAt: asked, checkedAt: asked.subtract(const Duration(hours: 1))).waiting, true);
+    expect(PlaylistStatus(checkRequestedAt: asked, checkedAt: asked.add(const Duration(minutes: 3))).waiting, false);
   });
 }

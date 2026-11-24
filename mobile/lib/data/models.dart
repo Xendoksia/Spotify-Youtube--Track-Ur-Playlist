@@ -111,18 +111,77 @@ List<Play> withoutDuplicates(List<Play> plays) {
         ];
 }
 
+/// A playlist the desktop app knows: tracked, found in an account and not decided on (not [seen]), or neither
 class TrackedPlaylist {
   final String service;
   final String playlistId;
   final String name;
+  final bool tracked;
 
-  TrackedPlaylist({required this.service, required this.playlistId, required this.name});
+  /// False for a playlist found in an account that nobody decided to track or not
+  final bool seen;
+
+  /// Its size as the account gave it, for one not checked yet
+  final int? size;
+  final DateTime? foundAt;
+
+  TrackedPlaylist({
+    required this.service,
+    required this.playlistId,
+    required this.name,
+    this.tracked = true,
+    this.seen = true,
+    this.size,
+    this.foundAt,
+  });
+
+  bool get found => !tracked && !seen;
 
   factory TrackedPlaylist.fromRow(Map<String, dynamic> row) => TrackedPlaylist(
     service: row['service'] as String,
     playlistId: row['playlist_id'] as String,
     name: row['name'] as String? ?? row['playlist_id'] as String,
+    tracked: row['tracked'] as bool? ?? true,
+    seen: row['seen'] as bool? ?? true,
+    size: (row['size'] as num?)?.toInt(),
+    foundAt: row['found_at'] == null ? null : DateTime.tryParse(row['found_at'] as String)?.toLocal(),
   );
+}
+
+/// The desktop app's last check of the tracked playlists, its next automatic one, and a check asked for here
+class PlaylistStatus {
+  final DateTime? checkedAt;
+  final int checkedCount;
+  final DateTime? nextCheck;
+  final DateTime? checkRequestedAt;
+
+  const PlaylistStatus({this.checkedAt, this.checkedCount = 0, this.nextCheck, this.checkRequestedAt});
+
+  static DateTime? _time(Object? value) => value == null ? null : DateTime.tryParse(value as String)?.toLocal();
+
+  factory PlaylistStatus.fromRow(Map<String, dynamic>? row) => row == null
+      ? const PlaylistStatus()
+      : PlaylistStatus(
+          checkedAt: _time(row['checked_at']),
+          checkedCount: (row['checked_count'] as num?)?.toInt() ?? 0,
+          nextCheck: _time(row['next_check']),
+          checkRequestedAt: _time(row['check_requested_at']),
+        );
+
+  /// A check asked for here that the desktop app has not answered yet
+  bool get waiting =>
+      checkRequestedAt != null && (checkedAt == null || checkRequestedAt!.isAfter(checkedAt!));
+}
+
+/// A playlist link of Spotify or YouTube, as the desktop app's parse_playlist_id: (service, playlist id), or null
+(String, String)? parsePlaylistLink(String link) {
+  link = link.trim();
+  final spotify = RegExp(r'playlist[/:]([A-Za-z0-9]{22})').firstMatch(link);
+  if (spotify != null) return ('spotify', spotify.group(1)!);
+  if (RegExp(r'^[A-Za-z0-9]{22}$').hasMatch(link)) return ('spotify', link);
+  final youtube = RegExp(r'[?&]list=([A-Za-z0-9_-]+)').firstMatch(link)?.group(1) ?? link;
+  if (RegExp(r'^(PL|UU|FL|LL|OL)[A-Za-z0-9_-]{8,}$').hasMatch(youtube)) return ('youtube', youtube);
+  return null;
 }
 
 /// What a check of a playlist found, as the desktop app's history.EVENT_* names

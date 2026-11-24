@@ -71,6 +71,9 @@ def forward(commands, playlists: Playlists) -> None:
                 i18n.set_language(load_config().get("LANGUAGE"))
                 emit("appearance")
             emit("synced", **{key: bool(result.get(key)) for key in ("received", "playlists", "events", "settings")})
+            if result.get("check"):
+                # A check of the tracked playlists asked for on the phone
+                playlists.check_all()
 
 
 def watch_plays(tracker: nowplaying.LocalTracker) -> None:

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Callable
 
 from playlist_tracker.core.config import load_config
@@ -77,6 +77,28 @@ def notification(service_name: str, results: list[dict]) -> str | None:
     if len(lines) > NOTIFY_PLAYLISTS:
         lines = lines[:NOTIFY_PLAYLISTS - 1] + [t("auto.more", count=len(lines) - NOTIFY_PLAYLISTS + 1)]
     return f"{service_name}\n" + "\n".join(lines)
+
+
+# Checks of several playlists this close together count as one
+CHECK_SPAN = timedelta(minutes=30)
+
+
+def status(now: datetime | None = None) -> dict:
+    """The last check of the tracked playlists of every service, when and how many playlists it checked, and when
+    the next automatic one is due, for the phone (core/sync.py). Times are local ISO times, None when unknown."""
+    now = now or datetime.now().astimezone()
+    checked = []
+    for service in SERVICES:
+        checked += [datetime.fromisoformat(p["last_checked"]).astimezone()
+                    for p in history.tracked_playlists(service.DB_PATH) if p["last_checked"]]
+    if not checked:
+        return {"checked_at": None, "checked_count": 0, "next_check": None}
+    newest = max(checked)
+    hours = interval_hours(load_config())
+    following = max(min(checked) + timedelta(hours=hours), now) if hours else None
+    return {"checked_at": newest.isoformat(timespec="seconds"),
+            "checked_count": sum(newest - moment <= CHECK_SPAN for moment in checked),
+            "next_check": following.isoformat(timespec="minutes") if following else None}
 
 
 class AutoChecker:

@@ -19,8 +19,8 @@ const changesStep = 20;
 /// Changes found this close to the newest one count as one check
 const checkSpan = Duration(minutes: 30);
 
-/// The playlists tracked in the desktop app as its tracking page: the last changes found and the tracks added
-/// lately at the top, the playlists, then every change with filters
+/// The desktop app's tracking page on the phone: the last check and the tracks added lately at the top, the
+/// playlists to track, then every change with filters
 class PlaylistsScreen extends StatelessWidget {
   final DataStore store;
   final Future<void> Function() onRefresh;
@@ -108,10 +108,11 @@ class _TrackingState extends State<_Tracking> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (store.playlists.isEmpty)
-            const _NoPlaylists()
-          else ...[
-            if (events.isNotEmpty) _Hero(events: events, nameOf: _playlistName),
+          if (store.playlists.isEmpty) ...[
+            const _NoPlaylists(),
+            _Lists(store: store),
+          ] else ...[
+            _Hero(store: store, events: events, nameOf: _playlistName),
             const SizedBox(height: 12),
             _Lists(store: store),
             const SizedBox(height: 20),
@@ -126,7 +127,9 @@ class _TrackingState extends State<_Tracking> {
                 _service = service;
                 _playlist = null;
               }),
-              playlists: store.playlists.where((p) => _service == null || p.service == _service).toList(),
+              playlists: store.playlists
+                  .where((p) => (_service == null || p.service == _service) && store.eventsOf(p).isNotEmpty)
+                  .toList(),
               playlist: _playlist,
               onPlaylist: (playlist) => _filter(() => _playlist = playlist),
               counts: counts,
@@ -201,19 +204,40 @@ Future<void> _open(PlaylistEvent track) async {
   }
 }
 
-/// The newest changes found, as one check, and the tracks added lately, the ones of that check marked new
+/// The desktop app's last check and what it found (else the newest changes found), the tracks added lately, the
+/// ones of that check marked new, and a button that asks the desktop app for a check
 class _Hero extends StatelessWidget {
+  final DataStore store;
   final List<PlaylistEvent> events;
   final String Function(PlaylistEvent) nameOf;
 
-  const _Hero({required this.events, required this.nameOf});
+  const _Hero({required this.store, required this.events, required this.nameOf});
+
+  Future<void> _check(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final sent = context.t('track.check.sent');
+    final failed = context.t('track.check.failed');
+    try {
+      await store.requestCheck();
+      messenger.showSnackBar(SnackBar(content: Text(sent)));
+    } catch (_) {
+      messenger.showSnackBar(SnackBar(content: Text(failed)));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
+    final status = store.playlistStatus;
     final changes = events.where((e) => e.kind != EventKind.initial).toList();
-    final newest = (changes.isEmpty ? events : changes).first.checkedAt;
-    final check = changes.where((e) => newest.difference(e.checkedAt) <= checkSpan).toList();
+    final checkedAt = status.checkedAt;
+    final newest = checkedAt ?? (changes.isEmpty ? events.firstOrNull?.checkedAt : changes.first.checkedAt);
+    final check = newest == null
+        ? <PlaylistEvent>[]
+        : changes
+            .where((e) => !e.checkedAt.isAfter(newest.add(const Duration(minutes: 1))) &&
+                newest.difference(e.checkedAt) <= checkSpan)
+            .toList();
     final added = check.where((e) => e.kind == EventKind.added).toList();
     final byPlaylist = <String, List<PlaylistEvent>>{};
     for (final e in check) {
@@ -232,6 +256,21 @@ class _Hero extends StatelessWidget {
       recent.add(e);
       if (recent.length == 6) break;
     }
+    final caption = newest == null
+        ? context.t('track.hero.first')
+        : checkedAt != null
+            ? context.t('track.hero.check_caption', {
+                'day': _shortDay(context, checkedAt),
+                'time': context.time(checkedAt),
+                'count': context.number(status.checkedCount),
+              })
+            : context.t('track.hero.caption', {'day': _shortDay(context, newest), 'time': context.time(newest)});
+    final title = added.isNotEmpty
+        ? context.t('track.hero.new', {'count': context.number(added.length)})
+        : check.isNotEmpty
+            ? context.t('track.hero.changes', {'count': context.number(check.length)})
+            : context.t('track.hero.none');
+    final next = status.nextCheck;
     return Card(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
@@ -239,17 +278,11 @@ class _Hero extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              context.t('track.hero.caption', {'day': _shortDay(context, newest), 'time': context.time(newest)})
-                  .toUpperCase(),
+              caption.toUpperCase(),
               style: TextStyle(color: palette.muted, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8),
             ),
             const SizedBox(height: 4),
-            Text(
-              added.isNotEmpty
-                  ? context.t('track.hero.new', {'count': context.number(added.length)})
-                  : context.t('track.hero.changes', {'count': context.number(check.length)}),
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-            ),
+            Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
             if (detail.isNotEmpty) Text(detail, style: const TextStyle(fontSize: 13)),
             if (recent.isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -307,6 +340,38 @@ class _Hero extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: serviceColors['spotify'], foregroundColor: Colors.white),
+                onPressed: status.waiting || store.tracked.isEmpty ? null : () => _check(context),
+                child: Text(status.waiting
+                    ? context.t('track.check.waiting')
+                    : context.t('track.check', {'count': context.number(store.tracked.length)})),
+              ),
+            ),
+            if (next != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(color: palette.added, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    context.t('track.auto.next', {
+                      'time': next.day == DateTime.now().day
+                          ? context.time(next)
+                          : '${_shortDay(context, next)} ${context.time(next)}',
+                    }),
+                    style: TextStyle(color: palette.muted, fontSize: 12),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -314,84 +379,253 @@ class _Hero extends StatelessWidget {
   }
 }
 
-/// The tracked playlists, each opening its own history; tracking is changed in the desktop app
-class _Lists extends StatelessWidget {
+/// The playlists: one to track by its link, the ones found in an account to track or not, and the tracked and
+/// untracked ones with a switch each, opening their history. The desktop app takes the changes at its next sync
+class _Lists extends StatefulWidget {
   final DataStore store;
 
   const _Lists({required this.store});
 
   @override
+  State<_Lists> createState() => _ListsState();
+}
+
+class _ListsState extends State<_Lists> {
+  final _link = TextEditingController();
+  var _busy = false;
+
+  @override
+  void dispose() {
+    _link.dispose();
+    super.dispose();
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final failed = context.t('track.check.failed');
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (_) {
+      messenger.showSnackBar(SnackBar(content: Text(failed)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _add() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final added = context.t('track.link.added');
+    final bad = context.t('track.bad_link');
+    await _run(() async {
+      if (await widget.store.addLink(_link.text)) {
+        _link.clear();
+        messenger.showSnackBar(SnackBar(content: Text(added)));
+      } else {
+        messenger.showSnackBar(SnackBar(content: Text(bad)));
+      }
+    });
+  }
+
+  Widget _row(BuildContext context, TrackedPlaylist playlist) {
+    final palette = Palette.of(context);
+    final store = widget.store;
+    final events = store.eventsOf(playlist)..sort((a, b) => b.checkedAt.compareTo(a.checkedAt));
+    final changes = events.where((e) => e.kind != EventKind.initial);
+    final newest = events.where((e) => e.kind == EventKind.added).firstOrNull;
+    final meta = playlist.found
+        ? context.t('track.found_in', {
+            'service': serviceNames[playlist.service] ?? playlist.service,
+            'day': _shortDay(context, playlist.foundAt ?? DateTime.now()),
+          })
+        : changes.isNotEmpty
+            ? context.t('playlists.latest', {'date': _shortDay(context, changes.first.checkedAt)})
+            : playlist.size != null
+                ? context.t('track.size', {'count': context.number(playlist.size!)})
+                : context.t('playlists.no_changes');
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: events.isEmpty
+          ? null
+          : () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => PlaylistHistoryScreen(playlist: playlist, events: events)),
+              ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Opacity(
+              opacity: playlist.tracked || playlist.found ? 1 : 0.55,
+              child: newest == null
+                  ? Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: (serviceColors[playlist.service] ?? palette.muted).withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(Icons.queue_music, size: 20, color: serviceColors[playlist.service]),
+                    )
+                  : _picture(newest, 40),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(playlist.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontWeight: playlist.tracked || playlist.found ? FontWeight.w600 : null)),
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(color: serviceColors[playlist.service], shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(meta,
+                            maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.muted, fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (!playlist.found)
+              Switch(
+                value: playlist.tracked,
+                onChanged: _busy ? null : (on) => _run(() => store.setTracking(playlist, on)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
+    final theme = Theme.of(context);
+    final store = widget.store;
+    final found = store.playlists.where((p) => p.found).toList();
+    final tracked = store.tracked;
+    final others = store.playlists.where((p) => !p.tracked && p.seen).toList();
+    Text caption(String text, {Color? color}) => Text(text.toUpperCase(),
+        style: TextStyle(color: color ?? palette.muted, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8));
     return SectionCard(
       title: context.t('track.lists'),
-      trailing: Text(context.number(store.playlists.length), style: TextStyle(color: palette.muted)),
+      trailing: Text(
+        context.t('track.lists.count', {
+          'count': context.number(store.playlists.length),
+          'tracked': context.number(tracked.length),
+        }),
+        style: TextStyle(color: palette.muted, fontSize: 12),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final playlist in store.playlists)
-            Builder(builder: (context) {
-              final events = store.eventsOf(playlist)..sort((a, b) => b.checkedAt.compareTo(a.checkedAt));
-              final changes = events.where((e) => e.kind != EventKind.initial);
-              final newest = events.where((e) => e.kind == EventKind.added).firstOrNull;
-              return InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => PlaylistHistoryScreen(playlist: playlist, events: events)),
+          TextField(
+            controller: _link,
+            enabled: !_busy,
+            onSubmitted: (_) => _add(),
+            decoration: InputDecoration(
+              isDense: true,
+              labelText: context.t('track.link.label'),
+              hintText: context.t('track.link.placeholder'),
+              prefixIcon: const Icon(Icons.link),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(999)),
+              suffixIcon: Padding(
+                padding: const EdgeInsets.all(4),
+                child: FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: serviceColors['spotify'], foregroundColor: Colors.white),
+                  onPressed: _busy ? null : _add,
+                  child: Text(context.t('track.link.add')),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(context.t('track.found.auto'), style: TextStyle(color: palette.muted, fontSize: 12)),
+          if (found.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.45)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
                     children: [
-                      newest == null
-                          ? Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: (serviceColors[playlist.service] ?? palette.muted).withValues(alpha: 0.14),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Icon(Icons.queue_music, size: 20, color: serviceColors[playlist.service]),
-                            )
-                          : _picture(newest, 40),
-                      const SizedBox(width: 10),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(playlist.name,
-                                maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
-                            Row(
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(color: serviceColors[playlist.service], shape: BoxShape.circle),
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    changes.isEmpty
-                                        ? context.t('playlists.no_changes')
-                                        : context.t('playlists.latest', {'date': _shortDay(context, changes.first.checkedAt)}),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(color: palette.muted, fontSize: 12),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                        child: caption(context.t('track.found.title', {'count': context.number(found.length)}),
+                            color: theme.colorScheme.primary),
                       ),
-                      Icon(Icons.chevron_right, color: palette.muted),
+                      if (found.length > 1) ...[
+                        TextButton(
+                          onPressed: _busy
+                              ? null
+                              : () => _run(() async {
+                                    for (final p in found) {
+                                      await store.setTracking(p, true);
+                                    }
+                                  }),
+                          child: Text(context.t('track.found.track_all')),
+                        ),
+                        TextButton(
+                          onPressed: _busy
+                              ? null
+                              : () => _run(() async {
+                                    for (final p in found) {
+                                      await store.setTracking(p, false);
+                                    }
+                                  }),
+                          child: Text(context.t('track.found.skip_all')),
+                        ),
+                      ],
                     ],
                   ),
-                ),
-              );
-            }),
-          const SizedBox(height: 4),
-          Text(context.t('track.tracked_hint'), style: TextStyle(color: palette.muted, fontSize: 12)),
+                  for (final playlist in found) ...[
+                    _row(context, playlist),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton(
+                            style: FilledButton.styleFrom(
+                                backgroundColor: serviceColors['spotify'], foregroundColor: Colors.white),
+                            onPressed: _busy ? null : () => _run(() => store.setTracking(playlist, true)),
+                            child: Text(context.t('track.found.track')),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton(
+                          onPressed: _busy ? null : () => _run(() => store.setTracking(playlist, false)),
+                          child: Text(context.t('track.found.skip')),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          if (tracked.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            caption(context.t('track.tracked', {'count': context.number(tracked.length)})),
+            for (final playlist in tracked) _row(context, playlist),
+          ],
+          if (others.isNotEmpty) ...[
+            Divider(color: palette.border, height: 20),
+            caption(context.t('track.others', {'count': context.number(others.length)})),
+            for (final playlist in others) _row(context, playlist),
+          ],
         ],
       ),
     );

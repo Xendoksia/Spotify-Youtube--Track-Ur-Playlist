@@ -20,7 +20,7 @@ from playlist_tracker.core import account
 from playlist_tracker.core.config import load_config, save_config
 from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.music import listening
-from playlist_tracker.playlists import history, spotify, youtube
+from playlist_tracker.playlists import auto_check, history, spotify, youtube
 
 # Not right at startup, while the app and Windows are still busy starting
 FIRST_SYNC_SECONDS = 10
@@ -162,7 +162,8 @@ def push_playlists(client: account.AccountClient, user_id: str) -> int:
         if not playlists:
             continue
         rows = [{"user_id": user_id, "service": service, "playlist_id": p["playlist_id"], "name": p["name"],
-                 "tracked": bool(p["tracked"]), "changed_at": p["changed_at"]} for p in playlists]
+                 "tracked": bool(p["tracked"]), "changed_at": p["changed_at"], "seen": bool(p["seen"]),
+                 "size": p["size"], "found_at": p["found_at"]} for p in playlists]
         client.rest("POST", "tracked_playlists?on_conflict=user_id,service,playlist_id", rows,
                     "resolution=merge-duplicates,return=minimal")
         history.mark_playlists_synced(playlists, db_path)
@@ -176,7 +177,8 @@ def pull_playlists(client: account.AccountClient) -> int:
     since, query = _since_query("SYNC_PLAYLISTS_PULLED")
     changed, offset, newest = 0, 0, since
     while True:
-        rows = client.rest("GET", "tracked_playlists?select=service,playlist_id,name,tracked,changed_at,updated_at"
+        rows = client.rest("GET", "tracked_playlists?select=service,playlist_id,name,tracked,changed_at,seen,size,"
+                           "found_at,updated_at"
                            f"&order=updated_at,service,playlist_id&limit={BATCH}&offset={offset}{query}") or []
         for service, db_path in PLAYLIST_DATABASES.items():
             mine = [row for row in rows if row["service"] == service]
@@ -286,7 +288,36 @@ def sync_now() -> dict:
     events = pull_events(client)
     push_settings(client, user["id"])
     settings = pull_settings(client)
-    return {"sent": sent, "received": received, "playlists": playlists, "events": events, "settings": settings}
+    push_status(client, user["id"])
+    check = pull_check_request(client)
+    return {"sent": sent, "received": received, "playlists": playlists, "events": events, "settings": settings,
+            "check": check}
+
+
+def push_status(client: account.AccountClient, user_id: str) -> bool:
+    """Tell the phone the last check of the tracked playlists and the next automatic one, when they changed."""
+    status = auto_check.status()
+    config = load_config()
+    if config.get("SYNC_STATUS_SENT") == status:
+        return False
+    client.rest("POST", "playlist_status?on_conflict=user_id", [{"user_id": user_id, **status}],
+                "resolution=merge-duplicates,return=minimal")
+    config = load_config()
+    config["SYNC_STATUS_SENT"] = status
+    save_config(config)
+    return True
+
+
+def pull_check_request(client: account.AccountClient) -> bool:
+    """Whether a check of the tracked playlists was asked for on the phone since the last one answered."""
+    [row] = client.rest("GET", "playlist_status?select=check_requested_at") or [None]
+    asked = (row or {}).get("check_requested_at")
+    config = load_config()
+    if not asked or asked <= config.get("CHECK_REQUEST_DONE", ""):
+        return False
+    config["CHECK_REQUEST_DONE"] = asked
+    save_config(config)
+    return True
 
 
 def forget() -> None:

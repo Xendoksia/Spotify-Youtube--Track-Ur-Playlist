@@ -568,8 +568,7 @@ class Playlists:
 # below with filters, and the playlists to track beside them
 
 RECENT = 6
-# Checks of several playlists this close together count as one
-CHECK_SPAN = timedelta(minutes=30)
+CHECK_SPAN = auto_check.CHECK_SPAN
 # The account's playlists are asked for again in the background after this long
 FIND_SECONDS = 6 * 3600
 

@@ -129,8 +129,8 @@ def set_tracked(playlist_id: str, name: str, tracked: bool, db_path: Path) -> No
 
 def remember_found(playlists: list[dict], db_path: Path) -> int:
     """Keep the playlists the account lists ({id, name, track_count}): a new one is stored untracked and not seen,
-    so the window asks whether to track it, and a known one takes its size. Neither is sent to other devices,
-    where a playlist found here must not undo tracking it. Returns how many are new."""
+    so both apps ask whether to track it, and a known one takes its size. A new one is sent without a changed_at,
+    so on the server and other devices it loses to any tracking decided there. Returns how many are new."""
     new, now = 0, now_utc()
     with open_db(db_path) as db:
         known = {row[0] for row in db.execute("SELECT playlist_id FROM playlists")}
@@ -140,15 +140,17 @@ def remember_found(playlists: list[dict], db_path: Path) -> int:
                 db.execute("UPDATE playlists SET size = COALESCE(?, size) WHERE playlist_id = ?", (size, p["id"]))
                 continue
             db.execute("INSERT INTO playlists (playlist_id, name, tracked, seen, size, found_at, synced) "
-                       "VALUES (?, ?, 0, 0, ?, ?, 1)", (p["id"], p["name"], size, now))
+                       "VALUES (?, ?, 0, 0, ?, ?, 0)", (p["id"], p["name"], size, now))
             new += 1
     return new
 
 
 def set_seen(playlist_ids: list[str], db_path: Path) -> None:
-    """Playlists found in the account that are not to be tracked: they are not asked about again."""
+    """Playlists found in the account that are not to be tracked: they are not asked about again, here or on the
+    other devices."""
     with open_db(db_path) as db:
-        db.executemany("UPDATE playlists SET seen = 1 WHERE playlist_id = ?", [(i,) for i in playlist_ids])
+        db.executemany("UPDATE playlists SET seen = 1, tracked = 0, changed_at = ?, synced = 0 WHERE playlist_id = ?",
+                       [(now_utc(), i) for i in playlist_ids])
 
 
 # Syncing between devices (see core/sync.py): the latest change to tracking wins
@@ -160,7 +162,7 @@ NEVER = "1970-01-01T00:00:00.000000Z"
 def unsynced_playlists(db_path: Path) -> list[dict]:
     with open_db(db_path) as db:
         return [{**dict(r), "changed_at": r["changed_at"] or NEVER} for r in db.execute(
-            "SELECT playlist_id, name, tracked, changed_at FROM playlists WHERE synced = 0")]
+            "SELECT playlist_id, name, tracked, changed_at, seen, size, found_at FROM playlists WHERE synced = 0")]
 
 
 def mark_playlists_synced(playlists: list[dict], db_path: Path) -> None:
@@ -186,11 +188,16 @@ def merge_remote_playlists(playlists: list[dict], db_path: Path) -> int:
                                (p["playlist_id"],)).fetchone()
             if local and (local["changed_at"] or NEVER) >= p["changed_at"]:
                 continue
+            # A playlist found in an account (seen false) is asked about here too; its size and when it was found
+            # come along
             db.execute(
-                "INSERT INTO playlists (playlist_id, name, tracked, changed_at, synced) VALUES (?, ?, ?, ?, 1) "
+                "INSERT INTO playlists (playlist_id, name, tracked, changed_at, synced, seen, size, found_at) "
+                "VALUES (?, ?, ?, ?, 1, ?, ?, ?) "
                 "ON CONFLICT(playlist_id) DO UPDATE SET name = COALESCE(excluded.name, name), "
-                "tracked = excluded.tracked, changed_at = excluded.changed_at, synced = 1",
-                (p["playlist_id"], p["name"], int(p["tracked"]), p["changed_at"]))
+                "tracked = excluded.tracked, changed_at = excluded.changed_at, synced = 1, seen = excluded.seen, "
+                "size = COALESCE(excluded.size, size), found_at = COALESCE(excluded.found_at, found_at)",
+                (p["playlist_id"], p["name"], int(p["tracked"]), p["changed_at"], int(p.get("seen", True)),
+                 p.get("size"), p.get("found_at")))
             if not local or bool(local["tracked"]) != bool(p["tracked"]):
                 changed += 1
     return changed
@@ -357,9 +364,11 @@ def _check_playlist(client, playlist_id: str, db_path: Path) -> dict:
     with open_db(db_path) as db:
         row = db.execute("SELECT last_checked FROM playlists WHERE playlist_id = ?", (playlist_id,)).fetchone()
         first_check = row is None or row["last_checked"] is None
+        # A playlist added by link on the phone has no name until it is checked here: the name goes back to it
         db.execute(
             "INSERT INTO playlists (playlist_id, name, last_checked) VALUES (?, ?, ?) "
-            "ON CONFLICT(playlist_id) DO UPDATE SET name = excluded.name, last_checked = excluded.last_checked",
+            "ON CONFLICT(playlist_id) DO UPDATE SET last_checked = excluded.last_checked, "
+            "synced = CASE WHEN name IS excluded.name THEN synced ELSE 0 END, name = excluded.name",
             (playlist_id, name, now),
         )
 

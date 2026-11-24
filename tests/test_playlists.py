@@ -231,17 +231,37 @@ class TrackingPageTest(PlaylistCardsTest):
         self.page = self.api.Playlists(lambda *args, **kwargs: None)
         self.page.find_in_background = lambda force=False: None
 
-    def test_a_playlist_found_in_the_account_is_asked_about_once_and_not_sent(self):
+    def test_a_playlist_found_in_the_account_is_asked_about_once_and_sent_as_the_oldest_change(self):
         self.assertEqual(history.remember_found([{"id": "p2", "name": "Found", "track_count": 12}], self.db), 1)
         lists = self.page.tracking()["lists"]
         self.assertEqual([item["key"] for item in lists["found"]], ["spotify:p2"])
-        self.assertEqual(history.unsynced_playlists(self.db), [])
+        [sent] = history.unsynced_playlists(self.db)
+        self.assertEqual((sent["changed_at"], sent["seen"], sent["size"]), (history.NEVER, 0, 12))
         lists = self.page.skip_found(["spotify:p2"])["lists"]
+        [sent] = history.unsynced_playlists(self.db)
+        self.assertEqual((sent["seen"], sent["tracked"]), (1, 0))
+        self.assertGreater(sent["changed_at"], history.NEVER)
         self.assertEqual(([i["key"] for i in lists["found"]], [i["key"] for i in lists["others"]]),
                          ([], ["spotify:p2"]))
         self.assertEqual(history.remember_found([{"id": "p2", "name": "Found", "track_count": 13}], self.db), 0)
         self.assertEqual(self.page.tracking()["lists"]["found"], [])
         self.assertEqual(self.page.tracking()["lists"]["others"][0]["meta"].split()[0], "13")
+
+    def test_a_playlist_found_on_another_computer_is_asked_about_here(self):
+        history.merge_remote_playlists([{"playlist_id": "p3", "name": "Elsewhere", "tracked": False, "seen": False,
+                                         "size": 7, "found_at": "2026-11-25T10:00:00Z",
+                                         "changed_at": history.NEVER + "1"}], self.db)
+        [found] = self.page.tracking()["lists"]["found"]
+        self.assertEqual((found["key"], found["meta"].split()[0]), ("spotify:p3", found["meta"].split()[0]))
+        self.assertEqual(history.known_playlists(self.db)[0]["size"], 7)
+
+    def test_a_playlist_added_on_the_phone_takes_its_name_at_the_first_check_and_sends_it(self):
+        history.merge_remote_playlists([{"playlist_id": "p1", "name": None, "tracked": True,
+                                         "changed_at": "2026-11-25T10:00:00.000000Z"}], self.db)
+        self.client.tracks = [track("a")]
+        self.check()
+        [sent] = history.unsynced_playlists(self.db)
+        self.assertEqual((sent["name"], sent["tracked"]), ("My list", 1))
 
     def test_tracking_a_found_playlist_sends_it(self):
         history.remember_found([{"id": "p2", "name": "Found", "track_count": 12}], self.db)
