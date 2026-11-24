@@ -497,15 +497,69 @@ List<Alike> alikeIn(Model model, String key, int limit, {required bool songs}) {
   return found;
 }
 
+/// The song model finds mostly the same artist's songs alike, so a song's page takes at most this many of its own
+/// artist's and of any other, and the rest from the artists most alike to its artist
+const alikeSameArtist = 2;
+const alikePerArtist = 2;
+
+/// The model's songs of each artist (by its first artist's key), most listened first
+Map<String, List<int>> songsByArtist(Model songs) {
+  final found = <String, List<int>>{};
+  for (var i = 0; i < songs.keys.length; i++) {
+    (found[loose(songs.keys[i].split('|').first)] ??= []).add(i);
+  }
+  for (final list in found.values) {
+    list.sort((a, b) => songs.listeners[b].compareTo(songs.listeners[a]));
+  }
+  return found;
+}
+
+/// The songs most alike to a song, as the desktop app's recommend.alike_songs: the song model's first
+/// ([alikeSameArtist] of its own artist, [alikePerArtist] of each other), then the most listened unplayed song of
+/// each artist the artist model finds most alike to its artist
+List<Alike> alikeSongs(Model songs, Model artists, Map<String, List<int>> songsOf, String artist, String title,
+    Set<String> played, int limit) {
+  final own = artistMatch(creditParts(artist).first);
+  final seen = {songKey(artist, title)};
+  final per = <String, int>{};
+  final found = <Alike>[];
+  bool add(int j) {
+    final key = loose(songs.keys[j]);
+    final by = loose(songs.keys[j].split('|').first);
+    if (seen.contains(key) || (per[by] ?? 0) >= (by == own ? alikeSameArtist : alikePerArtist)) return false;
+    seen.add(key);
+    per[by] = (per[by] ?? 0) + 1;
+    found.add((artist: songs.artists[j], title: songs.names[j], key: key));
+    return true;
+  }
+
+  final index = songs.find(songKey(artist, title));
+  for (final j in index == null ? const <int>[] : songs.neighbours(index)) {
+    if (found.length == limit) return found;
+    add(j);
+  }
+  for (final other in alikeIn(artists, own, 50, songs: false)) {
+    if (found.length == limit) break;
+    final theirs = songsOf[other.key] ?? const <int>[];
+    if ((per[other.key] ?? 0) > 0 || theirs.isEmpty) continue;
+    final unplayed = theirs.where((j) => !played.contains(loose(songs.keys[j])));
+    add(unplayed.isEmpty ? theirs.first : unplayed.first);
+  }
+  return found;
+}
+
 void _serveModels((SendPort, List<Uint8List>) start) {
   final (reply, files) = start;
   final artists = Model.parse(files[0], files[1], songs: false);
   final songs = Model.parse(files[2], files[3], songs: true);
+  final songsOf = songsByArtist(songs);
   final requests = ReceivePort();
   reply.send(requests.sendPort);
   requests.listen((message) {
-    final (songsAsked, key, limit, answer) = message as (bool, String, int, SendPort);
-    answer.send(alikeIn(songsAsked ? songs : artists, key, limit, songs: songsAsked));
+    final (artist, title, played, limit, answer) = message as (String, String, Set<String>, int, SendPort);
+    answer.send(title.isEmpty
+        ? alikeIn(artists, artistMatch(artist), limit, songs: false)
+        : alikeSongs(songs, artists, songsOf, artist, title, played, limit));
   });
 }
 
@@ -528,12 +582,12 @@ class ModelWorker {
     return port;
   }
 
-  Future<List<Alike>> _ask(bool songs, String key, int limit) async {
+  Future<List<Alike>> _ask(String artist, String title, Set<String> played, int limit) async {
     _idle?.cancel();
     try {
       final port = await (_port ??= _start());
       final answer = ReceivePort();
-      port.send((songs, key, limit, answer.sendPort));
+      port.send((artist, title, played, limit, answer.sendPort));
       final found = await answer.first as List<Alike>;
       answer.close();
       return found;
@@ -546,7 +600,9 @@ class ModelWorker {
     }
   }
 
-  Future<List<Alike>> songs(String artist, String title, {int limit = 12}) => _ask(true, songKey(artist, title), limit);
+  /// [played] are the played songs' keys (songKey), so an alike artist's song is one not played yet
+  Future<List<Alike>> songs(String artist, String title, Set<String> played, {int limit = 12}) =>
+      _ask(artist, title, played, limit);
 
-  Future<List<Alike>> artists(String name, {int limit = 12}) => _ask(false, artistMatch(name), limit);
+  Future<List<Alike>> artists(String name, {int limit = 12}) => _ask(name, '', const {}, limit);
 }

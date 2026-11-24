@@ -109,7 +109,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(context.t('nav.discover'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+          Text(context.t('discover.heading'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text(context.t('discover.intro'), style: TextStyle(color: palette.muted)),
           const SizedBox(height: 16),

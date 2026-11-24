@@ -249,7 +249,7 @@ export default function Discover({ hidden, openArtist }: { hidden: boolean; open
     <div className="page discover" hidden={hidden}>
       <header className="discover-head">
         <div>
-          <h1>{t("nav.discover")}</h1>
+          <h1>{t("discover.heading")}</h1>
           <p className="muted">{t("discover.intro")}</p>
         </div>
         {data?.loading && <span className="discover-loading"><span className="discover-pulse" />{t("discover.loading")}</span>}

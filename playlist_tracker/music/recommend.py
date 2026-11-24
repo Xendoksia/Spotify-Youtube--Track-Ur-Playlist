@@ -464,23 +464,46 @@ def report(now: datetime | None = None, db_path: Path = DB_PATH) -> dict:
 ALIKE = 12
 
 
+# The song model finds mostly the same artist's songs alike, so a song's page takes at most this many of its own
+# artist's and of any other, and the rest from the artists most alike to its artist
+ALIKE_SAME_ARTIST = 2
+ALIKE_PER_ARTIST = 2
+
+
 def alike_songs(artist: str, name: str, limit: int = ALIKE, db_path: Path = DB_PATH) -> list[dict]:
-    """The songs the song model finds most alike to a song, best first: {artist, title, track_key}, track_key the
-    played song's own key or None for one not played. [] when the model does not know the song."""
-    if not model.songs.available() or (index := model.songs.find(song_key(artist, name))) is None:
-        return []
+    """The songs most alike to a song, best first: {artist, title, track_key}, track_key the played song's own key
+    or None for one not played. First the song model's (ALIKE_SAME_ARTIST of the song's own artist and
+    ALIKE_PER_ARTIST of each other), then one song of each artist the artist model finds most alike to its artist,
+    the most listened one not played yet. [] when neither model knows the song."""
+    index = model.songs.find(song_key(artist, name)) if model.songs.available() else None
+    own = loose(fold(listening._credit_parts(artist)[0]))
     with listening.open_db(db_path) as db:
         played = {song_key(a, n): k for a, n, k in db.execute("SELECT DISTINCT artist, name, track_key FROM listens")}
-    found, seen = [], {song_key(artist, name)}
-    for j in model.songs.neighbours(index):
+    found, seen, per = [], {song_key(artist, name)}, {}
+
+    def add(j: int) -> bool:
         song = model.songs.items[j]
+        by = loose(song["key"].split("|")[0])
         # The same song may be in the model twice, spelt with different punctuation
-        if loose(song["key"]) in seen:
-            continue
+        if loose(song["key"]) in seen or per.get(by, 0) >= (ALIKE_SAME_ARTIST if by == own else ALIKE_PER_ARTIST):
+            return False
         seen.add(loose(song["key"]))
+        per[by] = per.get(by, 0) + 1
         found.append({"artist": song["artist"], "title": song["title"], "track_key": played.get(loose(song["key"]))})
+        return True
+
+    for j in model.songs.neighbours(index) if index is not None else []:
+        if len(found) == limit:
+            return found
+        add(j)
+    for other in alike_artists(artist, limit=50, db_path=db_path):
         if len(found) == limit:
             break
+        songs = model.songs_of(fold(other["name"]))
+        if per.get(loose(fold(other["name"]))) or not songs:
+            continue
+        unplayed = [j for j in songs if loose(model.songs.items[j]["key"]) not in played]
+        add((unplayed or songs)[0])
     return found
 
 

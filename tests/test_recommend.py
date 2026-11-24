@@ -256,9 +256,11 @@ class AlikeTest(ModelTest):
         self.play("Metallica", "One", "2026-11-19 10:00")
         self.play("Metallica", "Enter Sandman", "2026-11-19 10:10")
         found = recommend.alike_songs("Metallica", "One - Remastered", db_path=self.db)
+        # Two of Metallica's own, then the alike artists' most listened unplayed songs (Slayer's, as Megadeth's
+        # one is in already)
         self.assertEqual([(s["title"], s["track_key"]) for s in found],
                          [("Symphony of Destruction", None), ("Fade to Black", None),
-                          ("Enter Sandman", "metallica|enter sandman")])
+                          ("Enter Sandman", "metallica|enter sandman"), ("Raining Blood", None)])
 
     def test_alike_artists_and_an_unknown_one(self):
         self.play("Slayer", "Raining Blood", "2026-11-19 10:00")

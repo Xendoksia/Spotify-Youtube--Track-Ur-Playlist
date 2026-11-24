@@ -24,7 +24,8 @@ class AlikeCard extends StatefulWidget {
 
 class _AlikeCardState extends State<AlikeCard> {
   late final Future<List<Alike>> _found = widget.target.kind == DetailKind.track
-      ? ModelWorker.instance.songs(widget.target.artist, widget.target.title)
+      ? ModelWorker.instance.songs(widget.target.artist, widget.target.title,
+          {for (final play in widget.plays) songKey(play.artist, play.name)})
       : ModelWorker.instance.artists(widget.target.artist);
 
   @override

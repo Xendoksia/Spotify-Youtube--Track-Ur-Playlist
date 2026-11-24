@@ -96,6 +96,11 @@ void main() {
     expect(alikeIn(songs, songKey('Metallica', 'One - Remastered'), 12, songs: true).map((s) => s.title),
         ['Symphony of Destruction', 'Fade to Black', 'Enter Sandman']);
     final artists = Model.parse(models[0], models[1], songs: false);
+    // Two of Metallica's own, then the alike artists' most listened unplayed songs
+    expect(
+        alikeSongs(songs, artists, songsByArtist(songs), 'Metallica', 'One', {songKey('Slayer', 'Nothing')}, 12)
+            .map((s) => s.title),
+        ['Symphony of Destruction', 'Fade to Black', 'Enter Sandman', 'Raining Blood']);
     expect(alikeIn(artists, artistMatch('Göksel'), 12, songs: false).map((a) => a.artist), ['Sertab Erener']);
     expect(alikeIn(artists, artistMatch('Nobody'), 12, songs: false), isEmpty);
   });
