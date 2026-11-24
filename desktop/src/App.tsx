@@ -7,18 +7,20 @@ import MiniPlayer from "./components/MiniPlayer";
 import { NowPlayingContext, useNowPlayingPoll } from "./nowPlaying";
 import Listening, { OpenRequest } from "./pages/Listening";
 import Playlists from "./pages/Playlists";
+import Discover from "./pages/Discover";
 import Account, { AccountContext, LoginScreen, useAccountState } from "./pages/Account";
 import { DialogProvider } from "./components/Dialog";
 import Marker from "./components/Marker";
 import Help from "./pages/Help";
 import Settings, { OpenSettingsContext } from "./pages/Settings";
 
-type Section = "listening" | "playlists" | "account" | "settings" | "help";
+type Section = "listening" | "playlists" | "discover" | "account" | "settings" | "help";
 
 // The sections of the sidebar, as in the Tk window: the app's own at the top, the rest at the bottom
 const SECTIONS: { name: Section; label: string; icon: IconName; bottom?: boolean }[] = [
   { name: "listening", label: "nav.listening", icon: "music" },
   { name: "playlists", label: "nav.playlists", icon: "list" },
+  { name: "discover", label: "nav.discover", icon: "discover" },
   { name: "account", label: "nav.account", icon: "account", bottom: true },
   { name: "help", label: "nav.help", icon: "help", bottom: true },
   { name: "settings", label: "settings.title", icon: "settings", bottom: true },
@@ -66,11 +68,12 @@ export default function App() {
     if (message.event === "appearance") location.search = `?section=${section}`;
   }), [section]);
 
-  // The mini player's song opens in the Listening section, from any section
-  const openTrack = (key: string) => {
+  // The mini player's song and Discover's artists open in the Listening section, from any section
+  const openPage = (column: OpenRequest["column"], key: string) => {
     setSection("listening");
-    setRequest((before) => ({ column: "track_key", key, n: (before?.n ?? 0) + 1 }));
+    setRequest((before) => ({ column, key, n: (before?.n ?? 0) + 1 }));
   };
+  const openTrack = (key: string) => openPage("track_key", key);
 
   useEffect(() => {
     get<AppInfo>("/api/app").then(setInfo, (reason) => setError(String(reason)));
@@ -119,6 +122,7 @@ export default function App() {
           <div className="content">
             <div hidden={section !== "listening"}><Listening request={request} /></div>
             <div hidden={section !== "playlists"}><Playlists /></div>
+            <Discover hidden={section !== "discover"} openArtist={(key) => openPage("artist_key", key)} />
             <div hidden={section !== "account"}><Account onLoggedOut={() => setLoginScreen(true)} /></div>
             {section === "help" && <Help />}
             <Settings tab={settingsTab} setTab={setSettingsTab} hidden={section !== "settings"} />

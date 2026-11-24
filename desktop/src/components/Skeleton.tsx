@@ -91,3 +91,28 @@ export function ListSkeleton({ days = 2, rows = 5 }: { days?: number; rows?: num
     </div>
   );
 }
+
+/** The Discover section before its answer: the closest artist, a row of artist tiles and the two song lists */
+export function DiscoverSkeleton() {
+  return (
+    <div className="overview skeleton">
+      <HeroSkeleton round large />
+      <section className="card skeleton-card" aria-hidden>
+        <Bone width="24%" height={14} />
+        <div className="discover-grid">
+          {[0, 1, 2, 3, 4].map((index) => (
+            <div key={index} className="discover-artist skeleton-artist">
+              <Bone width="88px" height={88} round />
+              <Bone width="60%" />
+              <Bone width="80%" height={10} />
+            </div>
+          ))}
+        </div>
+      </section>
+      <div className="pair">
+        <CardSkeleton lines={6} />
+        <CardSkeleton lines={6} />
+      </div>
+    </div>
+  );
+}

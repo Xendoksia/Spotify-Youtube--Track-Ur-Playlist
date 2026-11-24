@@ -1,10 +1,13 @@
+import gzip
+import json
+from array import array
 from datetime import timedelta
 from pathlib import Path
 from unittest import mock
 
 from playlist_tracker.api import recommend as recommend_api
 from playlist_tracker.core import i18n
-from playlist_tracker.music import recommend
+from playlist_tracker.music import model, recommend
 from tests.test_listening import ListeningTestCase, utc
 
 NOW = utc("2026-11-20 12:00")
@@ -38,6 +41,25 @@ class RecommendTestCase(ListeningTestCase):
         self.addCleanup(patcher.stop)
         recommend._cache = None
         self.addCleanup(setattr, recommend, "_cache", None)
+        patcher = mock.patch.object(recommend, "DISCOVER_PATH", Path(self._folder.name) / "discover.json")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        # No model unless a test writes one, so the suggestions come from the fake Deezer
+        self.models = Path(self._folder.name) / "models"
+        self.models.mkdir()
+        for kind in ("artist", "song"):
+            patcher = mock.patch.object(model, f"{kind}s", model.Model(kind, self.models))
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        model._songs_of = None
+        self.addCleanup(setattr, model, "_songs_of", None)
+
+    def write_model(self, kind: str, items: list[dict], neighbours: list[list[int]], width: int = 3):
+        with gzip.open(self.models / f"{kind}s.json.gz", "wt", encoding="utf-8") as f:
+            json.dump(items, f)
+        ids = array("i", [j for row in neighbours for j in (row + [-1] * width)[:width]])
+        with gzip.open(self.models / f"{kind}_neighbours.i32.gz", "wb") as f:
+            f.write(ids.tobytes())
 
     def plays(self, artist: str, count: int, days_ago: int):
         for n in range(count):
@@ -122,6 +144,77 @@ class SuggestionsTest(RecommendTestCase):
         found = recommend.suggestions(fetch=True, get=deezer, now=NOW, db_path=self.db)
         self.assertEqual((found["artists"], found["complete"]), ([], True))
         self.assertTrue(recommend._load()["artists"]["nobody"]["missing"])
+
+
+class ModelTest(RecommendTestCase):
+    """The models: Metallica is alike to Megadeth and Slayer, Göksel to Sertab Erener. Their songs: One is alike to
+    Megadeth's Symphony of Destruction, Metallica's Fade to Black and the played Enter Sandman."""
+
+    def setUp(self):
+        super().setUp()
+        artists = [{"name": "Metallica", "key": "metallica", "listeners": 900},
+                   {"name": "Megadeth", "key": "megadeth", "listeners": 500},
+                   {"name": "Slayer", "key": "slayer", "listeners": 400},
+                   {"name": "Göksel", "key": "goksel", "listeners": 300},
+                   {"name": "Sertab Erener", "key": "sertab erener", "listeners": 200}]
+        self.write_model("artist", artists, [[1, 2], [0], [0], [4], [3]])
+        songs = [{"artist": "Metallica", "title": "One", "key": "metallica|one", "listeners": 90},
+                 {"artist": "Megadeth", "title": "Symphony of Destruction",
+                  "key": "megadeth|symphony of destruction", "listeners": 50},
+                 {"artist": "Metallica", "title": "Fade to Black", "key": "metallica|fade to black", "listeners": 70},
+                 {"artist": "Metallica", "title": "Enter Sandman", "key": "metallica|enter sandman", "listeners": 95},
+                 {"artist": "Slayer", "title": "Raining Blood", "key": "slayer|raining blood", "listeners": 40}]
+        self.write_model("song", songs, [[1, 2, 3], [0], [0], [0], [1]])
+
+    def test_the_model_suggests_unplayed_artists_with_their_unplayed_songs_and_asks_deezer_nothing(self):
+        self.play("Metallica", "One - Remastered", "2026-11-19 10:00")
+        deezer = FakeDeezer({}, {})
+        found = recommend.suggestions(fetch=True, get=deezer, now=NOW, db_path=self.db)
+        self.assertEqual([a["name"] for a in found["artists"]], ["Megadeth", "Slayer"])
+        self.assertEqual(found["artists"][1]["tracks"][0]["title"], "Raining Blood")
+        self.assertEqual((deezer.requests, found["complete"]), (0, True))
+
+    def test_an_artist_the_model_does_not_know_falls_back_to_deezer(self):
+        self.play("Kenan Doğulu", "Tutamıyorum Zamanı", "2026-11-19 10:00")
+        deezer = FakeDeezer({"Kenan Dogulu": (10, 50)}, {10: [(20, "Tarkan")]})
+        found = recommend.suggestions(fetch=True, get=deezer, now=NOW, db_path=self.db)
+        self.assertEqual([a["name"] for a in found["artists"]], ["Tarkan"])
+        self.assertEqual(found["artists"][0]["tracks"][0]["title"], "Song 20")
+
+    def test_songs_leave_out_played_ones_and_split_new_and_known_artists(self):
+        self.play("Metallica", "One - Remastered", "2026-11-19 10:00")
+        self.play("Metallica", "Enter Sandman", "2026-11-19 10:10")
+        songs = recommend.song_suggestions(now=NOW, db_path=self.db)
+        self.assertEqual([s["name"] for s in songs["new"]], ["Symphony of Destruction"])
+        self.assertEqual([s["name"] for s in songs["known"]], ["Fade to Black"])
+        self.assertEqual(songs["known"][0]["because"], ["One"])
+
+    def test_suggested_artists_are_left_out_of_the_new_songs(self):
+        self.play("Metallica", "One", "2026-11-19 10:00")
+        songs = recommend.song_suggestions(now=NOW, db_path=self.db, skip_artists={"megadeth"})
+        self.assertEqual(songs["new"], [])
+
+
+class DiscoverTest(ModelTest):
+    def test_worked_out_once_a_day_and_what_is_played_since_is_left_out(self):
+        self.play("Metallica", "One", "2026-11-19 10:00")
+        first = recommend.discover(now=NOW, db_path=self.db)
+        self.assertEqual([a["name"] for a in first["artists"]], ["Megadeth", "Slayer"])
+        self.assertEqual([s["name"] for s in first["known"]], ["Fade to Black", "Enter Sandman"])
+        self.play("Slayer", "South of Heaven", "2026-11-19 11:00")
+        self.play("Metallica", "Fade to Black", "2026-11-19 11:10")
+        with mock.patch.object(recommend, "suggestions", side_effect=AssertionError("worked out again")):
+            later = recommend.discover(now=NOW, db_path=self.db)
+        self.assertEqual([a["name"] for a in later["artists"]], ["Megadeth"])
+        self.assertEqual([s["name"] for s in later["known"]], ["Enter Sandman"])
+
+    def test_a_day_later_it_is_worked_out_again(self):
+        self.play("Metallica", "One", "2026-11-19 10:00")
+        recommend.discover(now=NOW, db_path=self.db)
+        day_later = recommend.time.time() + recommend.DISCOVER_SECONDS
+        with mock.patch.object(recommend.time, "time", return_value=day_later),                 mock.patch.object(recommend, "suggestions", wraps=recommend.suggestions) as worked_out:
+            recommend.discover(now=NOW, db_path=self.db)
+        worked_out.assert_called_once()
 
 
 class BecauseTextTest(RecommendTestCase):

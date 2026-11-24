@@ -4,9 +4,10 @@ Bu klasörde "Senin için" önerileri için eğitilmiş iki model var: **sanatç
 İkisi de ayrı bir projede, ListenBrainz'in açık dinleme verisiyle Kaggle'da eğitildi:
 https://github.com/Xendoksia/music-recommendation-system (kod, raporlar ve bütün ölçümler orada).
 
-**Durum (2026-11-24):** Dosyalar yalnızca buraya kondu ve uygulamaya henüz bağlanmadı. `music/recommend.py` hâlâ
-Deezer kullanıyor. Hangi modelin nasıl kullanılacağına kullanıcı karar verecek. Şarkı modeli 1. sürüm ve
-iyileştirme denemeleri sürüyor, bu yüzden dosyaları değişebilir.
+**Durum (2026-11-24):** İki model de masaüstünün "Keşfet" bölümüne bağlandı (`music/model.py`,
+`music/recommend.py`). Sanatçı önerisi karma çalışıyor (`RECOMMEND_SOURCE`), şarkı önerisi yalnızca modelden geliyor.
+Dosyalar `build.py` ile arka uç paketine giriyor. Şarkı modeli 1. sürüm ve iyileştirme denemeleri sürüyor, bu
+yüzden dosyaları değişebilir.
 
 ## Dosyalar
 

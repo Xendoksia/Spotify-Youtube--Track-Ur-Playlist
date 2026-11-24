@@ -5667,3 +5667,345 @@ select.field {
 .streak-hint.record {
   color: var(--chart);
 }
+
+/* Discover (pages/Discover.tsx): the closest artist over its blurred photo, the other artists as tiles, then two
+ * song lists. Every song and artist opens its Spotify search, so the play marks turn Spotify's green on hover */
+
+.discover-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.discover-head h1 {
+  margin: 0 0 2px;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.discover-head p {
+  margin: 0;
+}
+
+.discover-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.discover-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: discover-pulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes discover-pulse {
+  from {
+    opacity: 0.25;
+  }
+}
+
+.discover-top .hero-body {
+  gap: 24px;
+  padding: 24px;
+}
+
+.discover-top .hero-picture {
+  width: 152px;
+  height: 152px;
+}
+
+.discover-top .hero-text {
+  flex: 1;
+}
+
+.discover-top .hero-title {
+  font-size: 32px;
+  letter-spacing: -0.4px;
+}
+
+.discover-top-open {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  color: white;
+  text-decoration: none;
+}
+
+.discover-top-open .icon {
+  font-size: 11px;
+}
+
+.discover-top-tracks {
+  display: grid;
+  flex: none;
+  gap: 6px;
+  width: 300px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.discover-top-tracks a,
+.discover-tracks a {
+  display: flex;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+}
+
+.discover-top-tracks a {
+  gap: 10px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  transition: background 150ms;
+}
+
+.discover-top-tracks a:hover {
+  background: var(--hover);
+}
+
+.discover-top-cover {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 6px;
+}
+
+.discover-top-tracks span,
+.discover-tracks span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discover-top-play {
+  color: var(--muted);
+  font-size: 11px;
+  transition: color 150ms;
+}
+
+.discover-top-tracks a:hover .discover-top-play,
+.discover-tracks a:hover .icon {
+  color: var(--accent);
+}
+
+.discover-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: 12px;
+}
+
+.discover-artist {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px 12px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--raised);
+  text-align: center;
+  transition: border-color 150ms;
+  animation: rise 380ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.discover-artist:hover {
+  border-color: var(--border);
+}
+
+.discover-artist-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.discover-artist-photo {
+  width: 88px;
+  height: 88px;
+  font-size: 32px;
+  transition: transform 200ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.discover-artist-head:hover .discover-artist-photo {
+  transform: scale(1.05);
+}
+
+.discover-artist-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discover-artist-head:hover .discover-artist-name {
+  text-decoration: underline;
+}
+
+.discover-because {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.discover-tracks {
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+
+.discover-tracks a {
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+  transition: background 150ms;
+}
+
+.discover-tracks a:hover {
+  background: var(--hover);
+}
+
+.discover-tracks .icon {
+  color: var(--muted);
+  font-size: 9px;
+  transition: color 150ms;
+}
+
+.discover-songs {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -8px;
+  padding: 0;
+  list-style: none;
+}
+
+.discover-song {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 10px;
+  transition: background 150ms;
+  animation: rise 380ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.discover-song:hover {
+  background: var(--hover);
+}
+
+.discover-song-cover {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+}
+
+.discover-song-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.discover-song-title,
+.discover-song-artist,
+.discover-song .discover-because {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discover-song-title {
+  font-weight: 600;
+}
+
+.discover-song-artist {
+  font-size: 13px;
+}
+
+button.discover-song-artist {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.discover-song-artist:hover {
+  color: var(--focus);
+  text-decoration: underline;
+}
+
+.discover-song .discover-because {
+  display: block;
+}
+
+.discover-play {
+  color: var(--muted);
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 150ms, background 150ms, color 150ms;
+}
+
+.discover-song:hover .discover-play,
+.discover-play:focus-visible {
+  opacity: 1;
+}
+
+.discover-play:hover:not(:disabled) {
+  border-color: #1aa34a;
+  background: #1aa34a;
+  color: white;
+}
+
+.discover a:focus-visible,
+.discover button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.skeleton-artist {
+  gap: 10px;
+  animation: none;
+}
+
+@media (max-width: 1100px) {
+  .discover-top .hero-body {
+    flex-wrap: wrap;
+  }
+
+  .discover-top-tracks {
+    width: 100%;
+  }
+}

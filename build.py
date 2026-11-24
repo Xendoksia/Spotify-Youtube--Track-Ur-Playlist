@@ -8,6 +8,7 @@ It needs no Python installation. The window's installer (npm run dist in desktop
 from there.
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -44,6 +45,8 @@ def build_backend() -> None:
         "--workpath", str(BUILD_DIR / "backend-work"),
         "--specpath", str(BUILD_DIR),
         "--collect-submodules", "winrt",
+        # The suggestion models (music/model.py), read from the backend's own folder
+        "--add-data", f"{ROOT / 'models'}{os.pathsep}models",
     ], check=True, cwd=ROOT)
     # PyInstaller names the folder after the program; the installer looks for build/backend
     target = BUILD_DIR / "backend"
