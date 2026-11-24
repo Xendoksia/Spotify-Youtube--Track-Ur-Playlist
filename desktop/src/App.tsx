@@ -68,10 +68,17 @@ export default function App() {
     if (message.event === "appearance") location.search = `?section=${section}`;
   }), [section]);
 
-  // The mini player's song and Discover's artists open in the Listening section, from any section
+  // The mini player's song and Discover's artists open in the Listening section, from any section, and closing
+  // the page returns to the section it was opened from
   const openPage = (column: OpenRequest["column"], key: string) => {
+    const from = section;
+    const scrolled = document.querySelector(".content")?.scrollTop ?? 0;
+    const back = () => {
+      setSection(from);
+      requestAnimationFrame(() => document.querySelector(".content")?.scrollTo(0, scrolled));
+    };
     setSection("listening");
-    setRequest((before) => ({ column, key, n: (before?.n ?? 0) + 1 }));
+    setRequest((before) => ({ column, key, n: (before?.n ?? 0) + 1, back: from === "listening" ? undefined : back }));
   };
   const openTrack = (key: string) => openPage("track_key", key);
 

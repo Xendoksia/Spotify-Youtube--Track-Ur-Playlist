@@ -14,9 +14,11 @@ import Wrapped from "./Wrapped";
 
 type Tab = "stats" | "recent";
 
-/** A page asked for from outside the section (the mini player); n tells two asks for the same page apart */
+/** A page asked for from outside the section (the mini player, Discover); n tells two asks for the same page
+ * apart. back returns to the section it was asked from once its pages are closed */
 export interface OpenRequest extends Visit {
   n: number;
+  back?: () => void;
 }
 
 export default function Listening({ request }: { request: OpenRequest | null }) {
@@ -67,8 +69,13 @@ export default function Listening({ request }: { request: OpenRequest | null }) 
   }, [openSummary]);
 
   const scroller = () => document.querySelector(".content");
+  // Where closing the pages returns to when they were opened from another section
+  const returnTo = useRef<(() => void) | null>(null);
   const openDetail = useCallback((column: Column, key: string) => {
-    if (index < 0) tabScroll.current = scroller()?.scrollTop ?? 0;
+    if (index < 0) {
+      tabScroll.current = scroller()?.scrollTop ?? 0;
+      returnTo.current = null;
+    }
     // Opening a page drops the pages that were ahead of the current one
     setVisits((before) => [...before.slice(0, index + 1), { column, key }]);
     setIndex(index + 1);
@@ -77,6 +84,12 @@ export default function Listening({ request }: { request: OpenRequest | null }) 
   const closeDetail = useCallback(() => {
     setVisits([]);
     setIndex(-1);
+    if (returnTo.current) {
+      const back = returnTo.current;
+      returnTo.current = null;
+      back();
+      return;
+    }
     requestAnimationFrame(() => scroller()?.scrollTo(0, tabScroll.current));
   }, []);
   const step = useCallback((direction: number) => {
@@ -91,7 +104,9 @@ export default function Listening({ request }: { request: OpenRequest | null }) 
   const openRef = useRef(openDetail);
   openRef.current = openDetail;
   useEffect(() => {
-    if (request) openRef.current(request.column, request.key);
+    if (!request) return;
+    openRef.current(request.column, request.key);
+    returnTo.current = request.back ?? null;
   }, [request]);
 
   // Esc closes the page, Alt+Left and Alt+Right move between the pages visited, as in the Tk window
