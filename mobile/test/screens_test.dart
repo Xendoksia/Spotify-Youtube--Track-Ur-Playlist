@@ -68,7 +68,8 @@ void main() {
   testWidgets('playlists show their latest changes and open their history', (tester) async {
     await pump(tester, (store) => PlaylistsScreen(store: store, onRefresh: noRefresh), language: 'tr');
     expect(find.text('Road trip'), findsOneWidget);
-    expect(find.text('1 silindi'), findsOneWidget);
+    expect(find.text('Bütün değişiklikler'), findsOneWidget);
+    expect(find.text('Song'), findsWidgets);
     await tester.tap(find.text('Road trip'));
     await tester.pumpAndSettle();
     expect(find.text('Silindi'), findsOneWidget);

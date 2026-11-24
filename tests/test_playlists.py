@@ -223,6 +223,49 @@ class PlaylistCardsTest(DatabaseTestCase):
         self.assertEqual([(card["id"], card["tracked"]) for card in page["playlists"]], [("p1", True)])
 
 
+class TrackingPageTest(PlaylistCardsTest):
+    """The one page for both services (api/playlists.py tracking)."""
+
+    def setUp(self):
+        super().setUp()
+        self.page = self.api.Playlists(lambda *args, **kwargs: None)
+        self.page.find_in_background = lambda force=False: None
+
+    def test_a_playlist_found_in_the_account_is_asked_about_once_and_not_sent(self):
+        self.assertEqual(history.remember_found([{"id": "p2", "name": "Found", "track_count": 12}], self.db), 1)
+        lists = self.page.tracking()["lists"]
+        self.assertEqual([item["key"] for item in lists["found"]], ["spotify:p2"])
+        self.assertEqual(history.unsynced_playlists(self.db), [])
+        lists = self.page.skip_found(["spotify:p2"])["lists"]
+        self.assertEqual(([i["key"] for i in lists["found"]], [i["key"] for i in lists["others"]]),
+                         ([], ["spotify:p2"]))
+        self.assertEqual(history.remember_found([{"id": "p2", "name": "Found", "track_count": 13}], self.db), 0)
+        self.assertEqual(self.page.tracking()["lists"]["found"], [])
+        self.assertEqual(self.page.tracking()["lists"]["others"][0]["meta"].split()[0], "13")
+
+    def test_tracking_a_found_playlist_sends_it(self):
+        history.remember_found([{"id": "p2", "name": "Found", "track_count": 12}], self.db)
+        lists = self.page.set_tracking("spotify:p2", True)["lists"]
+        self.assertEqual(([i["key"] for i in lists["found"]], [i["key"] for i in lists["tracked"]]),
+                         ([], ["spotify:p2"]))
+        self.assertEqual([p["playlist_id"] for p in history.unsynced_playlists(self.db)], ["p2"])
+
+    def test_the_last_check_and_its_new_tracks_lead(self):
+        history.set_tracked("p1", "My list", True, self.db)
+        self.client.tracks = [track("a")]
+        self.check()
+        self.client.tracks = [track("a"), track("b", name="Lacrymosa")]
+        self.check()
+        page = self.page.tracking()
+        self.assertEqual([(r["title"], r["fresh"]) for r in page["hero"]["recent"]], [("Lacrymosa", True)])
+        self.assertIn("Lacrymosa", page["hero"]["detail"])
+        self.assertEqual([k["count"] for k in page["filter"]["kinds"] if k["event"] == history.EVENT_ADDED], [1])
+        self.assertEqual(self.page.tracking(q="lacry")["filter"]["all"], 1)
+        self.assertEqual(self.page.tracking(q="nothing")["days"], [])
+
+    def test_a_link_of_no_service_is_refused(self):
+        self.assertEqual(self.page.add_link("https://example.com/list")["reason"], "error")
+
 def lockup(video_id: str, title: str | None, channel: str = "Channel") -> dict:
     metadata = {"metadata": {"contentMetadataViewModel": {"metadataRows": [
         {"metadataParts": [{"text": {"content": channel}}, {"text": {"content": "1M views"}}]}]}}}

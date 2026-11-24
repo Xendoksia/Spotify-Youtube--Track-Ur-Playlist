@@ -38,7 +38,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
   // Opens on the current week, as the desktop app does
   var _period = Period.week;
   var _offset = 0;
-  var _recentShown = recentStep;
+  var _recentShown = recentFirst;
   var _wrappedChecked = false;
 
   /// The plays the summaries waiting behind the bell were last looked for in
@@ -493,6 +493,7 @@ class _AppearState extends State<_Appear> with SingleTickerProviderStateMixin {
 }
 
 /// How many recent plays show at first, and how many more each tap on "Show more" adds
+const recentFirst = 8;
 const recentStep = 20;
 
 /// The latest plays of any period, under their day

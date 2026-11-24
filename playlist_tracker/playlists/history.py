@@ -67,6 +67,7 @@ def open_db(db_path: Path) -> Iterator[sqlite3.Connection]:
         db.row_factory = sqlite3.Row
         db.executescript(SCHEMA)
         _add_sync_columns(db)
+        _add_found_columns(db)
         with db:
             yield db
     finally:
@@ -91,6 +92,16 @@ def _add_sync_columns(db: sqlite3.Connection) -> None:
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS events_uid ON events (uid)")
 
 
+def _add_found_columns(db: sqlite3.Connection) -> None:
+    """Playlists the account lists: whether the user has been asked about one (seen, 0 for one found and not
+    decided on), its size as the account gave it and when it was found. A playlist stored before is seen."""
+    if "seen" not in {row[1] for row in db.execute("PRAGMA table_info(playlists)")}:
+        db.execute("ALTER TABLE playlists ADD COLUMN seen INTEGER NOT NULL DEFAULT 1")
+        db.execute("ALTER TABLE playlists ADD COLUMN size INTEGER")
+        db.execute("ALTER TABLE playlists ADD COLUMN found_at TEXT")
+        db.commit()
+
+
 def now_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
@@ -109,11 +120,35 @@ def known_playlists(db_path: Path) -> list[dict]:
 def set_tracked(playlist_id: str, name: str, tracked: bool, db_path: Path) -> None:
     with open_db(db_path) as db:
         db.execute(
-            "INSERT INTO playlists (playlist_id, name, tracked, changed_at, synced) VALUES (?, ?, ?, ?, 0) "
+            "INSERT INTO playlists (playlist_id, name, tracked, changed_at, synced, seen) VALUES (?, ?, ?, ?, 0, 1) "
             "ON CONFLICT(playlist_id) DO UPDATE SET name = excluded.name, tracked = excluded.tracked, "
-            "changed_at = excluded.changed_at, synced = 0",
+            "changed_at = excluded.changed_at, synced = 0, seen = 1",
             (playlist_id, name, int(tracked), now_utc()),
         )
+
+
+def remember_found(playlists: list[dict], db_path: Path) -> int:
+    """Keep the playlists the account lists ({id, name, track_count}): a new one is stored untracked and not seen,
+    so the window asks whether to track it, and a known one takes its size. Neither is sent to other devices,
+    where a playlist found here must not undo tracking it. Returns how many are new."""
+    new, now = 0, now_utc()
+    with open_db(db_path) as db:
+        known = {row[0] for row in db.execute("SELECT playlist_id FROM playlists")}
+        for p in playlists:
+            size = p.get("track_count") if isinstance(p.get("track_count"), int) else None
+            if p["id"] in known:
+                db.execute("UPDATE playlists SET size = COALESCE(?, size) WHERE playlist_id = ?", (size, p["id"]))
+                continue
+            db.execute("INSERT INTO playlists (playlist_id, name, tracked, seen, size, found_at, synced) "
+                       "VALUES (?, ?, 0, 0, ?, ?, 1)", (p["id"], p["name"], size, now))
+            new += 1
+    return new
+
+
+def set_seen(playlist_ids: list[str], db_path: Path) -> None:
+    """Playlists found in the account that are not to be tracked: they are not asked about again."""
+    with open_db(db_path) as db:
+        db.executemany("UPDATE playlists SET seen = 1 WHERE playlist_id = ?", [(i,) for i in playlist_ids])
 
 
 # Syncing between devices (see core/sync.py): the latest change to tracking wins
