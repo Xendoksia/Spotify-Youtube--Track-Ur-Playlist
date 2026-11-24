@@ -4,7 +4,8 @@ Bu klasörde "Senin için" önerileri için eğitilmiş iki model var: **sanatç
 İkisi de ayrı bir projede, ListenBrainz'in açık dinleme verisiyle Kaggle'da eğitildi:
 https://github.com/Xendoksia/music-recommendation-system (kod, raporlar ve bütün ölçümler orada).
 
-**Durum (2026-11-24):** İki model de masaüstünün "Keşfet" bölümüne bağlandı (`music/model.py`,
+**Durum (2026-11-24):** İki model de masaüstünün ve telefonun "Keşfet" bölümüne bağlandı (telefonda
+`mobile/lib/data/discover.dart`) (`music/model.py`,
 `music/recommend.py`). Sanatçı önerisi karma çalışıyor (`RECOMMEND_SOURCE`), şarkı önerisi yalnızca modelden geliyor.
 Dosyalar `build.py` ile arka uç paketine giriyor. Şarkı modeli 1. sürüm ve iyileştirme denemeleri sürüyor, bu
 yüzden dosyaları değişebilir.
@@ -133,5 +134,7 @@ Model projesinde:
 python -m src.export_app "<bu repo>/models"
 ```
 
-Komut bu klasördeki dosyaları ve `manifest.json`'u yeniden yazar. Önce ilgili Kaggle çıktılarının
+Komut bu klasördeki dosyaları ve `manifest.json`'u yeniden yazar. Telefon uygulaması dört `.gz` dosyasının bir kopyasını
+`mobile/assets/models/` içinde taşır (Android derlemesi uygulama klasörü dışındaki dosyaları almıyor). Yenilemeden
+sonra onları da kopyala, `mobile/test/discover_test.dart` iki kopya farklıysa hata verir. Önce ilgili Kaggle çıktılarının
 (`kaggle/tune/output`, `kaggle/song_train/output`) indirilmiş olması gerekir.

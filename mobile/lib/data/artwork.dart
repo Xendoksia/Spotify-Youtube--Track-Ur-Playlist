@@ -139,6 +139,8 @@ class Artwork {
 
   Future<List<Map<String, dynamic>>> _search(String path, String query) async {
     final result = await fetch(Uri.parse('$_searchUrl$path').replace(queryParameters: {'q': query, 'limit': '5'}));
+    // An error such as Deezer's rate limit is not "nothing found": raised, so the picture is tried again later
+    if (result is Map && result['error'] != null) throw StateError('Deezer: ${result['error']}');
     final data = result is Map ? result['data'] : null;
     return data is List ? data.whereType<Map<String, dynamic>>().toList() : [];
   }

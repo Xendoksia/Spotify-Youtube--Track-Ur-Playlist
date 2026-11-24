@@ -10,10 +10,11 @@ import '../state/data_store.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/sliding.dart';
 import 'account_screen.dart';
+import 'discover_screen.dart';
 import 'listening/listening_screen.dart';
 import 'playlists/playlists_screen.dart';
 
-/// The logged-in app: listening, playlists and the account, along the bottom
+/// The logged-in app: listening, playlists, discover and the account, along the bottom
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -104,6 +105,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final pages = [
       ListeningScreen(store: _store, onRefresh: refresh),
       PlaylistsScreen(store: _store, onRefresh: refresh),
+      DiscoverScreen(store: _store, onRefresh: refresh, active: _page == 2),
       AccountScreen(store: _store, nowPlaying: _nowPlaying),
     ];
     return Scaffold(
@@ -125,6 +127,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           items: [
             BarItem(Icons.headphones_outlined, Icons.headphones, context.t('nav.listening')),
             BarItem(Icons.queue_music_outlined, Icons.queue_music, context.t('nav.playlists')),
+            BarItem(Icons.explore_outlined, Icons.explore, context.t('nav.discover')),
             BarItem(Icons.person_outline, Icons.person, context.t('nav.account')),
           ],
         ),

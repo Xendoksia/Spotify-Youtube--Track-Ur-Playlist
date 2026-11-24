@@ -44,6 +44,7 @@ dependencies:
   cached_network_image: ^4.0.6
   share_plus: ^13.3.1
   gal: ^3.0.1
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
@@ -66,6 +67,14 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # The suggestion models (lib/data/discover.dart): copies of the repository's models/ files, as the Android build
+  # leaves out assets outside the app's folder. test/discover_test.dart checks that they are the same
+  assets:
+    - assets/models/artists.json.gz
+    - assets/models/artist_neighbours.i32.gz
+    - assets/models/songs.json.gz
+    - assets/models/song_neighbours.i32.gz
 
   # To add assets to your application, add an assets section, like this:
   # assets:
