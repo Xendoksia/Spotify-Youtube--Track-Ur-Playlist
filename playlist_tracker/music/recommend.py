@@ -47,6 +47,8 @@ MODEL_SEED_DECAY = 0.75
 SONG_SEEDS = 30
 # At most this many suggested songs of one artist in a list, so a few artists do not fill it
 SONG_PER_ARTIST = 2
+# An artist whose top list came back empty is asked again after this long
+EMPTY_RETRY_SECONDS = 3600
 # Related artists and top tracks change slowly, so they are looked up again after this long
 REFRESH_SECONDS = 30 * 24 * 3600
 
@@ -139,10 +141,19 @@ def model_related(name: str) -> list[dict] | None:
             for j in model.artists.neighbours(index)[:MODEL_RELATED]]
 
 
+def _data(get: Callable, url: str) -> list[dict]:
+    """A Deezer list. Deezer answers an error such as its rate limit with an "error" field, which is raised rather
+    than kept as an empty list."""
+    answer = get(url)
+    if "error" in answer:
+        raise LookupError(answer["error"])
+    return answer.get("data") or []
+
+
 def _find_id(name: str, get: Callable) -> int | None:
     """The Deezer id of an artist: of the results with the same name, apart from accents, the one with most fans,
     as Deezer may also hold a same named artist with a handful of fans."""
-    results = get(f"{SEARCH_URL}/search/artist?" + urlencode({"q": name, "limit": 10})).get("data") or []
+    results = _data(get, f"{SEARCH_URL}/search/artist?" + urlencode({"q": name, "limit": 10}))
     same = [r for r in results if fold(r.get("name", "")) == fold(name)]
     return max(same, key=lambda r: r.get("nb_fan") or 0)["id"] if same else None
 
@@ -156,7 +167,7 @@ def related(name: str, get: Callable = _get, fetch: bool = True) -> list[dict] |
         if not fetch:
             return None
         artist_id = _find_id(name, get)
-        found = (get(f"{SEARCH_URL}/artist/{artist_id}/related?limit={RELATED}").get("data") or []) if artist_id else []
+        found = _data(get, f"{SEARCH_URL}/artist/{artist_id}/related?limit={RELATED}") if artist_id else []
         entry = {"at": time.time(), "id": artist_id,
                  "related": [{"id": a["id"], "name": a["name"], "fans": a.get("nb_fan") or 0} for a in found]}
         if not artist_id:
@@ -189,10 +200,12 @@ def top_tracks(artist_id: int, get: Callable = _get, fetch: bool = True) -> list
     fetch is off. Previews are not kept: their addresses expire."""
     with _lock:
         entry = _load()["tracks"].get(str(artist_id))
-    if not _fresh(entry):
+    # None found, or an error kept before errors were told apart: asked again soon
+    empty = entry is not None and not entry["tracks"]
+    if not (time.time() - entry["at"] < EMPTY_RETRY_SECONDS if empty else _fresh(entry)):
         if not fetch:
             return None
-        found = get(f"{SEARCH_URL}/artist/{artist_id}/top?limit={TOP_TRACKS_READ}").get("data") or []
+        found = _data(get, f"{SEARCH_URL}/artist/{artist_id}/top?limit={TOP_TRACKS_READ}")
         tracks: dict[str, dict] = {}
         for t in found:
             title = t.get("title_short") or t["title"]
@@ -359,6 +372,18 @@ def discover(limit: int = 12, song_limit: int = 10, fetch: bool = False, force: 
         songs = song_suggestions(song_limit, now, db_path, skip_artists={a["key"] for a in found["artists"]})
         saved = {"at": time.time(), "complete": found["complete"], "artists": found["artists"], **songs}
         _write_discover(saved)
+    else:
+        # An artist saved without songs, as Deezer could not be reached, takes them once they are found
+        filled = False
+        for artist in saved["artists"]:
+            if not artist["tracks"] and artist.get("id"):
+                tracks = top_tracks(artist["id"], get, fetch=False)
+                if tracks:
+                    artist["tracks"], filled = tracks, True
+                elif tracks is None:
+                    saved["complete"] = False
+        if filled:
+            _write_discover(saved)
     played_artists, played_songs = heard(db_path), heard_songs(db_path)
     artists = [{**a, "tracks": [t for t in a["tracks"] if song_key(t["artist"], t["title"]) not in played_songs]}
                for a in saved["artists"] if fold(a["name"]) not in played_artists]

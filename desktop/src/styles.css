@@ -5783,8 +5783,7 @@ select.field {
   border-radius: 6px;
 }
 
-.discover-top-tracks span,
-.discover-tracks span {
+.discover-track-title {
   flex: 1;
   min-width: 0;
   overflow: hidden;

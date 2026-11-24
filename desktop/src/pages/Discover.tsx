@@ -69,7 +69,7 @@ function TopPick({ artist }: { artist: Artist }) {
               <li key={track.title}>
                 <a href={track.link} target="_blank" rel="noreferrer" title={t("discover.open_spotify")}>
                   <Picture src={track.image} alt={track.title} className="discover-top-cover" />
-                  <span>{track.title}</span>
+                  <span className="discover-track-title">{track.title}</span>
                   <Icon name="play" className="discover-top-play" />
                 </a>
               </li>
@@ -97,7 +97,7 @@ function ArtistTile({ artist, index }: { artist: Artist; index: number }) {
             <li key={track.title}>
               <a href={track.link} target="_blank" rel="noreferrer" title={t("discover.open_spotify")}>
                 <Icon name="play" />
-                <span>{track.title}</span>
+                <span className="discover-track-title">{track.title}</span>
               </a>
             </li>
           ))}

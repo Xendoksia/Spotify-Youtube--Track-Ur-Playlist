@@ -15,7 +15,8 @@ from playlist_tracker.api.overview import artist_url, cover_url
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.music import listening, recommend
 
-LIMIT = 12
+# The closest artist and two rows of five tiles
+LIMIT = 11
 SONG_LIMIT = 10
 # An incomplete answer (Deezer unreachable) is tried again after this long, not on every visit
 LOOKUP_RETRY_SECONDS = 3600
@@ -83,7 +84,7 @@ def recommendations(arrived: Callable[[], None]) -> dict:
                         "image": cover_url(tr["artist"], tr["album"], tr["title"]),
                         "link": spotify_search(tr["artist"], tr["title"]), "deezer": tr["link"]}
                        for tr in a["tracks"]],
-        } for a in found["artists"]],
+        } for a in found["artists"][:LIMIT]],
         "new_songs": [_song(s, False) for s in songs["new"]],
         "known_songs": [_song(s, True) for s in songs["known"]],
     }

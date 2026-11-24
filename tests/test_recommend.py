@@ -217,6 +217,18 @@ class DiscoverTest(ModelTest):
         worked_out.assert_called_once()
 
 
+class DeezerErrorTest(RecommendTestCase):
+    def test_an_error_answer_is_not_kept_as_no_tracks(self):
+        error = lambda url: {"error": {"type": "Exception", "message": "Quota limit exceeded", "code": 4}}
+        with self.assertRaises(LookupError):
+            recommend.top_tracks(12875, error)
+        self.assertNotIn("12875", recommend._load()["tracks"])
+
+    def test_an_empty_top_list_is_looked_up_again_soon(self):
+        recommend._load()["tracks"]["7"] = {"at": recommend.time.time() - recommend.EMPTY_RETRY_SECONDS, "tracks": []}
+        self.assertIsNone(recommend.top_tracks(7, fetch=False))
+
+
 class BecauseTextTest(RecommendTestCase):
     def setUp(self):
         super().setUp()
