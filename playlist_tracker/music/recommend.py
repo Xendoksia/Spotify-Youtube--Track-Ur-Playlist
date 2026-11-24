@@ -459,3 +459,39 @@ def report(now: datetime | None = None, db_path: Path = DB_PATH) -> dict:
             if date.fromisoformat(day) >= start]
     return {"suggested": len(found), "listened": sum(r["state"] != "untried" for r in found),
             "favorites": sum(r["state"] == "favorite" for r in found), "rows": found, "days": days}
+
+
+ALIKE = 12
+
+
+def alike_songs(artist: str, name: str, limit: int = ALIKE, db_path: Path = DB_PATH) -> list[dict]:
+    """The songs the song model finds most alike to a song, best first: {artist, title, track_key}, track_key the
+    played song's own key or None for one not played. [] when the model does not know the song."""
+    if not model.songs.available() or (index := model.songs.find(song_key(artist, name))) is None:
+        return []
+    with listening.open_db(db_path) as db:
+        played = {song_key(a, n): k for a, n, k in db.execute("SELECT DISTINCT artist, name, track_key FROM listens")}
+    found, seen = [], {song_key(artist, name)}
+    for j in model.songs.neighbours(index):
+        song = model.songs.items[j]
+        # The same song may be in the model twice, spelt with different punctuation
+        if loose(song["key"]) in seen:
+            continue
+        seen.add(loose(song["key"]))
+        found.append({"artist": song["artist"], "title": song["title"], "track_key": played.get(loose(song["key"]))})
+        if len(found) == limit:
+            break
+    return found
+
+
+def alike_artists(name: str, limit: int = ALIKE, db_path: Path = DB_PATH) -> list[dict]:
+    """The artists the artist model finds most alike to an artist, best first: {name, artist_key}, artist_key the
+    page of one played or None. [] when the model does not know the artist."""
+    if not model.artists.available() or (index := model.artists.find(fold(name))) is None:
+        return []
+    with listening.open_db(db_path) as db:
+        names = [row[0] for row in db.execute("SELECT DISTINCT artist FROM listens")]
+    played = {loose(fold(part)): key(part) for n in names for part in listening._credit_parts(n)}
+    return [{"name": model.artists.items[j]["name"],
+             "artist_key": played.get(loose(fold(model.artists.items[j]["name"])))}
+            for j in model.artists.neighbours(index)[:limit]]

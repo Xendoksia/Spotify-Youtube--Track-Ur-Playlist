@@ -19,13 +19,59 @@ import { DetailSkeleton } from "../components/Skeleton";
 import { useTexts } from "../i18n";
 import { curveStyle, Mood } from "../mood";
 import { Column, useOpenDetail } from "../navigation";
+import { openSpotify } from "../spotify";
 
 export interface Visit {
   column: Column;
   key: string;
 }
 
+interface Alike {
+  kind: "track" | "artist";
+  title: string;
+  summary: string;
+  /** The mark of one played */
+  played: string;
+  rows: {
+    title: string;
+    subtitle: string;
+    image: string;
+    /** The artist's photo, for a song without a cover */
+    fallback: string;
+    column: Column;
+    /** The page of one played, else null */
+    key: string | null;
+    artist: string;
+    song: string;
+  }[];
+}
+
+/** What the suggestion models find most alike: the played ones open their page, the others Spotify */
+function AlikeCard({ data }: { data: Alike }) {
+  const { t } = useTexts();
+  const open = useOpenDetail()!;
+  const round = data.kind === "artist";
+  return (
+    <Card icon={round ? "artists" : "tracks"} title={data.title} summary={data.summary}>
+      <div className={`alike-grid${round ? " people" : ""}`}>
+        {data.rows.map((row) => (
+          <button key={`${row.artist}|${row.song}`} className={`alike-item${row.key ? " played" : ""}`}
+                  title={row.key ? "" : t("discover.open_spotify")}
+                  onClick={() => row.key ? open(row.column, row.key) : openSpotify(row.artist, row.song)()}>
+            <Picture src={row.image} fallback={row.fallback || undefined} alt={row.title} round={round}
+                     className="alike-picture" />
+            <span className="alike-title">{row.title}</span>
+            {row.subtitle && <span className="alike-subtitle muted">{row.subtitle}</span>}
+            {row.key && <span className="alike-played">{data.played}</span>}
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 interface DetailData {
+  alike?: Alike | null;
   kind: "track" | "artist" | "album";
   title: string;
   hero: HeroData & { artists: ArtistLink[] };
@@ -208,6 +254,7 @@ export default function Detail({ visit, onLoaded }: {
               <RankJourney journey={data.journey} empty={empty} />
             </Card>
           ) : timeline}
+          {data.alike && <AlikeCard data={data.alike} />}
         </>
       )}
       {data.kind === "artist" && (
@@ -222,6 +269,7 @@ export default function Detail({ visit, onLoaded }: {
               <TrackGrid rows={data.albums.rows} empty={empty} />
             </Card>
           )}
+          {data.alike && <AlikeCard data={data.alike} />}
         </>
       )}
     </div>

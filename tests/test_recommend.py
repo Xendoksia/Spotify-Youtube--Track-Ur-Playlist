@@ -251,6 +251,22 @@ class ReportTest(ModelTest):
         self.assertEqual(recommend._read_history(), {"2026-11-20": ["Evening"]})
 
 
+class AlikeTest(ModelTest):
+    def test_alike_songs_say_which_are_played_and_open_their_page(self):
+        self.play("Metallica", "One", "2026-11-19 10:00")
+        self.play("Metallica", "Enter Sandman", "2026-11-19 10:10")
+        found = recommend.alike_songs("Metallica", "One - Remastered", db_path=self.db)
+        self.assertEqual([(s["title"], s["track_key"]) for s in found],
+                         [("Symphony of Destruction", None), ("Fade to Black", None),
+                          ("Enter Sandman", "metallica|enter sandman")])
+
+    def test_alike_artists_and_an_unknown_one(self):
+        self.play("Slayer", "Raining Blood", "2026-11-19 10:00")
+        self.assertEqual(recommend.alike_artists("Metallica", db_path=self.db),
+                         [{"name": "Megadeth", "artist_key": None}, {"name": "Slayer", "artist_key": "slayer"}])
+        self.assertEqual(recommend.alike_artists("Nobody", db_path=self.db), [])
+
+
 class DeezerErrorTest(RecommendTestCase):
     def test_an_error_answer_is_not_kept_as_no_tracks(self):
         error = lambda url: {"error": {"type": "Exception", "message": "Quota limit exceeded", "code": 4}}

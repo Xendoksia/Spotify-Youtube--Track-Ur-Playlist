@@ -3,13 +3,14 @@
  * new artists and the unplayed songs by artists played. Every song and artist opens in the Spotify app, where
  * playing it is recorded, rather than in the browser. */
 
-import { MouseEvent, useCallback, useEffect, useRef, useState } from "react";
-import { get, imageUrl, post } from "../api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { get, imageUrl } from "../api";
 import Card from "../components/Card";
 import Icon from "../components/Icon";
 import Picture from "../components/Picture";
 import { DiscoverSkeleton } from "../components/Skeleton";
 import { useTexts } from "../i18n";
+import { openSpotify } from "../spotify";
 
 interface Track {
   title: string;
@@ -64,13 +65,6 @@ interface DiscoverData {
   report: Report | null;
 }
 
-/** A click handler opening an artist, or one of their songs, in the Spotify app through the backend */
-function openSpotify(artist: string, title = "") {
-  return (event: MouseEvent) => {
-    event.preventDefault();
-    post("/api/recommend/open", { artist, title }).catch(() => {});
-  };
-}
 
 function SpotifyLink({ href, label, artist, title }: { href: string; label: string; artist: string; title: string }) {
   return (
