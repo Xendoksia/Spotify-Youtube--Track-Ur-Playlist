@@ -253,6 +253,18 @@ class BecauseTextTest(RecommendTestCase):
         self.assertEqual(recommend_api.because_text(["Skillet", "Seether"]), "Skillet ve Seether dinlediğin için")
         self.assertEqual(recommend_api.because_text(["A", "B", "C", "D"]), "A, B ve 2 sanatçı daha dinlediğin için")
 
+    def test_a_suggestion_opens_its_own_spotify_track_and_falls_back_to_a_search(self):
+        class FakeSpotify:
+            def get(self, url):
+                return {"tracks": {"items": [{"uri": "spotify:track:other", "artists": [{"name": "Someone"}]},
+                                             {"uri": "spotify:track:right", "artists": [{"name": "Stone Sour"}]}]}}
+        recommend_api._uris.clear()
+        with mock.patch("playlist_tracker.playlists.spotify.connect", return_value=FakeSpotify()):
+            self.assertEqual(recommend_api.spotify_uri("Stone Sour", "Through Glass"), "spotify:track:right")
+        with mock.patch("playlist_tracker.playlists.spotify.connect", side_effect=RuntimeError("no account")):
+            self.assertEqual(recommend_api.spotify_uri("Pop Evil", "Trenches"), "spotify:search:Pop%20Evil%20Trenches")
+        recommend_api._uris.clear()
+
     def test_spotify_search_link(self):
         self.assertEqual(recommend_api.spotify_search("Papa Roach", "Last Resort"),
                          "https://open.spotify.com/search/Papa%20Roach%20Last%20Resort")

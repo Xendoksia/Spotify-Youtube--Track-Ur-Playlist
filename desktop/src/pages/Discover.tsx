@@ -1,9 +1,10 @@
 /** The Discover section: artists and songs not played yet, picked from what is played (api/recommend.py). The
  * closest artist on top over its blurred photo, the other artists as tiles with their songs, then the songs by
- * new artists and the unplayed songs by artists played. Every song and artist opens its Spotify search. */
+ * new artists and the unplayed songs by artists played. Every song and artist opens in the Spotify app, where
+ * playing it is recorded, rather than in the browser. */
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { get, imageUrl } from "../api";
+import { MouseEvent, useCallback, useEffect, useRef, useState } from "react";
+import { get, imageUrl, post } from "../api";
 import Card from "../components/Card";
 import Icon from "../components/Icon";
 import Picture from "../components/Picture";
@@ -41,9 +42,18 @@ interface DiscoverData {
   known_songs: Song[];
 }
 
-function SpotifyLink({ href, label }: { href: string; label: string }) {
+/** A click handler opening an artist, or one of their songs, in the Spotify app through the backend */
+function openSpotify(artist: string, title = "") {
+  return (event: MouseEvent) => {
+    event.preventDefault();
+    post("/api/recommend/open", { artist, title }).catch(() => {});
+  };
+}
+
+function SpotifyLink({ href, label, artist, title }: { href: string; label: string; artist: string; title: string }) {
   return (
-    <a className="icon-button discover-play" href={href} target="_blank" rel="noreferrer" title={label} aria-label={label}>
+    <a className="icon-button discover-play" href={href} target="_blank" rel="noreferrer" title={label} aria-label={label}
+       onClick={openSpotify(artist, title)}>
       <Icon name="play" />
     </a>
   );
@@ -61,7 +71,8 @@ function TopPick({ artist }: { artist: Artist }) {
           <span className="hero-caption">{t("discover.top_pick")}</span>
           <span className="hero-title">{artist.title}</span>
           <span className="hero-detail">{artist.subtitle}</span>
-          <a className="button accent spotify discover-top-open" href={artist.link} target="_blank" rel="noreferrer">
+          <a className="button accent spotify discover-top-open" href={artist.link} target="_blank" rel="noreferrer"
+             onClick={openSpotify(artist.title)}>
             <Icon name="play" />{t("discover.open_spotify")}
           </a>
         </div>
@@ -69,7 +80,8 @@ function TopPick({ artist }: { artist: Artist }) {
           <ol className="discover-top-tracks">
             {artist.tracks.map((track) => (
               <li key={track.title}>
-                <a href={track.link} target="_blank" rel="noreferrer" title={t("discover.open_spotify")}>
+                <a href={track.link} target="_blank" rel="noreferrer" title={t("discover.open_spotify")}
+                   onClick={openSpotify(track.subtitle, track.title)}>
                   <Picture src={track.image} alt={track.title} className="discover-top-cover" />
                   <span className="discover-track-title">{track.title}</span>
                   <Icon name="play" className="discover-top-play" />
@@ -88,7 +100,7 @@ function ArtistTile({ artist, index }: { artist: Artist; index: number }) {
   return (
     <article className="discover-artist" style={{ animationDelay: `${index * 40}ms` }}>
       <a className="discover-artist-head" href={artist.link} target="_blank" rel="noreferrer"
-         title={t("discover.open_spotify")}>
+         title={t("discover.open_spotify")} onClick={openSpotify(artist.title)}>
         <Picture src={artist.image} alt={artist.title} round className="discover-artist-photo" />
         <span className="discover-artist-name">{artist.title}</span>
       </a>
@@ -97,7 +109,8 @@ function ArtistTile({ artist, index }: { artist: Artist; index: number }) {
         <ol className="discover-tracks">
           {artist.tracks.map((track) => (
             <li key={track.title}>
-              <a href={track.link} target="_blank" rel="noreferrer" title={t("discover.open_spotify")}>
+              <a href={track.link} target="_blank" rel="noreferrer" title={t("discover.open_spotify")}
+                 onClick={openSpotify(track.subtitle, track.title)}>
                 <Icon name="play" />
                 <span className="discover-track-title">{track.title}</span>
               </a>
@@ -132,7 +145,7 @@ function SongList({ title, summary, songs, openArtist }: {
               )}
               <span className="discover-because" title={song.because}>{song.because}</span>
             </div>
-            <SpotifyLink href={song.link} label={t("discover.open_spotify")} />
+            <SpotifyLink href={song.link} label={t("discover.open_spotify")} artist={song.subtitle} title={song.title} />
           </li>
         ))}
       </ol>

@@ -6,14 +6,17 @@ an hour, after which arrived() lets the window ask again.
 
 from __future__ import annotations
 
+import os
 import threading
 import time
+import webbrowser
 from typing import Callable
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from playlist_tracker.api.overview import artist_url, cover_url
 from playlist_tracker.core.i18n import number, t
 from playlist_tracker.music import listening, recommend
+from playlist_tracker.music.model import loose
 
 # The closest artist and two rows of five tiles
 LIMIT = 11
@@ -38,6 +41,56 @@ def because_text(names: list[str], songs: bool = False) -> str:
 
 def spotify_search(*words: str) -> str:
     return "https://open.spotify.com/search/" + quote(" ".join(w for w in words if w))
+
+
+# What a suggestion opened in Spotify, (artist, title) → spotify: address, for the run of the program
+_uris: dict[tuple[str, str], str] = {}
+
+
+def _spotify_app() -> bool:
+    """Whether the Spotify desktop app is installed: it opens spotify: addresses. Only what it plays is recorded
+    (music/nowplaying.py), so a suggestion played in the browser would not count."""
+    try:
+        import winreg
+        winreg.CloseKey(winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, "spotify"))
+        return True
+    except OSError:
+        return False
+
+
+def spotify_uri(artist: str, title: str = "") -> str:
+    """The suggestion's own spotify:track: or spotify:artist: address, found with the Spotify account the playlists
+    use, or a spotify:search: address without one."""
+    if (artist, title) in _uris:
+        return _uris[(artist, title)]
+    from playlist_tracker.playlists import spotify
+    kind = "track" if title else "artist"
+    query = f'track:"{title}" artist:"{artist}"' if title else f'artist:"{artist}"'
+    found = f"spotify:search:{quote(' '.join(w for w in (artist, title) if w))}"
+    try:
+        answer = spotify.connect().get("/search?" + urlencode({"q": query, "type": kind, "limit": 5}))
+        items = answer[f"{kind}s"]["items"]
+        wanted = loose(recommend.fold(listening._credit_parts(artist)[0]))
+        names = lambda item: item.get("artists") or [item]
+        same = [i for i in items if any(loose(recommend.fold(a.get("name", ""))) == wanted for a in names(i))]
+        if same:
+            found = same[0]["uri"]
+    except Exception:  # no Spotify account, or offline: Spotify's own search is opened
+        pass
+    _uris[(artist, title)] = found
+    return found
+
+
+def open_spotify(artist: str, title: str = "") -> dict:
+    """Open a suggested artist or song in the Spotify app, where playing it is recorded, or in the browser when
+    the app is not installed."""
+    uri = spotify_uri(artist, title)
+    if _spotify_app():
+        os.startfile(uri)
+        return {"opened": "app"}
+    kind, _, rest = uri.removeprefix("spotify:").partition(":")
+    webbrowser.open(f"https://open.spotify.com/{kind}/{rest}")
+    return {"opened": "browser"}
 
 
 def _look_up(arrived: Callable[[], None]) -> None:
