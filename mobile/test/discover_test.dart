@@ -91,6 +91,15 @@ void main() {
     expect((report.listened, report.favorites, report.days.length), (1, 1, 1));
   });
 
+  test('alike songs skip the song itself and one spelt twice, and an unknown one has none', () {
+    final songs = Model.parse(models[2], models[3], songs: true);
+    expect(alikeIn(songs, songKey('Metallica', 'One - Remastered'), 12, songs: true).map((s) => s.title),
+        ['Symphony of Destruction', 'Fade to Black', 'Enter Sandman']);
+    final artists = Model.parse(models[0], models[1], songs: false);
+    expect(alikeIn(artists, artistMatch('Göksel'), 12, songs: false).map((a) => a.artist), ['Sertab Erener']);
+    expect(alikeIn(artists, artistMatch('Nobody'), 12, songs: false), isEmpty);
+  });
+
   test('a key without punctuation', () {
     expect(loose("what i’ve done"), loose("what i've done"));
     expect(songKey('Linkin Park, Jay-Z', "What I've Done - Remastered"), 'linkin park|what i ve done');

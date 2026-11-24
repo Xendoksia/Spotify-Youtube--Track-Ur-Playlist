@@ -476,3 +476,77 @@ Future<Suggestions> discover(List<Play> plays, {DateTime? now}) async {
   if (saved == null) return const Suggestions([], [], []);
   return Suggestions.of(saved, rows, Report.of(history, rows, DateTime.fromMillisecondsSinceEpoch(moment)));
 }
+
+/// One of the most alike songs or artists: a song's artist and title, or an artist's name with an empty title
+typedef Alike = ({String artist, String title, String key});
+
+/// What the models find most alike, best first: [] when the model does not know it
+List<Alike> alikeIn(Model model, String key, int limit, {required bool songs}) {
+  final index = model.find(key);
+  if (index == null) return [];
+  final seen = {loose(model.keys[index])};
+  final found = <Alike>[];
+  for (final j in model.neighbours(index)) {
+    // The same song may be in the model twice, spelt with different punctuation
+    if (!seen.add(loose(model.keys[j]))) continue;
+    found.add(songs
+        ? (artist: model.artists[j], title: model.names[j], key: loose(model.keys[j]))
+        : (artist: model.names[j], title: '', key: loose(model.keys[j])));
+    if (found.length == limit) break;
+  }
+  return found;
+}
+
+void _serveModels((SendPort, List<Uint8List>) start) {
+  final (reply, files) = start;
+  final artists = Model.parse(files[0], files[1], songs: false);
+  final songs = Model.parse(files[2], files[3], songs: true);
+  final requests = ReceivePort();
+  reply.send(requests.sendPort);
+  requests.listen((message) {
+    final (songsAsked, key, limit, answer) = message as (bool, String, int, SendPort);
+    answer.send(alikeIn(songsAsked ? songs : artists, key, limit, songs: songsAsked));
+  });
+}
+
+/// The two models on a background isolate for the track and artist pages, loaded on first use and let go after
+/// a while unused, as they take some 80 MB
+class ModelWorker {
+  static final instance = ModelWorker();
+  static const idle = Duration(minutes: 2);
+
+  Future<SendPort>? _port;
+  Isolate? _isolate;
+  Timer? _idle;
+
+  Future<SendPort> _start() async {
+    final files = [for (final path in modelAssets) (await rootBundle.load(path)).buffer.asUint8List()];
+    final ready = ReceivePort();
+    _isolate = await Isolate.spawn(_serveModels, (ready.sendPort, files));
+    final port = await ready.first as SendPort;
+    ready.close();
+    return port;
+  }
+
+  Future<List<Alike>> _ask(bool songs, String key, int limit) async {
+    _idle?.cancel();
+    try {
+      final port = await (_port ??= _start());
+      final answer = ReceivePort();
+      port.send((songs, key, limit, answer.sendPort));
+      final found = await answer.first as List<Alike>;
+      answer.close();
+      return found;
+    } finally {
+      _idle = Timer(idle, () {
+        _isolate?.kill();
+        _isolate = null;
+        _port = null;
+      });
+    }
+  }
+
+  Future<List<Alike>> songs(String artist, String title, {int limit = 12}) => _ask(true, songKey(artist, title), limit);
+
+  Future<List<Alike>> artists(String name, {int limit = 12}) => _ask(false, artistMatch(name), limit);
+}

@@ -16,6 +16,7 @@ import '../../widgets/format.dart';
 import '../../widgets/rank_journey.dart';
 import '../../widgets/timeline_curve.dart';
 import '../../widgets/vinyl.dart';
+import 'alike_card.dart';
 import 'listening_chart.dart';
 
 /// Opens the page of a track, artist or album
@@ -166,6 +167,7 @@ class _DetailScreenState extends State<DetailScreen> {
               ],
               if (target.kind == DetailKind.album) ...[_albumVinyl(context, plays), gap, _albumTracks(context, plays)],
               if (target.kind != DetailKind.album) _chart(context, plays),
+              if (target.kind == DetailKind.track) AlikeCard(target: target, plays: widget.store.plays, onOpen: _open),
               if (target.kind == DetailKind.artist) ...[
                 gap,
                 SectionCard(
@@ -198,6 +200,7 @@ class _DetailScreenState extends State<DetailScreen> {
                     ),
                   ),
                 ],
+                AlikeCard(target: target, plays: widget.store.plays, onOpen: _open),
               ],
             ],
           ),
