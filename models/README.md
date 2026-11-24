@@ -7,8 +7,9 @@ https://github.com/Xendoksia/music-recommendation-system (kod, raporlar ve büt�
 **Durum (2026-11-24):** İki model de masaüstünün ve telefonun "Keşfet" bölümüne bağlandı (telefonda
 `mobile/lib/data/discover.dart`) (`music/model.py`,
 `music/recommend.py`). Sanatçı önerisi karma çalışıyor (`RECOMMEND_SOURCE`), şarkı önerisi yalnızca modelden geliyor.
-Dosyalar `build.py` ile arka uç paketine giriyor. Şarkı modeli 1. sürüm ve iyileştirme denemeleri sürüyor, bu
-yüzden dosyaları değişebilir.
+Dosyalar `build.py` ile arka uç paketine giriyor. Şarkı modeli 2026-11-24'ten beri **2. sürüm**: knn ve RP3beta
+iki ayrı komşu tablosuyla çalışıyor ve iki sıralama RRF ile birleşiyor (aşağıda). Modeller değişince
+`recommend.MODEL_VERSION` ve `discover.dart` `modelVersion` bir artırılır, kayıtlı öneriler de hemen yeniden hesaplanır.
 
 ## Dosyalar
 
@@ -16,8 +17,9 @@ yüzden dosyaları değişebilir.
 |---|---|---:|
 | `artists.json.gz` | 88.294 sanatçı: `name`, `key`, `mbid`, `listeners` | 3,5 MB |
 | `artist_neighbours.i32.gz` | Her sanatçının en benzer 50 sanatçısı | 10,0 MB |
-| `songs.json.gz` | 108.368 şarkı: `artist`, `title`, `key`, `mbid`, `listeners` | 6,0 MB |
-| `song_neighbours.i32.gz` | Her şarkının en benzer 50 şarkısı | 8,1 MB |
+| `songs.json.gz` | 159.008 şarkı: `artist`, `title`, `key`, `mbid`, `listeners` | 8,9 MB |
+| `song_neighbours.i32.gz` | Her şarkının knn ile en benzer 50 şarkısı | 17,1 MB |
+| `song_neighbours_rp3.i32.gz` | Her şarkının RP3beta ile en benzer 50 şarkısı (α 0,5, β 0,6) | 19,4 MB |
 | `manifest.json` | Boyutlar, ayarlar, kaynak commit ve test sonuçları | |
 
 - JSON dosyaları bir liste. Bir kaydın listedeki sırası onun numarası.
@@ -49,7 +51,8 @@ print([artists[j]["name"] for j in artist_neighbours(by_key["three days grace"])
 # ['Linkin Park', 'Breaking Benjamin', 'Papa Roach', 'Disturbed', 'Seether']
 ```
 
-Bellekte sanatçı tablosu yaklaşık 18 MB, şarkı tablosu yaklaşık 22 MB tutuyor. Yükleme bir kez yapılıp
+Bellekte sanatçı tablosu yaklaşık 18 MB, şarkıların iki tablosu yaklaşık 64 MB tutuyor. RP3beta dosyası yoksa
+uygulama yalnızca knn ile çalışır. Yükleme bir kez yapılıp
 saklanmalı.
 
 ## Eşleştirme
@@ -85,6 +88,12 @@ okunur ve `score()` ile sıralanır (`SEED_DECAY` 0,75).
 
 - **Keşif** ("Senin için"): Kullanıcının dinlediği sanatçıların şarkıları elenir. Geriye yeni sanatçıların
   şarkıları kalır.
+- **2. sürüm, RRF:** Aynı tohumlarla `score()` iki kez çalışır, biri knn, diğeri RP3beta komşularıyla. İki sıralı
+  listenin ilk 50 şarkısı birleşir: şarkının puanı her listede `1 / (60 + sıra + 1)` değerlerinin toplamı (sıra 0'dan
+  başlar), eşitlikte dinleyicisi çok olan önce gelir (`recommend.fuse`, telefonda `fuse`). Yeni/bilinen ayrımı ve
+  sanatçı başına 2 sınırı bu birleşik listeye uygulanır. İlk 50'ler tükenirse (dinlenen sanatçılar ayrılınca liste
+  10'a yetmeyebiliyor) iki listenin geri kalanı aynı kuralla tamamının üzerinden birleşip arkaya eklenir.
+- **Buna benzeyenler** (`alike_songs`) yalnızca knn tablosunu kullanır. Telefonun model işçisi RP3beta'yı yüklemez.
 - **Bütün şarkılar:** Yalnızca dinlenmiş şarkılar elenir. Bu modda öneriler çoğunlukla bilinen sanatçıların başka
   şarkıları olur ("Sevdiğin sanatçılardan" gibi bir bölüm için uygun).
 
@@ -105,7 +114,11 @@ Kullanıcının kendi verisinde (102 sanatçı tek tek gizlendi) model, Deezer'�
 ilk 12'de yalnız modelin bulduğu 15, yalnız Deezer'ın bulduğu 3 sanatçı oldu (p = 0,008). Kör karşılaştırmada
 kullanıcı modelin listesini seçti.
 
-**Şarkı modeli** (5.000 test kullanıcısı, 12 öneri)
+**Şarkı modeli, 2. sürüm** (5.000 genel test kullanıcısı, 12 öneri, ayrıntı `manifest.json` ve model projesinde
+`reports/sarki_iyilestirme.md`): knn + RP3beta RRF, 1. sürümün knn'ine göre keşifte recall@12 %17, NDCG@12 %14,
+bütün şarkılarda recall@12 %7 daha yüksek (bütün şarkılarda recall@12 0,0811, hit@12 %85,6, NDCG@12 0,404).
+
+**Şarkı modeli, 1. sürüm** (5.000 test kullanıcısı, 12 öneri)
 
 | Görev | Şarkı modeli | Uygulamanın şu anki yolu | En iyi diğer rakip |
 |---|---:|---:|---:|
@@ -131,10 +144,10 @@ kullanıcı modelin listesini seçti.
 Model projesinde:
 
 ```
-python -m src.export_app "<bu repo>/models"
+python -m src.export_app "<bu repo>/models" --two
 ```
 
-Komut bu klasördeki dosyaları ve `manifest.json`'u yeniden yazar. Telefon uygulaması dört `.gz` dosyasının bir kopyasını
+Komut bu klasördeki dosyaları ve `manifest.json`'u yeniden yazar. Telefon uygulaması beş `.gz` dosyasının bir kopyasını
 `mobile/assets/models/` içinde taşır (Android derlemesi uygulama klasörü dışındaki dosyaları almıyor). Yenilemeden
 sonra onları da kopyala, `mobile/test/discover_test.dart` iki kopya farklıysa hata verir. Önce ilgili Kaggle çıktılarının
 (`kaggle/tune/output`, `kaggle/song_train/output`) indirilmiş olması gerekir.

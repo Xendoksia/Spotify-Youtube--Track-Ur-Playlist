@@ -1,6 +1,6 @@
 {
  "created": "2026-11-24",
- "source": "https://github.com/Xendoksia/music-recommendation-system (commit 900d36d)",
+ "source": "https://github.com/Xendoksia/music-recommendation-system (commit 6aec0b2)",
  "min_listeners": 50,
  "artists": {
   "count": 88294,
@@ -26,16 +26,24 @@
   }
  },
  "songs": {
-  "count": 108368,
+  "count": 159008,
   "neighbours": 50,
   "files": [
    "songs.json.gz",
-   "song_neighbours.i32.gz"
+   "song_neighbours.i32.gz",
+   "song_neighbours_rp3.i32.gz"
   ],
-  "model": "item-item kNN, cosine with shrinkage on log listens, version 1",
+  "model": "knn (song_neighbours) and RP3beta (song_neighbours_rp3), each scored and the two ranked lists fused by RRF, version 2",
   "similarity": {
-   "beta": 0.5,
-   "shrink": 100.0
+   "knn": {
+    "cosine shrink": 100,
+    "weights": "log listens"
+   },
+   "rp3beta": {
+    "alpha": 0.5,
+    "beta": 0.6
+   },
+   "rrf_k": 60
   },
   "scoring": {
    "SEEDS": 30,
@@ -44,62 +52,57 @@
   },
   "test": {
    "all": {
-    "song knn": {
-     "recall@12": 0.087,
-     "hit@12": 0.8468,
-     "ndcg@12": 0.3519
+    "knn reference (100 neighbours)": {
+     "recall@12": 0.0757,
+     "hit@12": 0.8476,
+     "ndcg@12": 0.3831
     },
-    "song item2vec": {
-     "recall@12": 0.055,
-     "hit@12": 0.7106,
-     "ndcg@12": 0.215
+    "knn big pool": {
+     "recall@12": 0.0757,
+     "hit@12": 0.847,
+     "ndcg@12": 0.3832
     },
-    "popularity": {
-     "recall@12": 0.0037,
-     "hit@12": 0.1852,
-     "ndcg@12": 0.0235
+    "rp3beta best": {
+     "recall@12": 0.0765,
+     "hit@12": 0.8444,
+     "ndcg@12": 0.3768
     },
-    "app today: artist knn + top songs, 3 per artist": {
-     "recall@12": 0.0037,
-     "hit@12": 0.1322,
-     "ndcg@12": 0.0149
+    "user rrf": {
+     "recall@12": 0.0811,
+     "hit@12": 0.856,
+     "ndcg@12": 0.4043
     },
-    "app today: artist knn + top songs, 1 per artist": {
-     "recall@12": 0.0047,
-     "hit@12": 0.1786,
-     "ndcg@12": 0.0198
-    },
-    "own artists' top songs": {
-     "recall@12": 0.0498,
-     "hit@12": 0.8044,
-     "ndcg@12": 0.2481
+    "song rrf": {
+     "recall@12": 0.0773,
+     "hit@12": 0.8516,
+     "ndcg@12": 0.3838
     }
    },
    "discovery": {
-    "song knn": {
-     "recall@12": 0.0355,
-     "hit@12": 0.3481,
-     "ndcg@12": 0.0644
+    "knn reference (100 neighbours)": {
+     "recall@12": 0.0321,
+     "hit@12": 0.3547,
+     "ndcg@12": 0.0705
     },
-    "song item2vec": {
-     "recall@12": 0.0148,
-     "hit@12": 0.1697,
-     "ndcg@12": 0.0247
+    "knn big pool": {
+     "recall@12": 0.033,
+     "hit@12": 0.3522,
+     "ndcg@12": 0.0726
     },
-    "popularity": {
-     "recall@12": 0.0049,
-     "hit@12": 0.0855,
-     "ndcg@12": 0.0097
+    "rp3beta best": {
+     "recall@12": 0.0336,
+     "hit@12": 0.3668,
+     "ndcg@12": 0.0726
     },
-    "app today: artist knn + top songs, 3 per artist": {
-     "recall@12": 0.0108,
-     "hit@12": 0.1389,
-     "ndcg@12": 0.0172
+    "user rrf": {
+     "recall@12": 0.0376,
+     "hit@12": 0.3882,
+     "ndcg@12": 0.0804
     },
-    "app today: artist knn + top songs, 1 per artist": {
-     "recall@12": 0.0131,
-     "hit@12": 0.1876,
-     "ndcg@12": 0.0222
+    "song rrf": {
+     "recall@12": 0.0339,
+     "hit@12": 0.3681,
+     "ndcg@12": 0.0744
     }
    }
   }

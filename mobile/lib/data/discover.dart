@@ -36,6 +36,9 @@ const songsPerArtist = 2;
 
 /// Worked out again after this long, and an incomplete answer (Deezer unreachable) after the shorter one
 const discoverEvery = Duration(hours: 24);
+
+/// Raised when the models change, so the saved suggestions are worked out again with them at once
+const modelVersion = 2;
 const retryIncomplete = Duration(hours: 1);
 
 /// Copies of the repository's models/ files (see pubspec.yaml)
@@ -44,7 +47,13 @@ const modelAssets = [
   'assets/models/artist_neighbours.i32.gz',
   'assets/models/songs.json.gz',
   'assets/models/song_neighbours.i32.gz',
+  'assets/models/song_neighbours_rp3.i32.gz',
 ];
+
+/// The song model's version 2 ranks with its knn and RP3beta tables and fuses the two lists' first [rrfTop] by
+/// reciprocal rank, as recommend.fuse
+const rrfK = 60;
+const rrfTop = 50;
 
 const _deezer = 'https://api.deezer.com';
 
@@ -73,9 +82,17 @@ class Model {
   final int _width;
   final Map<String, int> _byKey;
 
-  Model._(this.names, this.artists, this.keys, this.listeners, this._ids, this._width, this._byKey);
+  /// The song model's RP3beta neighbours, null without that table
+  final Int32List? _rp3;
 
-  factory Model.parse(Uint8List items, Uint8List neighbours, {required bool songs}) {
+  Model._(this.names, this.artists, this.keys, this.listeners, this._ids, this._width, this._byKey, this._rp3);
+
+  static Int32List _table(Uint8List file) {
+    final raw = Uint8List.fromList(gzip.decode(file));
+    return raw.buffer.asInt32List(0, raw.length ~/ 4); // little-endian, as Android itself
+  }
+
+  factory Model.parse(Uint8List items, Uint8List neighbours, {required bool songs, Uint8List? rp3}) {
     final list = (jsonDecode(utf8.decode(gzip.decode(items))) as List).cast<Map<String, dynamic>>();
     final names = <String>[], artists = <String>[], keys = <String>[], listeners = <int>[];
     final byKey = <String, int>{};
@@ -89,15 +106,22 @@ class Model {
       final known = byKey[key];
       if (known == null || listeners[index] > listeners[known]) byKey[key] = index;
     }
-    final raw = Uint8List.fromList(gzip.decode(neighbours));
-    final ids = raw.buffer.asInt32List(0, raw.length ~/ 4); // little-endian, as Android itself
-    return Model._(names, artists, keys, listeners, ids, list.isEmpty ? 0 : ids.length ~/ list.length, byKey);
+    final ids = _table(neighbours);
+    final second = rp3 == null ? null : _table(rp3);
+    return Model._(names, artists, keys, listeners, ids, list.isEmpty ? 0 : ids.length ~/ list.length, byKey,
+        second != null && second.length == ids.length ? second : null);
   }
 
   int? find(String key) => _byKey[loose(key)];
 
-  List<int> neighbours(int index) =>
-      [for (var i = index * _width; i < (index + 1) * _width; i++) if (_ids[i] >= 0) _ids[i]];
+  bool get hasRp3 => _rp3 != null;
+
+  List<int> neighbours(int index) => _row(_ids, index);
+
+  List<int> neighboursRp3(int index) => _row(_rp3!, index);
+
+  List<int> _row(Int32List ids, int index) =>
+      [for (var i = index * _width; i < (index + 1) * _width; i++) if (ids[i] >= 0) ids[i]];
 }
 
 /// A seed or a candidate: candidates carry what the page shows of them
@@ -144,6 +168,35 @@ List<Item> score(List<Item> seeds, Map<String, List<Item>> relatedOf, Set<String
     }
   }
   return ranked;
+}
+
+/// The ranked lists fused: each song gets 1 / (rrfK + place + 1) from each list's first [rrfTop] it is in, most
+/// first, the more listened first on a tie, then the songs further down fused the same way over the whole lists.
+/// A song keeps the first list's entry, with the seeds of both
+List<Item> fuse(List<List<Item>> lists) {
+  final found = <String, Item>{};
+  final top = <String, double>{}, all = <String, double>{};
+  for (final ranking in lists) {
+    for (final (place, item) in ranking.indexed) {
+      final key = item['key'] as String;
+      final entry = found.putIfAbsent(key, () => {...item, 'because': <String>[]});
+      final because = entry['because'] as List<String>;
+      for (final name in (item['because'] as List).cast<String>()) {
+        if (!because.contains(name)) because.add(name);
+      }
+      if (place < rrfTop) top[key] = (top[key] ?? 0) + 1 / (rrfK + place + 1);
+      all[key] = (all[key] ?? 0) + 1 / (rrfK + place + 1);
+    }
+  }
+  double value(String key) => top[key] ?? all[key]!;
+  final keys = found.keys.toList()
+    ..sort((a, b) {
+      final tier = (top.containsKey(a) ? 0 : 1).compareTo(top.containsKey(b) ? 0 : 1);
+      if (tier != 0) return tier;
+      final order = value(b).compareTo(value(a));
+      return order != 0 ? order : ((found[b]!['fans'] as int?) ?? 0).compareTo((found[a]!['fans'] as int?) ?? 0);
+    });
+  return [for (final key in keys) {...found[key]!, 'score': value(key)}];
 }
 
 double _weight(int at, int now) => pow(0.5, max(0, now - at) / Duration.millisecondsPerDay / halfLifeDays).toDouble();
@@ -224,7 +277,7 @@ class Deezer {
 Future<Map<String, Object?>> workOut(List<Uint8List> files, List<PlayRow> plays, int now, {Deezer? deezer}) async {
   deezer ??= Deezer();
   final artistModel = Model.parse(files[0], files[1], songs: false);
-  final songModel = Model.parse(files[2], files[3], songs: true);
+  final songModel = Model.parse(files[2], files[3], songs: true, rp3: files.length > 4 ? files[4] : null);
   final playedArtists = heardArtists(plays);
   final playedSongs = heardSongs(plays);
   var complete = true;
@@ -287,17 +340,19 @@ Future<Map<String, Object?>> workOut(List<Uint8List> files, List<PlayRow> plays,
         ..sort((a, b) => (b['weight'] as double).compareTo(a['weight'] as double)))
       .take(seedCount)
       .toList();
-  final songRelated = {
-    for (final seed in songSeeds)
-      seed['key'] as String: [
-        for (final j in songModel.neighbours(songModel.find(seed['key'] as String)!).take(relatedCount))
-          {'key': songModel.keys[j], 'name': songModel.names[j], 'artist': songModel.artists[j], 'fans': songModel.listeners[j]},
-      ],
-  };
+  List<Item> ranked(List<int> Function(int) table) => score(songSeeds, {
+        for (final seed in songSeeds)
+          seed['key'] as String: [
+            for (final j in table(songModel.find(seed['key'] as String)!).take(relatedCount))
+              {'key': songModel.keys[j], 'name': songModel.names[j], 'artist': songModel.artists[j], 'fans': songModel.listeners[j]},
+          ],
+      }, playedSongs);
+  final knn = ranked(songModel.neighbours);
+  final songRanked = songModel.hasRp3 ? fuse([knn, ranked(songModel.neighboursRp3)]) : knn;
   final skip = {for (final a in artists) a['key'] as String};
   final lists = <String, List<Item>>{'new': [], 'known': []};
   final perArtist = <String, int>{};
-  for (final song in score(songSeeds, songRelated, playedSongs)) {
+  for (final song in songRanked) {
     final names = creditParts(song['artist'] as String).map(artistMatch).toList();
     final known = names.any(playedArtists.contains);
     final target = lists[known ? 'known' : 'new']!;
@@ -307,7 +362,7 @@ Future<Map<String, Object?>> workOut(List<Uint8List> files, List<PlayRow> plays,
     target.add(song);
     if (lists.values.every((l) => l.length >= songLimit)) break;
   }
-  return {'at': now, 'complete': complete, 'artists': artists, ...lists};
+  return {'at': now, 'model': modelVersion, 'complete': complete, 'artists': artists, ...lists};
 }
 
 /// The artists suggested each day are kept for the discovery report, the last [historyDays] days of them
@@ -454,7 +509,8 @@ Future<Suggestions> discover(List<Play> plays, {DateTime? now}) async {
   final stale = age == null ||
       age >= discoverEvery ||
       age.isNegative ||
-      (saved!['complete'] != true && age >= retryIncomplete);
+      saved!['model'] != modelVersion ||
+      (saved['complete'] != true && age >= retryIncomplete);
   var history = <String, List<String>>{};
   try {
     history = (jsonDecode(prefs.getString(_historyKey) ?? '{}') as Map)
@@ -566,6 +622,7 @@ void _serveModels((SendPort, List<Uint8List>) start) {
 /// The two models on a background isolate for the track and artist pages, loaded on first use and let go after
 /// a while unused, as they take some 80 MB
 class ModelWorker {
+  /// The alike songs use the knn table alone, so the RP3beta one is not loaded here
   static final instance = ModelWorker();
   static const idle = Duration(minutes: 2);
 
@@ -574,7 +631,7 @@ class ModelWorker {
   Timer? _idle;
 
   Future<SendPort> _start() async {
-    final files = [for (final path in modelAssets) (await rootBundle.load(path)).buffer.asUint8List()];
+    final files = [for (final path in modelAssets.take(4)) (await rootBundle.load(path)).buffer.asUint8List()];
     final ready = ReceivePort();
     _isolate = await Isolate.spawn(_serveModels, (ready.sendPort, files));
     final port = await ready.first as SendPort;

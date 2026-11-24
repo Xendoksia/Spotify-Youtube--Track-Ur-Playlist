@@ -75,6 +75,7 @@ flutter:
     - assets/models/artist_neighbours.i32.gz
     - assets/models/songs.json.gz
     - assets/models/song_neighbours.i32.gz
+    - assets/models/song_neighbours_rp3.i32.gz
 
   # To add assets to your application, add an assets section, like this:
   # assets:

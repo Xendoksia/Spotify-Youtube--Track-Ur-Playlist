@@ -55,12 +55,16 @@ class RecommendTestCase(ListeningTestCase):
         model._songs_of = None
         self.addCleanup(setattr, model, "_songs_of", None)
 
-    def write_model(self, kind: str, items: list[dict], neighbours: list[list[int]], width: int = 3):
+    def write_model(self, kind: str, items: list[dict], neighbours: list[list[int]], width: int = 3,
+                    rp3: list[list[int]] | None = None):
         with gzip.open(self.models / f"{kind}s.json.gz", "wt", encoding="utf-8") as f:
             json.dump(items, f)
-        ids = array("i", [j for row in neighbours for j in (row + [-1] * width)[:width]])
-        with gzip.open(self.models / f"{kind}_neighbours.i32.gz", "wb") as f:
-            f.write(ids.tobytes())
+        for name, table in (("neighbours", neighbours), ("neighbours_rp3", rp3)):
+            if table is None:
+                continue
+            ids = array("i", [j for row in table for j in (row + [-1] * width)[:width]])
+            with gzip.open(self.models / f"{kind}_{name}.i32.gz", "wb") as f:
+                f.write(ids.tobytes())
 
     def plays(self, artist: str, count: int, days_ago: int):
         for n in range(count):
@@ -209,6 +213,33 @@ class ModelTest(RecommendTestCase):
         self.assertEqual(songs["new"], [])
 
 
+    def test_the_second_song_table_is_fused_by_reciprocal_rank(self):
+        songs = json.loads(gzip.decompress((self.models / "songs.json.gz").read_bytes()))
+        # RP3beta finds Fade to Black, Raining Blood and Symphony of Destruction alike to One, in that order
+        self.write_model("song", songs, [[1, 2, 3], [0], [0], [0], [1]], rp3=[[2, 4, 1], [0], [0], [0], [1]])
+        self.play("Metallica", "One", "2026-11-19 10:00")
+        self.play("Metallica", "Enter Sandman", "2026-11-19 10:10")
+        found = recommend.song_suggestions(now=NOW, db_path=self.db)
+        # Symphony: 1/61 + 1/63, Raining Blood: 1/62 from RP3beta alone
+        self.assertEqual([s["name"] for s in found["new"]], ["Symphony of Destruction", "Raining Blood"])
+        self.assertEqual([s["name"] for s in found["known"]], ["Fade to Black"])
+
+    def test_fusing_puts_a_song_high_in_both_lists_first_and_breaks_ties_by_listeners(self):
+        a = [{"key": "x", "fans": 1, "because": ["S"]}, {"key": "y", "fans": 9, "because": ["S"]}]
+        b = [{"key": "y", "fans": 9, "because": ["T"]}, {"key": "x", "fans": 1, "because": ["S"]},
+             {"key": "z", "fans": 5, "because": ["T"]}]
+        fused = recommend.fuse(a, b)
+        self.assertEqual([s["key"] for s in fused], ["y", "x", "z"])
+        self.assertEqual(fused[0]["because"], ["S", "T"])
+
+    def test_songs_below_the_fused_top_follow_it(self):
+        top = [{"key": f"t{i}", "fans": 1, "because": []} for i in range(recommend.RRF_TOP)]
+        low = [{"key": "low", "fans": 1, "because": []}]
+        fused = recommend.fuse(top + low, top + low)
+        self.assertEqual(fused[-1]["key"], "low")
+        self.assertEqual(len(fused), recommend.RRF_TOP + 1)
+
+
 class DiscoverTest(ModelTest):
     def test_worked_out_once_a_day_and_what_is_played_since_is_left_out(self):
         self.play("Metallica", "One", "2026-11-19 10:00")
@@ -221,6 +252,15 @@ class DiscoverTest(ModelTest):
             later = recommend.discover(now=NOW, db_path=self.db)
         self.assertEqual([a["name"] for a in later["artists"]], ["Megadeth"])
         self.assertEqual([s["name"] for s in later["known"]], ["Enter Sandman"])
+
+    def test_suggestions_saved_with_an_older_model_are_worked_out_again(self):
+        self.play("Metallica", "One", "2026-11-19 10:00")
+        recommend.discover(now=NOW, db_path=self.db)
+        saved = json.loads(recommend.DISCOVER_PATH.read_text(encoding="utf-8"))
+        recommend.DISCOVER_PATH.write_text(json.dumps({**saved, "model": 1}), encoding="utf-8")
+        with mock.patch.object(recommend, "suggestions", wraps=recommend.suggestions) as worked_out:
+            recommend.discover(now=NOW, db_path=self.db)
+        worked_out.assert_called_once()
 
     def test_a_day_later_it_is_worked_out_again(self):
         self.play("Metallica", "One", "2026-11-19 10:00")

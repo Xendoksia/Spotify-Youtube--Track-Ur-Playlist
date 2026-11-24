@@ -69,6 +69,22 @@ void main() {
     expect((found['known'] as List).map((s) => s['name']), ['Fade to Black']);
   });
 
+  test('the second song table is fused in', () async {
+    // RP3beta finds Fade to Black first and Raining Blood alike to One
+    final withRp3 = [...models, files(const [], [[2, 4], [0], [0], [0], [1], [0]])[1]];
+    final found = await workOut(withRp3, [play('Metallica', 'One'), play('Metallica', 'Enter Sandman')], now,
+        deezer: NoDeezer());
+    expect((found['known'] as List).map((s) => s['name']), ['Fade to Black']);
+  });
+
+  test('fusing puts a song high in both lists first, breaks ties by listeners and keeps the rest after', () {
+    Item song(String key, int fans, String seed) => {'key': key, 'fans': fans, 'because': [seed]};
+    final top = [for (var i = 0; i < rrfTop; i++) song('t$i', 1, 'S')];
+    expect(fuse([[song('x', 1, 'S'), song('y', 9, 'S')], [song('y', 9, 'T'), song('x', 1, 'S'), song('z', 5, 'T')]])
+        .map((s) => '${s['key']} ${s['because']}'), ['y [S, T]', 'x [S]', 'z [T]']);
+    expect(fuse([[...top, song('low', 1, 'S')], [...top, song('low', 1, 'S')]]).last['key'], 'low');
+  });
+
   test('what is played after the suggestions were worked out is left out', () async {
     final saved = await workOut(models, [play('Metallica', 'One')], now, deezer: NoDeezer());
     final shown = Suggestions.of(saved, [play('Metallica', 'One'), play('Slayer', 'South of Heaven'),

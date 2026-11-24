@@ -29,6 +29,8 @@ CACHE_PATH = ART_DIR / "related.json"
 # taken out of them
 DISCOVER_PATH = ART_DIR / "discover.json"
 DISCOVER_SECONDS = 24 * 3600
+# Raised when the models in models/ change, so the saved suggestions are worked out again with them at once
+MODEL_VERSION = 2
 # The artists suggested each day, kept for the discovery report: which of them were played afterwards
 HISTORY_PATH = ART_DIR / "discover_history.json"
 HISTORY_DAYS = 60
@@ -326,6 +328,29 @@ def song_seeds(now: datetime | None = None, limit: int = SONG_SEEDS, db_path: Pa
     return sorted(known, key=lambda s: -s["weight"])[:limit]
 
 
+# The song model's version 2 ranks with its two tables and fuses the two lists' first RRF_TOP by reciprocal rank
+RRF_K = 60
+RRF_TOP = 50
+
+
+def fuse(*lists: list[dict]) -> list[dict]:
+    """The ranked lists fused: each song gets 1 / (RRF_K + place + 1) from each list's first RRF_TOP it is in, most
+    first, the more listened first on a tie. The songs further down follow, fused the same way over the whole lists,
+    as the new and known songs need more than the first ones once the played artists' are split off. A song keeps
+    the first list's entry, with the seeds of both."""
+    found: dict[str, dict] = {}
+    for ranking in lists:
+        for place, item in enumerate(ranking):
+            entry = found.setdefault(item["key"], {**item, "top": 0.0, "score": 0.0, "because": []})
+            if place < RRF_TOP:
+                entry["top"] += 1 / (RRF_K + place + 1)
+            entry["score"] += 1 / (RRF_K + place + 1)
+            entry["because"] += [name for name in item["because"] if name not in entry["because"]]
+    fused = sorted(found.values(), key=lambda s: (s["top"] == 0, -(s["top"] or s["score"]), -s.get("fans", 0)))
+    return [{**{k: v for k, v in song.items() if k != "top"}, "score": round(song["top"] or song["score"], 5)}
+            for song in fused]
+
+
 def song_suggestions(limit: int = 12, now: datetime | None = None, db_path: Path = DB_PATH,
                      skip_artists: set[str] = frozenset()) -> dict:
     """{new, known}: songs not played yet, from the song model alone, so offline. new are by artists not played at
@@ -334,16 +359,25 @@ def song_suggestions(limit: int = 12, now: datetime | None = None, db_path: Path
     if not model.songs.available():
         return {"new": [], "known": []}
     seed_list = song_seeds(now, db_path=db_path)
-    related_of = {}
-    for seed in seed_list:
-        alike = model.songs.neighbours(model.songs.find(seed["key"]))[:MODEL_RELATED]
-        related_of[seed["key"]] = [{"key": model.songs.items[j]["key"], "name": model.songs.items[j]["title"],
-                                    "artist": model.songs.items[j]["artist"],
-                                    "fans": model.songs.items[j]["listeners"]} for j in alike]
+    played_songs = heard_songs(db_path)
+
+    def ranked(table: Callable[[int], list[int] | None]) -> list[dict] | None:
+        related_of = {}
+        for seed in seed_list:
+            alike = table(model.songs.find(seed["key"]))
+            if alike is None:
+                return None
+            related_of[seed["key"]] = [{"key": model.songs.items[j]["key"], "name": model.songs.items[j]["title"],
+                                        "artist": model.songs.items[j]["artist"],
+                                        "fans": model.songs.items[j]["listeners"]} for j in alike[:MODEL_RELATED]]
+        return score(seed_list, related_of, played_songs, MODEL_SEED_DECAY, MODEL_RELATED)
+
+    knn = ranked(model.songs.neighbours)
+    rp3 = ranked(model.songs.neighbours_rp3)
     played_artists = heard(db_path)
     lists: dict[str, list[dict]] = {"new": [], "known": []}
     per_artist: dict[str, int] = {}
-    for song in score(seed_list, related_of, heard_songs(db_path), MODEL_SEED_DECAY, MODEL_RELATED):
+    for song in fuse(knn, rp3) if rp3 is not None else knn:
         artists = [loose(fold(part)) for part in listening._credit_parts(song["artist"])]
         target = lists["known" if any(a in played_artists for a in artists) else "new"]
         if len(target) >= limit or per_artist.get(artists[0], 0) >= SONG_PER_ARTIST or (
@@ -377,10 +411,11 @@ def discover(limit: int = 12, song_limit: int = 10, fetch: bool = False, force: 
     DISCOVER_SECONDS have passed (or with force, when an incomplete answer is completed), otherwise the saved ones
     are used. Either way the artists and songs played since are left out."""
     saved = None if force else _read_discover()
-    if saved is None or time.time() - saved["at"] >= DISCOVER_SECONDS:
+    if saved is None or time.time() - saved["at"] >= DISCOVER_SECONDS or saved.get("model") != MODEL_VERSION:
         found = suggestions(limit, fetch, get, now, db_path)
         songs = song_suggestions(song_limit, now, db_path, skip_artists={a["key"] for a in found["artists"]})
-        saved = {"at": time.time(), "complete": found["complete"], "artists": found["artists"], **songs}
+        saved = {"at": time.time(), "model": MODEL_VERSION, "complete": found["complete"], "artists": found["artists"],
+                 **songs}
         _write_discover(saved)
         _remember([a["name"] for a in found["artists"]], now)
     else:
