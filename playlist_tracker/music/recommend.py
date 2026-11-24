@@ -13,7 +13,7 @@ import json
 import threading
 import time
 import unicodedata
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlencode
@@ -29,6 +29,12 @@ CACHE_PATH = ART_DIR / "related.json"
 # taken out of them
 DISCOVER_PATH = ART_DIR / "discover.json"
 DISCOVER_SECONDS = 24 * 3600
+# The artists suggested each day, kept for the discovery report: which of them were played afterwards
+HISTORY_PATH = ART_DIR / "discover_history.json"
+HISTORY_DAYS = 60
+REPORT_DAYS = 30
+# A suggested artist among this many most played of the report's days has become a favorite
+FAVORITE_TOP = 10
 # The artists the suggestions start from, by their recent plays
 SEEDS = 10
 # A play counts half as much after this many days, so the suggestions follow what is played lately
@@ -376,6 +382,7 @@ def discover(limit: int = 12, song_limit: int = 10, fetch: bool = False, force: 
         songs = song_suggestions(song_limit, now, db_path, skip_artists={a["key"] for a in found["artists"]})
         saved = {"at": time.time(), "complete": found["complete"], "artists": found["artists"], **songs}
         _write_discover(saved)
+        _remember([a["name"] for a in found["artists"]], now)
     else:
         # An artist saved without songs, as Deezer could not be reached, takes them once they are found
         filled = False
@@ -388,8 +395,67 @@ def discover(limit: int = 12, song_limit: int = 10, fetch: bool = False, force: 
                     saved["complete"] = False
         if filled:
             _write_discover(saved)
+        # Suggestions saved before the history was kept start it, on the day they were worked out
+        if not _read_history():
+            _remember([a["name"] for a in saved["artists"][:limit]], datetime.fromtimestamp(saved["at"], timezone.utc))
     played_artists, played_songs = heard(db_path), heard_songs(db_path)
     artists = [{**a, "tracks": [t for t in a["tracks"] if song_key(t["artist"], t["title"]) not in played_songs]}
                for a in saved["artists"] if loose(fold(a["name"])) not in played_artists]
     left = lambda songs: [s for s in songs if loose(s["key"]) not in played_songs]
     return {**saved, "artists": artists, "new": left(saved["new"]), "known": left(saved["known"])}
+
+
+def _read_history() -> dict[str, list[str]]:
+    try:
+        return json.loads(HISTORY_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _remember(names: list[str], now: datetime | None = None) -> None:
+    """Keep the day's suggested artists (local date → names), the last HISTORY_DAYS days of them. Worked out again
+    the same day, the day keeps the newer ones."""
+    today = (now or datetime.now(timezone.utc)).astimezone().date()
+    history = {day: kept for day, kept in _read_history().items()
+               if date.fromisoformat(day) > today - timedelta(days=HISTORY_DAYS)}
+    history[today.isoformat()] = names
+    HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    HISTORY_PATH.write_text(json.dumps(history, ensure_ascii=False), encoding="utf-8")
+
+
+def report(now: datetime | None = None, db_path: Path = DB_PATH) -> dict:
+    """The discovery report of the last REPORT_DAYS days: {suggested, listened, favorites, rows, days}. Each artist
+    suggested in them, from the first day it was, is a favorite (among the FAVORITE_TOP most played of the days,
+    collaborations counted for the artists they credit), listened (played at least once) or untried. rows are
+    {name, day, plays, state} with favorites first, days the suggestions by day, newest first."""
+    now = now or datetime.now(timezone.utc)
+    start = now.astimezone().date() - timedelta(days=REPORT_DAYS - 1)
+    first: dict[str, tuple[str, str]] = {}
+    history = _read_history()
+    for day in sorted(history):
+        if date.fromisoformat(day) >= start:
+            for name in history[day]:
+                first.setdefault(loose(fold(name)), (day, name))
+    day_start = lambda day: datetime.combine(date.fromisoformat(day), datetime.min.time()).astimezone()
+    with listening.open_db(db_path) as db:
+        solo = listening.known_artists(row[0] for row in db.execute("SELECT DISTINCT artist FROM listens"))
+        rows = db.execute("SELECT artist, played_at FROM listens WHERE played_at >= ?",
+                          (listening.to_utc(day_start(start.isoformat())),)).fetchall()
+    counts: dict[str, int] = {}
+    plays: dict[str, list[datetime]] = {}
+    for artist, played_at in rows:
+        for part in listening.credited(artist, solo):
+            counts[loose(fold(part))] = counts.get(loose(fold(part)), 0) + 1
+            plays.setdefault(loose(fold(part)), []).append(listening.from_utc(played_at))
+    top = set(sorted(counts, key=lambda k: -counts[k])[:FAVORITE_TOP])
+    found = []
+    for key, (day, name) in first.items():
+        after = sum(1 for moment in plays.get(key, []) if moment >= day_start(day))
+        state = "favorite" if after and key in top else "listened" if after else "untried"
+        found.append({"name": name, "day": day, "plays": after, "state": state})
+    order = {"favorite": 0, "listened": 1, "untried": 2}
+    found.sort(key=lambda r: (order[r["state"]], -r["plays"], r["day"]))
+    days = [{"day": day, "names": history[day]} for day in sorted(history, reverse=True)
+            if date.fromisoformat(day) >= start]
+    return {"suggested": len(found), "listened": sum(r["state"] != "untried" for r in found),
+            "favorites": sum(r["state"] == "favorite" for r in found), "rows": found, "days": days}

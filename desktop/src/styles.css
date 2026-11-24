@@ -6008,3 +6008,157 @@ button.discover-song-artist:hover {
     width: 100%;
   }
 }
+
+/* Discover's report (pages/Discover.tsx): the suggested artists of the last 30 days, played since or not */
+
+.report-score {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.report-number {
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-score p {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+}
+
+.report-meter {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0 10px;
+}
+
+.report-meter span {
+  flex: 1;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.report-meter .listened {
+  background: var(--accent);
+}
+
+.report-meter .favorite {
+  background: color-mix(in oklch, var(--accent) 60%, var(--text));
+}
+
+.report-rows,
+.report-days {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 150ms;
+  box-sizing: content-box;
+}
+
+.report-row:hover {
+  background: var(--hover);
+}
+
+.report-photo {
+  width: 36px;
+  height: 36px;
+}
+
+.report-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.report-name {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-state {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.report-state.listened,
+.report-state.favorite {
+  background: color-mix(in oklch, var(--accent) 16%, transparent);
+  color: var(--added);
+}
+
+.report-state.favorite {
+  background: color-mix(in oklch, var(--accent) 30%, transparent);
+}
+
+.report-days {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.report-days li {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-faces {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.report-faces > span {
+  margin-right: -6px;
+}
+
+.report-face {
+  width: 28px;
+  height: 28px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.discover-report {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .discover-report {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

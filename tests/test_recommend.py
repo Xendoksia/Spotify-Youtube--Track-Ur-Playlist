@@ -41,9 +41,10 @@ class RecommendTestCase(ListeningTestCase):
         self.addCleanup(patcher.stop)
         recommend._cache = None
         self.addCleanup(setattr, recommend, "_cache", None)
-        patcher = mock.patch.object(recommend, "DISCOVER_PATH", Path(self._folder.name) / "discover.json")
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        for name in ("DISCOVER_PATH", "HISTORY_PATH"):
+            patcher = mock.patch.object(recommend, name, Path(self._folder.name) / f"{name}.json")
+            patcher.start()
+            self.addCleanup(patcher.stop)
         # No model unless a test writes one, so the suggestions come from the fake Deezer
         self.models = Path(self._folder.name) / "models"
         self.models.mkdir()
@@ -228,6 +229,26 @@ class DiscoverTest(ModelTest):
         with mock.patch.object(recommend.time, "time", return_value=day_later),                 mock.patch.object(recommend, "suggestions", wraps=recommend.suggestions) as worked_out:
             recommend.discover(now=NOW, db_path=self.db)
         worked_out.assert_called_once()
+
+
+class ReportTest(ModelTest):
+    def test_suggested_artists_are_favorites_listened_or_untried_from_the_day_they_were_suggested(self):
+        self.play("Metallica", "One", "2026-11-18 10:00")
+        recommend.discover(now=NOW, db_path=self.db)  # Megadeth and Slayer, on 20 November
+        self.assertEqual(recommend._read_history(), {"2026-11-20": ["Megadeth", "Slayer"]})
+        self.play("Slayer", "Raining Blood", "2026-11-19 09:00")  # before it was suggested: does not count
+        self.play("Megadeth", "Symphony of Destruction", "2026-11-21 10:00")
+        found = recommend.report(now=NOW + timedelta(days=2), db_path=self.db)
+        self.assertEqual([(r["name"], r["state"], r["plays"]) for r in found["rows"]],
+                         [("Megadeth", "favorite", 1), ("Slayer", "untried", 0)])
+        self.assertEqual((found["suggested"], found["listened"], found["favorites"]), (2, 1, 1))
+        self.assertEqual(found["days"], [{"day": "2026-11-20", "names": ["Megadeth", "Slayer"]}])
+
+    def test_the_history_keeps_sixty_days_and_one_list_a_day(self):
+        recommend._remember(["Old"], NOW - timedelta(days=61))
+        recommend._remember(["Morning"], NOW)
+        recommend._remember(["Evening"], NOW)
+        self.assertEqual(recommend._read_history(), {"2026-11-20": ["Evening"]})
 
 
 class DeezerErrorTest(RecommendTestCase):

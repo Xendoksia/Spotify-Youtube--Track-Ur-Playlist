@@ -15,7 +15,10 @@ from urllib.parse import quote, urlencode
 
 from playlist_tracker.api.overview import artist_url, cover_url
 from playlist_tracker.core.i18n import number, t
+from datetime import date
+
 from playlist_tracker.music import listening, recommend
+from playlist_tracker.music.text import month_name
 from playlist_tracker.music.model import loose
 
 # The closest artist and two rows of five tiles
@@ -115,6 +118,35 @@ def _song(song: dict, played_artist: bool) -> dict:
     }
 
 
+def _day(day: str) -> str:
+    moment = date.fromisoformat(day)
+    return f"{moment.day} {month_name(moment.month, short=True)}"
+
+
+def discovery_report() -> dict | None:
+    """The discovery report for the page: which suggested artists were played since, None before any."""
+    found = recommend.report()
+    if not found["suggested"]:
+        return None
+    summary = t("discover.report.summary", listened=number(found["listened"]), suggested=number(found["suggested"]))
+    if found["favorites"]:
+        summary += t("discover.report.favorites", count=number(found["favorites"]))
+    return {
+        "title": t("discover.report.title"), "summary": summary,
+        "suggested": found["suggested"], "listened": found["listened"], "favorites": found["favorites"],
+        "rows": [{
+            "title": r["name"], "image": artist_url(r["name"]), "state": r["state"],
+            "state_text": t(f"discover.report.{r['state']}"),
+            "detail": t("discover.report.plays", count=number(r["plays"])) if r["plays"] else
+            t("discover.report.since", day=_day(r["day"])),
+            "artist_key": listening.key(r["name"]) if r["plays"] else None,
+        } for r in found["rows"]],
+        "days_title": t("discover.report.days"),
+        "days": [{"label": _day(d["day"]), "artists": [{"title": n, "image": artist_url(n)} for n in d["names"]]}
+                 for d in found["days"][:7]],
+    }
+
+
 def recommendations(arrived: Callable[[], None]) -> dict:
     """{title, artists, new_songs, known_songs, loading, empty}: the suggested artists with the reason and their
     top tracks, and the suggested songs by new artists and by artists played."""
@@ -141,4 +173,5 @@ def recommendations(arrived: Callable[[], None]) -> dict:
         } for a in found["artists"][:LIMIT]],
         "new_songs": [_song(s, False) for s in songs["new"]],
         "known_songs": [_song(s, True) for s in songs["known"]],
+        "report": discovery_report(),
     }

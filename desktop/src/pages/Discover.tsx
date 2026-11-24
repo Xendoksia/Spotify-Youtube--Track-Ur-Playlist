@@ -34,12 +34,34 @@ interface Song extends Track {
   artist_key: string | null;
 }
 
+interface ReportRow {
+  title: string;
+  image: string;
+  state: "favorite" | "listened" | "untried";
+  state_text: string;
+  detail: string;
+  /** The artist's page, for one played since */
+  artist_key: string | null;
+}
+
+interface Report {
+  title: string;
+  summary: string;
+  suggested: number;
+  listened: number;
+  favorites: number;
+  rows: ReportRow[];
+  days_title: string;
+  days: { label: string; artists: { title: string; image: string }[] }[];
+}
+
 interface DiscoverData {
   empty: string;
   loading: boolean;
   artists: Artist[];
   new_songs: Song[];
   known_songs: Song[];
+  report: Report | null;
 }
 
 /** A click handler opening an artist, or one of their songs, in the Spotify app through the backend */
@@ -153,6 +175,57 @@ function SongList({ title, summary, songs, openArtist }: {
   );
 }
 
+/** Which of the artists suggested in the last 30 days were played since, and the suggestions by day */
+function DiscoveryReport({ report, openArtist }: { report: Report; openArtist: (key: string) => void }) {
+  const { t } = useTexts();
+  return (
+    <div className="pair discover-report">
+      <Card icon="star" title={report.title}>
+        <div className="report-score">
+          <span className="report-number">{report.listened}</span>
+          <span className="muted">/ {report.suggested}</span>
+          <p className="muted">{report.summary}</p>
+        </div>
+        <div className="report-meter" aria-hidden>
+          {report.rows.map((row) => <span key={row.title} className={row.state} />)}
+        </div>
+        <ol className="report-rows">
+          {report.rows.map((row) => (
+            <li key={row.title}>
+              <button className="report-row"
+                      title={row.artist_key ? t("discover.open_artist") : t("discover.open_spotify")}
+                      onClick={(event) => row.artist_key ? openArtist(row.artist_key) : openSpotify(row.title)(event)}>
+                <Picture src={row.image} alt={row.title} round className="report-photo" />
+                <span className="report-text">
+                  <span className="report-name">{row.title}</span>
+                  <span className="muted">{row.detail}</span>
+                </span>
+                <span className={`report-state ${row.state}`}>{row.state_text}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      </Card>
+      <Card icon="history" title={report.days_title}>
+        <ol className="report-days">
+          {report.days.map((day) => (
+            <li key={day.label}>
+              <span className="muted">{day.label}</span>
+              <span className="report-faces">
+                {day.artists.map((artist) => (
+                  <span key={artist.title} title={artist.title}>
+                    <Picture src={artist.image} alt={artist.title} round className="report-face" />
+                  </span>
+                ))}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </Card>
+    </div>
+  );
+}
+
 export default function Discover({ hidden, openArtist }: { hidden: boolean; openArtist: (key: string) => void }) {
   const { t } = useTexts();
   const [data, setData] = useState<DiscoverData | null>(null);
@@ -206,6 +279,7 @@ export default function Discover({ hidden, openArtist }: { hidden: boolean; open
             <SongList title={t("discover.known_songs")} summary={t("discover.known_songs_summary")}
                       songs={data.known_songs} openArtist={openArtist} />
           </div>
+          {data.report && <DiscoveryReport report={data.report} openArtist={openArtist} />}
         </div>
       )}
     </div>
