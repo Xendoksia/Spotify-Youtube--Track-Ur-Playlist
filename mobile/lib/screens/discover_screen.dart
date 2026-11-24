@@ -9,6 +9,7 @@ import '../state/data_store.dart';
 import '../theme/palette.dart';
 import '../widgets/artwork_image.dart';
 import '../widgets/cards.dart';
+import '../widgets/format.dart';
 import '../widgets/skeleton.dart';
 import 'listening/detail_screen.dart';
 
@@ -149,6 +150,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               songs: found.knownSongs,
               onArtist: (artist) => openDetail(context, widget.store, DetailTarget.artist(artist)),
             ),
+            if (found.report case final report? when report.rows.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _ReportCard(
+                report: report,
+                onArtist: (artist) => openDetail(context, widget.store, DetailTarget.artist(artist)),
+              ),
+            ],
           ],
         ],
       ),
@@ -390,6 +398,140 @@ class _SongList extends StatelessWidget {
                     Icon(Icons.play_arrow_rounded, color: palette.muted),
                   ],
                 ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Which of the artists suggested in the last 30 days were played since, and the suggestions by day
+class _ReportCard extends StatelessWidget {
+  final Report report;
+  final void Function(String artist) onArtist;
+
+  const _ReportCard({required this.report, required this.onArtist});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Palette.of(context);
+    final theme = Theme.of(context);
+    final accent = palette.chart;
+    String day(String key) => context.dateFormat('d MMM').format(DateTime.parse(key));
+    var summary = context.t('discover.report.summary',
+        {'listened': context.number(report.listened), 'suggested': context.number(report.rows.length)});
+    if (report.favorites > 0) {
+      summary += context.t('discover.report.favorites', {'count': context.number(report.favorites)});
+    }
+    Color stateColor(ReportState state) => switch (state) {
+      ReportState.favorite => Color.lerp(accent, theme.colorScheme.onSurface, 0.35)!,
+      ReportState.listened => accent,
+      ReportState.untried => palette.border,
+    };
+    return SectionCard(
+      title: context.t('discover.report.title'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(context.number(report.listened),
+                  style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w600, height: 1)),
+              const SizedBox(width: 6),
+              Text('/ ${context.number(report.rows.length)}', style: TextStyle(color: palette.muted)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(summary, style: TextStyle(color: palette.muted, fontSize: 13)),
+          const SizedBox(height: 10),
+          Row(children: [
+            for (final row in report.rows)
+              Expanded(
+                child: Container(
+                  height: 8,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  decoration: BoxDecoration(color: stateColor(row.state), borderRadius: BorderRadius.circular(3)),
+                ),
+              ),
+          ]),
+          const SizedBox(height: 8),
+          for (final row in report.rows)
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => row.plays > 0 ? onArtist(row.name) : openInSpotify(row.name),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    ArtworkImage.artist(artist: row.name, size: 36),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(row.name,
+                              maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          Text(
+                            row.plays > 0
+                                ? context.t('discover.report.plays', {'count': context.number(row.plays)})
+                                : context.t('discover.report.since', {'day': day(row.day)}),
+                            style: TextStyle(color: palette.muted, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: row.state == ReportState.untried
+                            ? palette.border.withValues(alpha: 0.5)
+                            : accent.withValues(alpha: row.state == ReportState.favorite ? 0.3 : 0.16),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        context.t('discover.report.${row.state.name}'),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: row.state == ReportState.untried ? palette.muted : palette.added,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          Text(context.t('discover.report.days'), style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          for (final (key, names) in report.days.take(7))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  SizedBox(width: 56, child: Text(day(key), style: TextStyle(color: palette.muted, fontSize: 13))),
+                  Expanded(
+                    child: Wrap(
+                      runSpacing: 4,
+                      children: [
+                        for (final name in names)
+                          Align(
+                            widthFactor: 0.8,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: theme.cardColor, width: 2),
+                              ),
+                              child: ArtworkImage.artist(artist: name, size: 26),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
         ],

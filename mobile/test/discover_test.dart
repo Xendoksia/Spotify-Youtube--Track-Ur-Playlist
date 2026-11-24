@@ -77,6 +77,20 @@ void main() {
     expect(shown.knownSongs.map((s) => s['name']), ['Enter Sandman']);
   });
 
+  test('the report: favorites, played and untried from the day an artist was suggested', () {
+    final suggested = DateTime.fromMillisecondsSinceEpoch(now);
+    final history = remember({'2026-09-01': ['Too old']}, ['Megadeth', 'Slayer'], suggested);
+    expect(history.keys, [dayKey(suggested)]);
+    final day = DateTime.parse(dayKey(suggested)).millisecondsSinceEpoch;
+    final report = Report.of(history, [
+      (artist: 'Slayer', name: 'Raining Blood', at: day - Duration.millisecondsPerHour), // before: not counted
+      (artist: 'Megadeth', name: 'Symphony of Destruction', at: day + Duration.millisecondsPerDay),
+    ], suggested.add(const Duration(days: 2)));
+    expect(report.rows.map((r) => (r.name, r.state, r.plays)),
+        [('Megadeth', ReportState.favorite, 1), ('Slayer', ReportState.untried, 0)]);
+    expect((report.listened, report.favorites, report.days.length), (1, 1, 1));
+  });
+
   test('a key without punctuation', () {
     expect(loose("what i’ve done"), loose("what i've done"));
     expect(songKey('Linkin Park, Jay-Z', "What I've Done - Remastered"), 'linkin park|what i ve done');

@@ -310,17 +310,109 @@ Future<Map<String, Object?>> workOut(List<Uint8List> files, List<PlayRow> plays,
   return {'at': now, 'complete': complete, 'artists': artists, ...lists};
 }
 
+/// The artists suggested each day are kept for the discovery report, the last [historyDays] days of them
+const historyDays = 60;
+const reportDays = 30;
+
+/// A suggested artist among this many most played of the report's days has become a favorite
+const favoriteTop = 10;
+
+String dayKey(DateTime moment) {
+  final local = moment.toLocal();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${local.year}-${two(local.month)}-${two(local.day)}';
+}
+
+DateTime _dayStart(String day) => DateTime.parse(day); // a date alone parses as local midnight
+
+/// The history with the day's suggested artists, a day worked out again keeping the newer ones
+Map<String, List<String>> remember(Map<String, List<String>> history, List<String> names, DateTime now) {
+  final oldest = _dayStart(dayKey(now)).subtract(const Duration(days: historyDays));
+  return {
+    for (final entry in history.entries)
+      if (_dayStart(entry.key).isAfter(oldest)) entry.key: entry.value,
+    dayKey(now): names,
+  };
+}
+
+enum ReportState { favorite, listened, untried }
+
+class ReportRow {
+  final String name;
+  final String day;
+  final int plays;
+  final ReportState state;
+
+  const ReportRow(this.name, this.day, this.plays, this.state);
+}
+
+/// Which artists suggested in the last [reportDays] days were played from the day they were first suggested, as
+/// the desktop app's recommend.report
+class Report {
+  final List<ReportRow> rows;
+
+  /// The suggestions by day, newest first
+  final List<(String, List<String>)> days;
+
+  const Report(this.rows, this.days);
+
+  int get listened => rows.where((r) => r.state != ReportState.untried).length;
+  int get favorites => rows.where((r) => r.state == ReportState.favorite).length;
+
+  factory Report.of(Map<String, List<String>> history, List<PlayRow> plays, DateTime now) {
+    final start = _dayStart(dayKey(now)).subtract(const Duration(days: reportDays - 1));
+    final days = history.keys.where((day) => !_dayStart(day).isBefore(start)).toList()..sort();
+    final first = <String, (String, String)>{};
+    for (final day in days) {
+      for (final name in history[day]!) {
+        first.putIfAbsent(artistMatch(name), () => (day, name));
+      }
+    }
+    final solo = knownArtists(plays.map((p) => p.artist));
+    final counts = <String, int>{};
+    final times = <String, List<int>>{};
+    for (final play in plays) {
+      if (play.at < start.millisecondsSinceEpoch) continue;
+      for (final part in credited(play.artist, solo)) {
+        final key = artistMatch(part);
+        counts[key] = (counts[key] ?? 0) + 1;
+        (times[key] ??= []).add(play.at);
+      }
+    }
+    final top = (counts.keys.toList()..sort((a, b) => counts[b]!.compareTo(counts[a]!))).take(favoriteTop).toSet();
+    final rows = <ReportRow>[];
+    for (final MapEntry(:key, value: (day, name)) in first.entries) {
+      final since = _dayStart(day).millisecondsSinceEpoch;
+      final after = (times[key] ?? const <int>[]).where((at) => at >= since).length;
+      final state = after == 0
+          ? ReportState.untried
+          : top.contains(key)
+              ? ReportState.favorite
+              : ReportState.listened;
+      rows.add(ReportRow(name, day, after, state));
+    }
+    rows.sort((a, b) {
+      final order = a.state.index.compareTo(b.state.index);
+      if (order != 0) return order;
+      final played = b.plays.compareTo(a.plays);
+      return played != 0 ? played : a.day.compareTo(b.day);
+    });
+    return Report(rows, [for (final day in days.reversed) (day, history[day]!)]);
+  }
+}
+
 /// The suggestions on the page, without what is played since they were worked out
 class Suggestions {
   final List<Item> artists;
   final List<Item> newSongs;
   final List<Item> knownSongs;
+  final Report? report;
 
-  const Suggestions(this.artists, this.newSongs, this.knownSongs);
+  const Suggestions(this.artists, this.newSongs, this.knownSongs, [this.report]);
 
   bool get isEmpty => artists.isEmpty && newSongs.isEmpty && knownSongs.isEmpty;
 
-  factory Suggestions.of(Map<String, Object?> saved, List<PlayRow> plays) {
+  factory Suggestions.of(Map<String, Object?> saved, List<PlayRow> plays, [Report? report]) {
     final playedArtists = heardArtists(plays);
     final playedSongs = heardSongs(plays);
     List<Item> items(String name) => ((saved[name] as List?) ?? const []).cast<Map>().map((m) => m.cast<String, Object?>()).toList();
@@ -338,6 +430,7 @@ class Suggestions {
       ],
       [for (final song in items('new')) if (!playedSongs.contains(loose(song['key'] as String))) song],
       [for (final song in items('known')) if (!playedSongs.contains(loose(song['key'] as String))) song],
+      report,
     );
   }
 }
@@ -346,6 +439,7 @@ List<PlayRow> playRows(List<Play> plays) =>
     [for (final p in plays) (artist: p.artist, name: p.name, at: p.playedAt.millisecondsSinceEpoch)];
 
 const _savedKey = 'DISCOVER';
+const _historyKey = 'DISCOVER_HISTORY';
 
 /// The suggestions: the saved ones while they are fresh, else worked out again on a background isolate
 Future<Suggestions> discover(List<Play> plays, {DateTime? now}) async {
@@ -361,10 +455,24 @@ Future<Suggestions> discover(List<Play> plays, {DateTime? now}) async {
       age >= discoverEvery ||
       age.isNegative ||
       (saved!['complete'] != true && age >= retryIncomplete);
+  var history = <String, List<String>>{};
+  try {
+    history = (jsonDecode(prefs.getString(_historyKey) ?? '{}') as Map)
+        .map((day, names) => MapEntry(day as String, (names as List).cast<String>()));
+  } catch (_) {}
+  List<String> names(Map<String, Object?> found) =>
+      [for (final artist in (found['artists'] as List).cast<Map>()) artist['name'] as String];
   if (stale && rows.isNotEmpty) {
     final files = [for (final path in modelAssets) (await rootBundle.load(path)).buffer.asUint8List()];
     saved = await Isolate.run(() => workOut(files, rows, moment));
     await prefs.setString(_savedKey, jsonEncode(saved));
+    history = remember(history, names(saved!), DateTime.fromMillisecondsSinceEpoch(moment));
+    await prefs.setString(_historyKey, jsonEncode(history));
+  } else if (saved != null && history.isEmpty) {
+    // Suggestions saved before the history was kept start it, on the day they were worked out
+    history = remember(history, names(saved), DateTime.fromMillisecondsSinceEpoch(saved['at'] as int));
+    await prefs.setString(_historyKey, jsonEncode(history));
   }
-  return saved == null ? const Suggestions([], [], []) : Suggestions.of(saved, rows);
+  if (saved == null) return const Suggestions([], [], []);
+  return Suggestions.of(saved, rows, Report.of(history, rows, DateTime.fromMillisecondsSinceEpoch(moment)));
 }
