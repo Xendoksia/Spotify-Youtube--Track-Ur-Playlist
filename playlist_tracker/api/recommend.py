@@ -55,6 +55,7 @@ def _song(song: dict, played_artist: bool) -> dict:
     return {
         "title": song["name"], "subtitle": song["artist"], "because": because_text(song["because"], songs=True),
         "image": cover_url(song["artist"], "", song["name"]),
+        "artist_image": artist_url(first),
         "link": spotify_search(song["artist"], song["name"]),
         # A song of an artist played opens that artist's page
         "artist_key": listening.key(first) if played_artist else None,

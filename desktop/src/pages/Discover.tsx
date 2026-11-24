@@ -27,6 +27,8 @@ interface Artist {
 
 interface Song extends Track {
   because: string;
+  /** Shown when Deezer has no cover for the song */
+  artist_image: string;
   /** The page of the song's artist, for an artist played */
   artist_key: string | null;
 }
@@ -117,7 +119,7 @@ function SongList({ title, summary, songs, openArtist }: {
       <ol className="discover-songs">
         {songs.map((song, index) => (
           <li key={`${song.subtitle}|${song.title}`} className="discover-song" style={{ animationDelay: `${index * 30}ms` }}>
-            <Picture src={song.image} alt={song.title} className="discover-song-cover" />
+            <Picture src={song.image} fallback={song.artist_image} alt={song.title} className="discover-song-cover" />
             <div className="discover-song-text">
               <span className="discover-song-title">{song.title}</span>
               {song.artist_key ? (

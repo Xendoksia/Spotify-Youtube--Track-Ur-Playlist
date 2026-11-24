@@ -91,14 +91,37 @@ def _recently_missed(path: Path) -> bool:
     return missed >= MAIN_ARTIST_SEARCH and time.time() - missed < RETRY_SECONDS
 
 
+# Deezer's API allows 50 requests in 5 seconds and answers more with an error, so its requests are spaced out:
+# a page opening with many pictures to look up gets them a little later rather than not at all
+DEEZER_GAP_SECONDS = 0.12
+_deezer_lock = threading.Lock()
+_deezer_next = 0.0
+
+
+def _wait_for_deezer() -> None:
+    global _deezer_next
+    with _deezer_lock:
+        now = time.monotonic()
+        wait = _deezer_next - now
+        _deezer_next = max(now, _deezer_next) + DEEZER_GAP_SECONDS
+    if wait > 0:
+        time.sleep(wait)
+
+
 def _get(url: str, as_json: bool = True):
+    if url.startswith(SEARCH_URL):
+        _wait_for_deezer()
     request = urllib.request.Request(url, headers={"User-Agent": "PlaylistTracker/1.0"})
     with urllib.request.urlopen(request, timeout=20, context=SSL_CONTEXT) as response:
         return json.load(response) if as_json else response.read()
 
 
 def _search(path: str, query: str) -> list[dict]:
-    return _get(f"{SEARCH_URL}{path}?" + urllib.parse.urlencode({"q": query, "limit": 5})).get("data") or []
+    answer = _get(f"{SEARCH_URL}{path}?" + urllib.parse.urlencode({"q": query, "limit": 5}))
+    # An error such as the rate limit is not "nothing found": raised, so the picture is not marked missing
+    if "error" in answer:
+        raise LookupError(answer["error"])
+    return answer.get("data") or []
 
 
 def _plain_title(name: str) -> str:
