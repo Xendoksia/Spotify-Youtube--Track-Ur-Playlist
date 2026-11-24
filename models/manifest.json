@@ -1,0 +1,107 @@
+{
+ "created": "2026-11-24",
+ "source": "https://github.com/Xendoksia/music-recommendation-system (commit 900d36d)",
+ "min_listeners": 50,
+ "artists": {
+  "count": 88294,
+  "neighbours": 50,
+  "files": [
+   "artists.json.gz",
+   "artist_neighbours.i32.gz"
+  ],
+  "model": "item-item kNN, asymmetric cosine on log listens",
+  "similarity": {
+   "beta": 0.4,
+   "shrink": 100.0
+  },
+  "scoring": {
+   "SEEDS": 30,
+   "RELATED": 50,
+   "SEED_DECAY": 0.75
+  },
+  "test": {
+   "recall@12": 0.0762,
+   "hit@12": 0.8125,
+   "ndcg@12": 0.3811
+  }
+ },
+ "songs": {
+  "count": 108368,
+  "neighbours": 50,
+  "files": [
+   "songs.json.gz",
+   "song_neighbours.i32.gz"
+  ],
+  "model": "item-item kNN, cosine with shrinkage on log listens, version 1",
+  "similarity": {
+   "beta": 0.5,
+   "shrink": 100.0
+  },
+  "scoring": {
+   "SEEDS": 30,
+   "RELATED": 50,
+   "SEED_DECAY": 0.75
+  },
+  "test": {
+   "all": {
+    "song knn": {
+     "recall@12": 0.087,
+     "hit@12": 0.8468,
+     "ndcg@12": 0.3519
+    },
+    "song item2vec": {
+     "recall@12": 0.055,
+     "hit@12": 0.7106,
+     "ndcg@12": 0.215
+    },
+    "popularity": {
+     "recall@12": 0.0037,
+     "hit@12": 0.1852,
+     "ndcg@12": 0.0235
+    },
+    "app today: artist knn + top songs, 3 per artist": {
+     "recall@12": 0.0037,
+     "hit@12": 0.1322,
+     "ndcg@12": 0.0149
+    },
+    "app today: artist knn + top songs, 1 per artist": {
+     "recall@12": 0.0047,
+     "hit@12": 0.1786,
+     "ndcg@12": 0.0198
+    },
+    "own artists' top songs": {
+     "recall@12": 0.0498,
+     "hit@12": 0.8044,
+     "ndcg@12": 0.2481
+    }
+   },
+   "discovery": {
+    "song knn": {
+     "recall@12": 0.0355,
+     "hit@12": 0.3481,
+     "ndcg@12": 0.0644
+    },
+    "song item2vec": {
+     "recall@12": 0.0148,
+     "hit@12": 0.1697,
+     "ndcg@12": 0.0247
+    },
+    "popularity": {
+     "recall@12": 0.0049,
+     "hit@12": 0.0855,
+     "ndcg@12": 0.0097
+    },
+    "app today: artist knn + top songs, 3 per artist": {
+     "recall@12": 0.0108,
+     "hit@12": 0.1389,
+     "ndcg@12": 0.0172
+    },
+    "app today: artist knn + top songs, 1 per artist": {
+     "recall@12": 0.0131,
+     "hit@12": 0.1876,
+     "ndcg@12": 0.0222
+    }
+   }
+  }
+ }
+}
