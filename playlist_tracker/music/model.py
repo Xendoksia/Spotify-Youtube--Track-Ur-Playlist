@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import re
 import sys
 import threading
 from array import array
@@ -14,6 +15,12 @@ from pathlib import Path
 
 # Next to the code in the repository, inside the built backend's own folder once packed (build.py)
 MODEL_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2])) / "models"
+
+
+def loose(key: str) -> str:
+    """A key without punctuation: the data spells "What I've Done" with a straight and a curly apostrophe alike,
+    and dashes several ways."""
+    return " ".join(re.sub(r"[^\w|]+", " ", key).split())
 
 
 class Model:
@@ -44,11 +51,11 @@ class Model:
             except (OSError, ValueError):
                 items, ids = [], array("i")
             by_key: dict[str, int] = {}
-            # Of the names with the same key, the one with most listeners
+            # Of the names with the same key, apart from punctuation, the one with most listeners
             for index, item in enumerate(items):
-                known = by_key.get(item["key"])
+                known = by_key.get(loose(item["key"]))
                 if known is None or item["listeners"] > items[known]["listeners"]:
-                    by_key[item["key"]] = index
+                    by_key[loose(item["key"])] = index
             self.items, self._ids, self._by_key = items, ids, by_key
             self._width = len(ids) // len(items) if items else 0
             self._loaded = True
@@ -59,7 +66,7 @@ class Model:
 
     def find(self, key: str) -> int | None:
         self._load()
-        return self._by_key.get(key)
+        return self._by_key.get(loose(key))
 
     def neighbours(self, index: int) -> list[int]:
         self._load()
@@ -81,8 +88,8 @@ def songs_of(artist_key: str) -> list[int]:
         if _songs_of is None:
             found: dict[str, list[int]] = {}
             for index, song in enumerate(songs.items if songs.available() else []):
-                found.setdefault(song["key"].split("|")[0], []).append(index)
+                found.setdefault(loose(song["key"].split("|")[0]), []).append(index)
             for indices in found.values():
                 indices.sort(key=lambda i: -songs.items[i]["listeners"])
             _songs_of = found
-    return _songs_of.get(artist_key, [])
+    return _songs_of.get(loose(artist_key), [])

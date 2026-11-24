@@ -189,6 +189,19 @@ class ModelTest(RecommendTestCase):
         self.assertEqual([s["name"] for s in songs["known"]], ["Fade to Black"])
         self.assertEqual(songs["known"][0]["because"], ["One"])
 
+    def test_a_song_spelt_with_other_punctuation_counts_as_played(self):
+        songs = [{"artist": "Linkin Park", "title": "Numb", "key": "linkin park|numb", "listeners": 90},
+                 {"artist": "Linkin Park", "title": "What I’ve Done", "key": "linkin park|what i’ve done",
+                  "listeners": 80},
+                 {"artist": "Linkin Park", "title": "What I've Done", "key": "linkin park|what i've done",
+                  "listeners": 70},
+                 {"artist": "Linkin Park", "title": "Faint", "key": "linkin park|faint", "listeners": 60}]
+        self.write_model("song", songs, [[1, 2, 3], [0], [0], [0]])
+        self.play("Linkin Park", "Numb", "2026-11-19 10:00")
+        self.play("Linkin Park", "What I've Done", "2026-11-19 10:10")
+        songs = recommend.song_suggestions(now=NOW, db_path=self.db)
+        self.assertEqual([s["name"] for s in songs["known"]], ["Faint"])
+
     def test_suggested_artists_are_left_out_of_the_new_songs(self):
         self.play("Metallica", "One", "2026-11-19 10:00")
         songs = recommend.song_suggestions(now=NOW, db_path=self.db, skip_artists={"megadeth"})

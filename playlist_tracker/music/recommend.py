@@ -20,6 +20,7 @@ from urllib.parse import urlencode
 
 from playlist_tracker.core.config import load_config
 from playlist_tracker.music import listening, model
+from playlist_tracker.music.model import loose
 from playlist_tracker.music.artwork import ART_DIR, RETRY_SECONDS, SEARCH_URL, _get, _plain_title
 from playlist_tracker.music.listening import DB_PATH, key
 
@@ -107,15 +108,16 @@ def seeds(now: datetime | None = None, limit: int = SEEDS, db_path: Path = DB_PA
 
 
 def heard(db_path: Path = DB_PATH) -> set[str]:
-    """Every artist name in the plays, each artist of a collaboration too, folded for matching Deezer's names."""
+    """Every artist name in the plays, each artist of a collaboration too, folded and without punctuation for
+    matching the model's and Deezer's names."""
     with listening.open_db(db_path) as db:
         names = [row[0] for row in db.execute("SELECT DISTINCT artist FROM listens")]
-    return {fold(part) for name in names for part in listening._credit_parts(name)}
+    return {loose(fold(part)) for name in names for part in listening._credit_parts(name)}
 
 
 def song_key(artist: str, title: str) -> str:
     """A song as the song model keys it: its first artist and its title without version notes, folded."""
-    return fold(listening._credit_parts(artist)[0]) + "|" + fold(_plain_title(title))
+    return loose(fold(listening._credit_parts(artist)[0]) + "|" + fold(_plain_title(title)))
 
 
 def heard_songs(db_path: Path = DB_PATH) -> set[str]:
@@ -221,10 +223,12 @@ def top_tracks(artist_id: int, get: Callable = _get, fetch: bool = True) -> list
 
 def model_tracks(name: str, played: set[str]) -> list[dict]:
     """An artist's most listened songs in the song model that are not played yet, [{title, artist, album, link}]."""
-    tracks = []
+    tracks, seen = [], set(played)
     for index in model.songs_of(fold(name)):
         song = model.songs.items[index]
-        if song["key"] not in played:
+        # The same song may be in the model twice, spelt with different punctuation
+        if loose(song["key"]) not in seen:
+            seen.add(loose(song["key"]))
             tracks.append({"title": song["title"], "artist": song["artist"], "album": "", "link": ""})
         if len(tracks) == TOP_TRACKS:
             break
@@ -241,7 +245,7 @@ def score(seed_list: list[dict], related_of: dict[str, list[dict]], played: set[
     for seed in seed_list:
         candidates = related_of.get(seed["key"]) or []
         for place, item in enumerate(candidates):
-            item_key = item.get("key") or fold(item["name"])
+            item_key = loose(item.get("key") or fold(item["name"]))
             if item_key in played:
                 continue
             entry = shares.setdefault(item_key, {**item, "key": item_key, "shares": {}})
@@ -334,7 +338,7 @@ def song_suggestions(limit: int = 12, now: datetime | None = None, db_path: Path
     lists: dict[str, list[dict]] = {"new": [], "known": []}
     per_artist: dict[str, int] = {}
     for song in score(seed_list, related_of, heard_songs(db_path), MODEL_SEED_DECAY, MODEL_RELATED):
-        artists = [fold(part) for part in listening._credit_parts(song["artist"])]
+        artists = [loose(fold(part)) for part in listening._credit_parts(song["artist"])]
         target = lists["known" if any(a in played_artists for a in artists) else "new"]
         if len(target) >= limit or per_artist.get(artists[0], 0) >= SONG_PER_ARTIST or (
                 target is lists["new"] and artists[0] in skip_artists):
@@ -386,6 +390,6 @@ def discover(limit: int = 12, song_limit: int = 10, fetch: bool = False, force: 
             _write_discover(saved)
     played_artists, played_songs = heard(db_path), heard_songs(db_path)
     artists = [{**a, "tracks": [t for t in a["tracks"] if song_key(t["artist"], t["title"]) not in played_songs]}
-               for a in saved["artists"] if fold(a["name"]) not in played_artists]
-    left = lambda songs: [s for s in songs if s["key"] not in played_songs]
+               for a in saved["artists"] if loose(fold(a["name"])) not in played_artists]
+    left = lambda songs: [s for s in songs if loose(s["key"]) not in played_songs]
     return {**saved, "artists": artists, "new": left(saved["new"]), "known": left(saved["known"])}
