@@ -2,7 +2,7 @@
   "name": "playlist-tracker-desktop",
   "version": "1.0.0",
   "private": true,
-  "description": "The Playlist Tracker window: Electron and React over the Python backend (playlist_tracker/backend.py)",
+  "description": "The Songlog window: Electron and React over the Python backend (playlist_tracker/backend.py)",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "tsc -p electron && concurrently -k -n vite,app \"vite\" \"wait-on tcp:127.0.0.1:5173 && electron . --dev\"",
@@ -30,7 +30,7 @@
   "author": "Deniz Kanlıcalıoğlu",
   "build": {
     "appId": "com.xendoksia.playlisttracker",
-    "productName": "Playlist Tracker",
+    "productName": "Songlog",
     "directories": {
       "output": "release"
     },
@@ -56,7 +56,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Playlist Tracker",
+      "shortcutName": "Songlog",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico"
     }

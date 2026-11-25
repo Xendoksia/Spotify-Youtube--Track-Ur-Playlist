@@ -517,7 +517,7 @@ export function WrappedStory({ id, slide }: { id: string; slide: number }) {
         </div>
         <footer className="story-footer">
           <span>{data.title}</span>
-          <strong>Playlist Tracker</strong>
+          <strong>Songlog</strong>
         </footer>
       </div>
     </TextsContext.Provider>

@@ -1,23 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The three bars of the app's icon (playlist_tracker/background.py icon_image) -->
+<!-- Songlog's listening notebook, as playlist_tracker/background.py icon_image draws it, inside the adaptive
+     icon's safe circle -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:pathData="M40.32,46.08L40.32,61.92"
-        android:strokeWidth="8.64"
-        android:strokeColor="#FFFFFF"
+        android:fillColor="#E6E8EB"
+        android:pathData="M43.60,50.36H66.48A3.12,3.12 0,0 1,69.60,53.48V72.72A3.12,3.12 0,0 1,66.48,75.84H43.60A3.12,3.12 0,0 1,40.48,72.72V53.48A3.12,3.12 0,0 1,43.60,50.36Z"/>
+    <path
+        android:fillColor="#2EA043"
+        android:pathData="M42.04,47.76H63.88A3.64,3.64 0,0 1,67.52,51.40V70.12A3.64,3.64 0,0 1,63.88,73.76H42.04A3.64,3.64 0,0 1,38.40,70.12V51.40A3.64,3.64 0,0 1,42.04,47.76Z"/>
+    <path
+        android:fillColor="#1F7A35"
+        android:pathData="M40.48,47.76H41.52A2.08,2.08 0,0 1,43.60,49.84V71.68A2.08,2.08 0,0 1,41.52,73.76H40.48A2.08,2.08 0,0 1,38.40,71.68V49.84A2.08,2.08 0,0 1,40.48,47.76Z"/>
+    <path
+        android:fillColor="#C98500"
+        android:pathData="M55.04,47.76V63.36L58.16,60.24L61.28,63.36V47.76Z"/>
+    <path
+        android:pathData="M33.72,60.24V52.96A20.28,20.28 0,0 1,74.28,52.96V60.24"
+        android:strokeWidth="4.16"
+        android:strokeColor="#E6E8EB"
         android:strokeLineCap="round"/>
     <path
-        android:pathData="M54.00,39.60L54.00,68.40"
-        android:strokeWidth="8.64"
-        android:strokeColor="#FFFFFF"
-        android:strokeLineCap="round"/>
+        android:fillColor="#E6E8EB"
+        android:pathData="M33.20,55.04H33.20A4.68,4.68 0,0 1,37.88,59.72V67.00A4.68,4.68 0,0 1,33.20,71.68H33.20A4.68,4.68 0,0 1,28.52,67.00V59.72A4.68,4.68 0,0 1,33.20,55.04Z"/>
     <path
-        android:pathData="M67.68,48.96L67.68,59.04"
-        android:strokeWidth="8.64"
-        android:strokeColor="#FFFFFF"
-        android:strokeLineCap="round"/>
+        android:fillColor="#E6E8EB"
+        android:pathData="M74.80,55.04H74.80A4.68,4.68 0,0 1,79.48,59.72V67.00A4.68,4.68 0,0 1,74.80,71.68H74.80A4.68,4.68 0,0 1,70.12,67.00V59.72A4.68,4.68 0,0 1,74.80,55.04Z"/>
 </vector>

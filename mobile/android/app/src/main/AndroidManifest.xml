@@ -8,7 +8,7 @@
     <!-- The monthly summary notification (WrappedNotice.kt) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
-        android:label="Playlist Tracker"
+        android:label="Songlog"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -43,7 +43,7 @@
         <!-- Given notification access, lets the app read what Spotify plays (NowPlaying.kt) -->
         <service
             android:name=".MediaListener"
-            android:label="Playlist Tracker"
+            android:label="Songlog"
             android:exported="false"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>

@@ -23,10 +23,21 @@ BUILD_DIR = ROOT / "build"
 BACKEND_NAME = "PlaylistTrackerBackend"
 
 
+ICON_SIZES = (16, 24, 32, 48, 64, 256)
+
+
+def save_icon(path: Path) -> None:
+    """The app's icon file, each size drawn on its own so the small ones keep only what still reads."""
+    images = [background.icon_image(size) for size in ICON_SIZES]
+    images[-1].save(path, sizes=[(size, size) for size in ICON_SIZES], append_images=images[:-1])
+
+
 def make_icon():
     BUILD_DIR.mkdir(exist_ok=True)
     icon = BUILD_DIR / "icon.ico"
-    background.icon_image(256).save(icon, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (256, 256)])
+    save_icon(icon)
+    # The window's icon (desktop/package.json, desktop/electron/main.ts): the same file
+    save_icon(ROOT / "desktop" / "assets" / "icon.ico")
     return icon
 
 

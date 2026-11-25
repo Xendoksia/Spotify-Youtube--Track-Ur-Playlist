@@ -15,11 +15,19 @@ import threading
 
 from playlist_tracker.core.config import BASE_DIR
 
-APP_NAME = "Spotify Playlist Tracker"
+APP_NAME = "Songlog"
+# The startup entry's names before the app was called Songlog, moved to APP_NAME
+OLD_APP_NAMES = ("Spotify Playlist Tracker",)
 MUTEX_NAME = "Local\\SpotifyPlaylistTracker"
 PORT_FILE = BASE_DIR / ".instance"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-ICON_COLOR = "#1aa34a"
+# The icon's colors, the window's dark theme (desktop/src/styles.css): its raised surface, --chart green for the
+# notebook, a darker green for its spine, --series-3 amber for the bookmark and --text for the headphones and pages
+ICON_TILE = "#262a31"
+ICON_COVER = "#2ea043"
+ICON_SPINE = "#1f7a35"
+ICON_RIBBON = "#c98500"
+ICON_LIGHT = "#e6e8eb"
 # The desktop window names the command Windows starts it with (desktop/electron/main.ts)
 AUTOSTART_ENV = "PLAYLIST_TRACKER_AUTOSTART"
 
@@ -84,22 +92,50 @@ class SingleInstance:
             PORT_FILE.unlink(missing_ok=True)
 
 
-def icon_image(size: int = 64):
-    """A green circle with equalizer bars, drawn so no image file has to be shipped (build.py makes the
-    icon files from it)."""
+def icon_image(size: int = 64, detailed: bool | None = None):
+    """The app's icon, Songlog's listening notebook: a green notebook with an amber bookmark wearing headphones, on a
+    rounded dark tile. Drawn so no image file has to be shipped (build.py makes the icon files from it). Small sizes
+    leave out the pages and the spine, which would run together."""
     from PIL import Image, ImageDraw
 
+    if detailed is None:
+        detailed = size >= 64
     scale = 4
-    image = Image.new("RGBA", (size * scale, size * scale), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
     s = size * scale
-    draw.ellipse((0, 0, s - 1, s - 1), fill=ICON_COLOR)
-    bar, gap = s * 0.12, s * 0.07
-    left = (s - 3 * bar - 2 * gap) / 2
-    for index, height in enumerate((0.34, 0.52, 0.26)):
-        x = left + index * (bar + gap)
-        top, bottom = s * (0.5 - height / 2), s * (0.5 + height / 2)
-        draw.rounded_rectangle((x, top, x + bar, bottom), radius=bar / 2, fill="white")
+    image = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((0, 0, s - 1, s - 1), radius=s * 0.22, fill=ICON_TILE)
+    # The drawing is laid out on 120 units, as the logo (desktop/src/components/Logo.tsx)
+    u = s / 120
+
+    def box(x0, y0, x1, y1):
+        return (x0 * u, y0 * u, x1 * u, y1 * u)
+
+    def band(radius, width):
+        """The headband: half a ring around (60, 60) whose line runs at radius, down to the ear cups."""
+        outer = radius + width / 2
+        draw.arc(box(60 - outer, 60 - outer, 60 + outer, 60 + outer), 180, 360, fill=ICON_LIGHT,
+                 width=round(width * u))
+        for x in (60 - radius, 60 + radius):
+            draw.line(box(x, 60, x, 74), fill=ICON_LIGHT, width=round(width * u))
+            draw.ellipse(box(x - width / 2, 74 - width / 2, x + width / 2, 74 + width / 2), fill=ICON_LIGHT)
+
+    if detailed:
+        draw.rounded_rectangle(box(34, 55, 90, 104), radius=6 * u, fill=ICON_LIGHT)
+        draw.rounded_rectangle(box(30, 50, 86, 100), radius=7 * u, fill=ICON_COVER)
+        draw.rounded_rectangle(box(30, 50, 40, 100), radius=4 * u, fill=ICON_SPINE)
+        draw.polygon([(62 * u, 50 * u), (62 * u, 80 * u), (68 * u, 74 * u), (74 * u, 80 * u), (74 * u, 50 * u)],
+                     fill=ICON_RIBBON)
+        band(39, 8)
+        draw.rounded_rectangle(box(11, 64, 29, 96), radius=9 * u, fill=ICON_LIGHT)
+        draw.rounded_rectangle(box(91, 64, 109, 96), radius=9 * u, fill=ICON_LIGHT)
+    else:
+        draw.rounded_rectangle(box(30, 50, 90, 102), radius=8 * u, fill=ICON_COVER)
+        draw.polygon([(60 * u, 50 * u), (60 * u, 82 * u), (68 * u, 74 * u), (76 * u, 82 * u), (76 * u, 50 * u)],
+                     fill=ICON_RIBBON)
+        band(40, 12)
+        draw.rounded_rectangle(box(8, 62, 30, 96), radius=11 * u, fill=ICON_LIGHT)
+        draw.rounded_rectangle(box(90, 62, 112, 96), radius=11 * u, fill=ICON_LIGHT)
     return image.resize((size, size), Image.LANCZOS)
 
 
@@ -119,10 +155,16 @@ def autostart_value() -> str:
     import winreg
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
-            value, _ = winreg.QueryValueEx(key, APP_NAME)
+            for name in (APP_NAME, *OLD_APP_NAMES):
+                try:
+                    value, _ = winreg.QueryValueEx(key, name)
+                except OSError:
+                    continue
+                if value:
+                    return value
     except OSError:
-        return ""
-    return value or ""
+        pass
+    return ""
 
 
 def autostart_enabled() -> bool:
@@ -136,8 +178,8 @@ def set_autostart(enabled: bool) -> None:
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
         if enabled:
             winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, autostart_command())
-        else:
+        for name in (*OLD_APP_NAMES, *(() if enabled else (APP_NAME,))):
             try:
-                winreg.DeleteValue(key, APP_NAME)
+                winreg.DeleteValue(key, name)
             except FileNotFoundError:
                 pass

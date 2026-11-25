@@ -17,7 +17,7 @@ _PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Playlist Tracker</title>
+<title>Songlog</title>
 <style>
   /* The desktop app's colors (desktop/src/styles.css), light or dark as Windows is */
   :root {{ --bg: #d3d8e0; --surface: #e2e6ec; --border: #c3c9d2; --text: #1f2328; --muted: #555d6a;
@@ -53,7 +53,7 @@ _PAGE = """<!doctype html>
     <h1>{title}</h1>
     <p>{hint}</p>
     <div class="app"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h12v2H3zm0 4h12v2H3zm0 4h8v2H3zm14
-      -8v8.2A3 3 0 1 0 19 17V8h3V6z"/></svg>Playlist Tracker</div>
+      -8v8.2A3 3 0 1 0 19 17V8h3V6z"/></svg>Songlog</div>
   </main>
 </body>
 </html>"""

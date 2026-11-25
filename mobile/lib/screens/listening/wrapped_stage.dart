@@ -227,7 +227,7 @@ Future<Uint8List?> storyImage(ui.Image slide, double hue, String title, {bool fi
   }
   var bottom = size.height - 110;
   for (final (text, style) in [
-    ('Playlist Tracker', const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w800)),
+    ('Songlog', const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w800)),
     (title, TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 32, fontWeight: FontWeight.w600)),
   ]) {
     final painter = TextPainter(text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr)

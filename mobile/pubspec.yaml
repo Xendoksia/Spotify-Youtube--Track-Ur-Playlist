@@ -1,5 +1,5 @@
 name: playlist_tracker
-description: "Playlist Tracker mobile: listening stats and playlist history synced from the desktop app"
+description: "Songlog mobile: listening stats and playlist history synced from the desktop app"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

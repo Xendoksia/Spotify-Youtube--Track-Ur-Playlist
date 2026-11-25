@@ -10,7 +10,7 @@ const languages = {'en': 'English', 'tr': 'Türkçe'};
 
 const _strings = <String, Map<String, String>>{
   'en': {
-    'app.title': 'Playlist Tracker',
+    'app.title': 'Songlog',
     'login.lead': 'Log in with the account you use in the desktop app to see your plays and playlists here.',
     'login.google': 'Log in with Google',
     'login.failed': 'Could not log in: {error}',
@@ -506,7 +506,7 @@ const _strings = <String, Map<String, String>>{
         'seconds are recorded, also while the app is closed, and they are sent to your account when you open it. '
         'Android lets the app see them only with notification access.',
     'phone.battery': 'Some phones (Honor, Huawei, Xiaomi…) stop apps in the background: in the battery settings, '
-        'let Playlist Tracker start and run in the background.',
+        'let Songlog start and run in the background.',
     'phone.allow': 'Give access',
     'phone.allowed': 'Access given',
     'phone.ask': 'Record the songs played on this phone?',
@@ -515,7 +515,7 @@ const _strings = <String, Map<String, String>>{
     'phone.later': 'Later',
   },
   'tr': {
-    'app.title': 'Playlist Tracker',
+    'app.title': 'Songlog',
     'login.lead': 'Dinlemelerini ve listelerini burada görmek için masaüstü uygulamada kullandığın hesapla giriş '
         'yap.',
     'login.google': 'Google ile giriş yap',
@@ -1012,7 +1012,7 @@ const _strings = <String, Map<String, String>>{
         'uygulama kapalıyken de kaydedilir ve uygulamayı açınca hesabına gönderilir. Android bunları uygulamaya '
         'yalnızca bildirim erişimiyle gösterir.',
     'phone.battery': 'Bazı telefonlar (Honor, Huawei, Xiaomi…) arka plandaki uygulamaları durdurur: pil ayarlarında '
-        'Playlist Tracker\'ın kendiliğinden başlamasına ve arka planda çalışmasına izin ver.',
+        'Songlog\'un kendiliğinden başlamasına ve arka planda çalışmasına izin ver.',
     'phone.allow': 'Erişim ver',
     'phone.allowed': 'Erişim verildi',
     'phone.ask': 'Bu telefonda çalınan şarkılar kaydedilsin mi?',

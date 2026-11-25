@@ -20,7 +20,8 @@ interface AppInfo {
 const DEV = process.argv.includes("--dev");
 // Installed, the app keeps its data in a folder of its own (the earlier program's is copied there the first
 // time); the window's own files (cache, storage) go in a folder inside it. PLAYLIST_TRACKER_DATA_DIR names another
-// folder, for trying a build without touching the real data or the Windows startup entry
+// folder, for trying a build without touching the real data or the Windows startup entry. The folder keeps the app's
+// first name, Playlist Tracker, so renaming it Songlog left everyone's data where it was
 const CUSTOM_DATA_DIR = process.env.PLAYLIST_TRACKER_DATA_DIR;
 const DATA_DIR = CUSTOM_DATA_DIR ?? path.join(app.getPath("appData"), "Playlist Tracker");
 const APP_ID = "com.xendoksia.playlisttracker";

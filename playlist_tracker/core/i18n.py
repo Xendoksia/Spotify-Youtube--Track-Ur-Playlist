@@ -16,7 +16,7 @@ DEFAULT_LANGUAGE = "en"
 
 STRINGS: dict[str, dict[str, str]] = {
     "en": {
-        "app.title": "Playlist Tracker",
+        "app.title": "Songlog",
         "tab.history": "History",
         "nav.playlists": "Playlist tracking",
         "nav.listening": "Listening",
@@ -777,9 +777,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "theme.dark": "Dark",
 
         "redirect.success": "You're logged in",
-        "redirect.success_hint": "You can close this tab and go back to Playlist Tracker.",
+        "redirect.success_hint": "You can close this tab and go back to Songlog.",
         "redirect.failed": "Login didn't go through",
-        "redirect.failed_hint": "It was cancelled or failed. Go back to Playlist Tracker to try again.",
+        "redirect.failed_hint": "It was cancelled or failed. Go back to Songlog to try again.",
         "login.cancelled": "Login was cancelled.",
         "login.not_verified": "Login could not be verified. Please try again.",
         "playlist.not_found": "Playlist not found. Is the link correct?",
@@ -1591,9 +1591,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "theme.dark": "Koyu",
 
         "redirect.success": "Giriş yapıldı",
-        "redirect.success_hint": "Bu sekmeyi kapatıp Playlist Tracker'a dönebilirsin.",
+        "redirect.success_hint": "Bu sekmeyi kapatıp Songlog'a dönebilirsin.",
         "redirect.failed": "Giriş tamamlanamadı",
-        "redirect.failed_hint": "İptal edildi ya da bir hata oldu. Yeniden denemek için Playlist Tracker'a dön.",
+        "redirect.failed_hint": "İptal edildi ya da bir hata oldu. Yeniden denemek için Songlog'a dön.",
         "login.cancelled": "Giriş iptal edildi.",
         "login.not_verified": "Giriş doğrulanamadı. Lütfen tekrar dene.",
         "playlist.not_found": "Liste bulunamadı. Link doğru mu?",
