@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../data/artwork.dart';
 import '../data/discover.dart';
+import '../data/preview.dart';
 import '../data/stats.dart';
 import '../l10n/strings.dart';
 import '../state/data_store.dart';
@@ -70,11 +71,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   void didUpdateWidget(DiscoverScreen old) {
     super.didUpdateWidget(old);
     if (widget.active && !old.active) _update();
+    // A preview stops when the tab is left
+    if (!widget.active && old.active) Preview.instance.stop();
   }
 
   @override
   void dispose() {
     widget.store.removeListener(_update);
+    Preview.instance.stop();
     super.dispose();
   }
 
@@ -240,7 +244,65 @@ class _TopPick extends StatelessWidget {
   }
 }
 
-/// One of the top pick's songs: its cover and title, opening it in Spotify
+/// Plays or stops a song's 30 second preview, with a ring filling as it plays
+class _PreviewButton extends StatelessWidget {
+  final String artist;
+  final String title;
+  final double size;
+
+  const _PreviewButton({required this.artist, required this.title, this.size = 36});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Palette.of(context);
+    final accent = Theme.of(context).colorScheme.primary;
+    final preview = Preview.instance;
+    return ListenableBuilder(
+      listenable: preview,
+      builder: (context, _) {
+        final state = preview.stateOf(artist, title);
+        final active = state == PreviewState.playing || state == PreviewState.loading;
+        return Tooltip(
+          message: context.t(switch (state) {
+            PreviewState.none => 'discover.preview_none',
+            PreviewState.idle => 'discover.preview',
+            _ => 'discover.preview_stop',
+          }),
+          child: InkResponse(
+            radius: size * 0.7,
+            onTap: state == PreviewState.none ? null : () => preview.toggle(artist, title),
+            child: SizedBox.square(
+              dimension: size,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox.square(
+                    dimension: size - 6,
+                    child: CircularProgressIndicator(
+                      value: state == PreviewState.loading ? null : preview.progressOf(artist, title),
+                      strokeWidth: 2,
+                      color: accent,
+                      backgroundColor: palette.muted.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  Icon(active ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      size: size * 0.5,
+                      color: state == PreviewState.none
+                          ? palette.muted.withValues(alpha: 0.35)
+                          : active
+                              ? accent
+                              : palette.muted),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// One of the top pick's songs: its cover and title, opening it in Spotify, and its preview
 class _TrackRow extends StatelessWidget {
   final String artist;
   final String title;
@@ -264,7 +326,7 @@ class _TrackRow extends StatelessWidget {
                 ArtworkImage.cover(artist: artist, album: '', name: title, size: 40),
                 const SizedBox(width: 10),
                 Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                Icon(Icons.play_arrow_rounded, color: Palette.of(context).muted),
+                _PreviewButton(artist: artist, title: title),
               ],
             ),
           ),
@@ -318,8 +380,8 @@ class _ArtistCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                       child: Row(
                         children: [
-                          Icon(Icons.play_arrow_rounded, size: 16, color: palette.muted),
-                          const SizedBox(width: 4),
+                          _PreviewButton(artist: track['artist'] as String, title: track['title'] as String, size: 26),
+                          const SizedBox(width: 2),
                           Expanded(
                             child: Text(track['title'] as String,
                                 maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
@@ -395,7 +457,7 @@ class _SongList extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Icon(Icons.play_arrow_rounded, color: palette.muted),
+                    _PreviewButton(artist: song['artist'] as String, title: song['name'] as String, size: 40),
                   ],
                 ),
               ),

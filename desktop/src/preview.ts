@@ -14,7 +14,7 @@ interface Playing {
 }
 
 const audio = new Audio();
-audio.volume = 0.8;
+audio.volume = 0.56;
 let current: Playing = { key: "", state: "idle", progress: 0 };
 // Songs without a preview, so their buttons stay off
 const missing = new Set<string>();

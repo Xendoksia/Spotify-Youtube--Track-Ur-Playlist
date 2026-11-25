@@ -153,6 +153,26 @@ class Artwork {
 
   static String _artistOf(Map<String, dynamic> result) => textKey((result['artist'] as Map?)?['name'] as String?);
 
+  /// The address of Deezer's 30 second preview of a track, or null, as the desktop app's find_preview. The address
+  /// carries a signature that runs out after a while, so it is looked up when it is played, not kept
+  Future<String?> preview(String artist, String name) => _limited(() async {
+        for (final who in nameVariants(artist)) {
+          for (final title in {name, plainTitle(name)}) {
+            final results = await _searchBoth('/search', 'artist:"$who" track:"$title"', '$who $title');
+            for (final result in results) {
+              final url = result['preview'] as String?;
+              if (_artistOf(result) == textKey(who) &&
+                  url != null &&
+                  url.isNotEmpty &&
+                  textKey(plainTitle(result['title'] as String? ?? '')) == textKey(plainTitle(name))) {
+                return url;
+              }
+            }
+          }
+        }
+        return null;
+      });
+
   /// A collaboration such as "Pera, Işıl Ayman" is under its main artist at Deezer, so that is searched second
   Future<String?> _findCover(String artist, String name) async {
     for (final who in nameVariants(artist)) {
