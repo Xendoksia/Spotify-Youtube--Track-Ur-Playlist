@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable
 from urllib.parse import urlencode
 
+from playlist_tracker.core import sync
 from playlist_tracker.core.config import load_config
 from playlist_tracker.core.errors import TrackerError
 from playlist_tracker.core.i18n import number, t
@@ -493,6 +494,9 @@ class Playlists:
                 self.status = t("status.error")
             self.emit("task", service=failed, state=state, message=message, status=self.status, busy=None)
             self.emit("playlists", service="")
+            if sync.syncer:
+                # The phone sees this check now, not at the next sync
+                sync.syncer.wake()
 
         threading.Thread(target=worker, name="playlists", daemon=True).start()
         return {"started": True}

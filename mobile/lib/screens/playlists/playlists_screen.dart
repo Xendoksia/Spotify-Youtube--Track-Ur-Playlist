@@ -441,7 +441,7 @@ class _ListsState extends State<_Lists> {
         : changes.isNotEmpty
             ? context.t('playlists.latest', {'date': _shortDay(context, changes.first.checkedAt)})
             : playlist.size != null
-                ? context.t('track.size', {'count': context.number(playlist.size!)})
+                ? context.t(playlist.size == 1 ? 'track.size_one' : 'track.size', {'count': context.number(playlist.size!)})
                 : context.t('playlists.no_changes');
     return InkWell(
       borderRadius: BorderRadius.circular(8),

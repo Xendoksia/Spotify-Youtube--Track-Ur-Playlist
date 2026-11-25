@@ -222,7 +222,7 @@ class _SyncCardState extends State<SyncCard> {
             children: [
               Text(context.t('account.cloud_plays', {'count': context.number(cloud)})),
               if (twice > 0)
-                Text(context.t('account.twice', {'count': context.number(twice)}),
+                Text(context.t(twice == 1 ? 'account.twice_one' : 'account.twice', {'count': context.number(twice)}),
                     style: TextStyle(color: palette.muted, fontSize: 13)),
               const SizedBox(height: 6),
               FutureBuilder<int>(
