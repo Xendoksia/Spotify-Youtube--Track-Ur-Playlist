@@ -24,12 +24,15 @@ from playlist_tracker.music.model import loose
 # The closest artist and two rows of five tiles
 LIMIT = 11
 SONG_LIMIT = 10
+# A preview's address is signed for a while, so it is kept this long
+PREVIEW_SECONDS = 30 * 60
 # An incomplete answer (Deezer unreachable) is tried again after this long, not on every visit
 LOOKUP_RETRY_SECONDS = 3600
 
 _lookup: threading.Thread | None = None
 _lookup_lock = threading.Lock()
 _looked_up_at = 0.0
+_previews: dict[tuple[str, str], tuple[str | None, float]] = {}
 
 
 def because_text(names: list[str], songs: bool = False) -> str:
@@ -94,6 +97,20 @@ def open_spotify(artist: str, title: str = "") -> dict:
     kind, _, rest = uri.removeprefix("spotify:").partition(":")
     webbrowser.open(f"https://open.spotify.com/{kind}/{rest}")
     return {"opened": "browser"}
+
+
+def preview(artist: str, title: str) -> dict:
+    """The address of a suggested song's 30 second preview on Deezer, played in the window, or None."""
+    now = time.monotonic()
+    url, at = _previews.get((artist, title), (None, -PREVIEW_SECONDS))
+    if now - at >= PREVIEW_SECONDS:
+        from playlist_tracker.music import artwork
+        try:
+            url = artwork.find_preview(artist, title)
+        except Exception:  # offline or Deezer's rate limit: asked again on the next click
+            return {"url": None}
+        _previews[(artist, title)] = (url, now)
+    return {"url": url}
 
 
 def _look_up(arrived: Callable[[], None]) -> None:

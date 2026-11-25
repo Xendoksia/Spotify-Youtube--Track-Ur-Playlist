@@ -6962,3 +6962,90 @@ a.trk-list-name:hover {
 .trk-more {
   align-self: center;
 }
+
+/* Deezer's 30 second previews on Discover (preview.ts): a round button whose ring fills as the preview plays */
+.preview-button {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 150ms, background 150ms;
+}
+
+.preview-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent) calc(var(--progress, 0) * 360deg), var(--border) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+}
+
+.preview-button:hover:not(:disabled),
+.preview-button.playing,
+.preview-button.loading {
+  background: var(--hover);
+  color: var(--accent);
+}
+
+.preview-button.loading::before {
+  background: conic-gradient(var(--accent) 0 90deg, var(--border) 0);
+  animation: preview-spin 900ms linear infinite;
+}
+
+.preview-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.preview-button.small {
+  width: 24px;
+  height: 24px;
+  font-size: 8px;
+}
+
+@keyframes preview-spin {
+  to { transform: rotate(360deg); }
+}
+
+.discover-top-tracks li {
+  position: relative;
+}
+
+.discover-top-tracks a {
+  padding-right: 48px;
+}
+
+.discover-top-tracks .preview-button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+}
+
+.discover-tracks li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.discover-tracks li a {
+  flex: 1;
+  min-width: 0;
+}
+
+.discover-song-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

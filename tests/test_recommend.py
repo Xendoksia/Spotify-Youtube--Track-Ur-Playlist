@@ -347,3 +347,26 @@ class BecauseTextTest(RecommendTestCase):
     def test_spotify_search_link(self):
         self.assertEqual(recommend_api.spotify_search("Papa Roach", "Last Resort"),
                          "https://open.spotify.com/search/Papa%20Roach%20Last%20Resort")
+
+
+class PreviewTest(RecommendTestCase):
+    def setUp(self):
+        super().setUp()
+        recommend_api._previews.clear()
+
+    def test_only_the_same_song_by_the_same_artist(self):
+        from playlist_tracker.music import artwork
+        found = [{"artist": {"name": "Other"}, "title": "Faint", "preview": "https://p/other"},
+                 {"artist": {"name": "Linkin Park"}, "title": "Faint (Live)", "preview": "https://p/faint"}]
+        with mock.patch.object(artwork, "_search", return_value=found) as search:
+            self.assertEqual(recommend_api.preview("Linkin Park", "Faint"), {"url": "https://p/faint"})
+            # Kept for a while, not asked again
+            recommend_api.preview("Linkin Park", "Faint")
+        self.assertEqual(search.call_count, 1)
+
+    def test_none_without_a_match_or_offline(self):
+        from playlist_tracker.music import artwork
+        with mock.patch.object(artwork, "_search", return_value=[]):
+            self.assertEqual(recommend_api.preview("A", "B"), {"url": None})
+        with mock.patch.object(artwork, "_search", side_effect=OSError):
+            self.assertEqual(recommend_api.preview("C", "D"), {"url": None})

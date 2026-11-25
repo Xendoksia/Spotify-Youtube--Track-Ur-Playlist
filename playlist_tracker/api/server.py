@@ -49,6 +49,8 @@ class Api:
             ("GET", "/api/recommend"): lambda query, body: recommend.recommendations(self.found("recommend")),
             ("POST", "/api/recommend/open"):
                 lambda query, body: recommend.open_spotify(body["artist"], body.get("title", "")),
+            ("GET", "/api/recommend/preview"):
+                lambda query, body: recommend.preview(query.get("artist", ""), query.get("title", "")),
             ("GET", "/api/inbox"): lambda query, body: wrapped.inbox(),
             ("GET", "/api/wrapped"): lambda query, body: wrapped.summary(query["id"]),
             ("GET", "/api/wrapped/due"): lambda query, body: wrapped.due(query.get("force") == "1"),

@@ -1,15 +1,16 @@
 /** The Discover section: artists and songs not played yet, picked from what is played (api/recommend.py). The
  * closest artist on top over its blurred photo, the other artists as tiles with their songs, then the songs by
  * new artists and the unplayed songs by artists played. Every song and artist opens in the Spotify app, where
- * playing it is recorded, rather than in the browser. */
+ * playing it is recorded, rather than in the browser, and every song's 30 second preview plays in the window. */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { get, imageUrl } from "../api";
 import Card from "../components/Card";
 import Icon from "../components/Icon";
 import Picture from "../components/Picture";
 import { DiscoverSkeleton } from "../components/Skeleton";
 import { useTexts } from "../i18n";
+import { stopPreview, usePreview } from "../preview";
 import { openSpotify } from "../spotify";
 
 interface Track {
@@ -70,8 +71,22 @@ function SpotifyLink({ href, label, artist, title }: { href: string; label: stri
   return (
     <a className="icon-button discover-play" href={href} target="_blank" rel="noreferrer" title={label} aria-label={label}
        onClick={openSpotify(artist, title)}>
-      <Icon name="play" />
+      <Icon name="link" />
     </a>
+  );
+}
+
+/** Plays or stops the song's 30 second preview, with a ring filling as it plays */
+function PreviewButton({ artist, title, className = "" }: { artist: string; title: string; className?: string }) {
+  const { t } = useTexts();
+  const { state, progress, toggle } = usePreview(artist, title);
+  const label = t(state === "none" ? "discover.preview_none" : state === "idle" ? "discover.preview" : "discover.preview_stop");
+  return (
+    <button className={`preview-button ${state} ${className}`} title={label} aria-label={label}
+            disabled={state === "none"} style={{ "--progress": progress } as CSSProperties}
+            onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggle(); }}>
+      <Icon name={state === "playing" || state === "loading" ? "pause" : "play"} />
+    </button>
   );
 }
 
@@ -100,8 +115,8 @@ function TopPick({ artist }: { artist: Artist }) {
                    onClick={openSpotify(track.subtitle, track.title)}>
                   <Picture src={track.image} alt={track.title} className="discover-top-cover" />
                   <span className="discover-track-title">{track.title}</span>
-                  <Icon name="play" className="discover-top-play" />
                 </a>
+                <PreviewButton artist={track.subtitle} title={track.title} />
               </li>
             ))}
           </ol>
@@ -125,9 +140,9 @@ function ArtistTile({ artist, index }: { artist: Artist; index: number }) {
         <ol className="discover-tracks">
           {artist.tracks.map((track) => (
             <li key={track.title}>
+              <PreviewButton artist={track.subtitle} title={track.title} className="small" />
               <a href={track.link} target="_blank" rel="noreferrer" title={t("discover.open_spotify")}
                  onClick={openSpotify(track.subtitle, track.title)}>
-                <Icon name="play" />
                 <span className="discover-track-title">{track.title}</span>
               </a>
             </li>
@@ -161,7 +176,10 @@ function SongList({ title, summary, songs, openArtist }: {
               )}
               <span className="discover-because" title={song.because}>{song.because}</span>
             </div>
-            <SpotifyLink href={song.link} label={t("discover.open_spotify")} artist={song.subtitle} title={song.title} />
+            <div className="discover-song-actions">
+              <PreviewButton artist={song.subtitle} title={song.title} />
+              <SpotifyLink href={song.link} label={t("discover.open_spotify")} artist={song.subtitle} title={song.title} />
+            </div>
           </li>
         ))}
       </ol>
@@ -236,6 +254,8 @@ export default function Discover({ hidden, openArtist }: { hidden: boolean; open
   }, []);
   useEffect(() => {
     if (!hidden && stale.current) load();
+    // A preview stops when the section is left
+    if (hidden) stopPreview();
   }, [hidden, load]);
   useEffect(() => window.tracker.onEvent((message) => {
     // What was still being looked up arrived

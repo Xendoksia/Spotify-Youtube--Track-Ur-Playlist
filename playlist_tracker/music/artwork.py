@@ -254,6 +254,19 @@ def find_length(artist: str, name: str) -> int | None:
     return None
 
 
+def find_preview(artist: str, name: str) -> str | None:
+    """The address of Deezer's 30 second preview of a track, or None. The address carries a signature that runs
+    out after a while, so it is looked up when it is played, not saved."""
+    for who in name_variants(artist):
+        for title in dict.fromkeys((name, _plain_title(name))):
+            results = _search("/search", f'artist:"{who}" track:"{title}"') or _search("/search", f"{who} {title}")
+            for result in results:
+                if (key((result.get("artist") or {}).get("name", "")) == key(who) and result.get("preview")
+                        and same_title(result.get("title", ""), name)):
+                    return result["preview"]
+    return None
+
+
 def fill_missing_lengths(done: Callable[[], None]) -> None:
     """Give plays stored without a listening time (by an earlier version) their track's length, so they
     count in the listening time; the longest time recorded for the track is used when Deezer has none.
