@@ -469,14 +469,27 @@ class _SongList extends StatelessWidget {
 }
 
 /// Which of the artists suggested in the last 30 days were played since, and the suggestions by day
-class _ReportCard extends StatelessWidget {
+/// The report's first rows, the played ones first, the rest a tap away
+const _reportRows = 5;
+
+class _ReportCard extends StatefulWidget {
   final Report report;
   final void Function(String artist) onArtist;
 
   const _ReportCard({required this.report, required this.onArtist});
 
   @override
+  State<_ReportCard> createState() => _ReportCardState();
+}
+
+class _ReportCardState extends State<_ReportCard> {
+  var _all = false;
+
+  @override
   Widget build(BuildContext context) {
+    final report = widget.report;
+    final onArtist = widget.onArtist;
+    final rows = _all ? report.rows : report.rows.take(_reportRows).toList();
     final palette = Palette.of(context);
     final theme = Theme.of(context);
     final accent = palette.chart;
@@ -520,7 +533,7 @@ class _ReportCard extends StatelessWidget {
               ),
           ]),
           const SizedBox(height: 8),
-          for (final row in report.rows)
+          for (final row in rows)
             InkWell(
               borderRadius: BorderRadius.circular(8),
               onTap: () => row.plays > 0 ? onArtist(row.name) : openInSpotify(row.name),
@@ -564,6 +577,13 @@ class _ReportCard extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+            ),
+          if (rows.length < report.rows.length)
+            Center(
+              child: OutlinedButton(
+                onPressed: () => setState(() => _all = true),
+                child: Text(context.t('track.more', {'count': context.number(report.rows.length - rows.length)})),
               ),
             ),
           const SizedBox(height: 12),

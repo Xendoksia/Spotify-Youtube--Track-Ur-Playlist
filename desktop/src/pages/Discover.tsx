@@ -188,8 +188,13 @@ function SongList({ title, summary, songs, openArtist }: {
 }
 
 /** Which of the artists suggested in the last 30 days were played since, and the suggestions by day */
+// The report's first rows, the played ones first, the rest a click away
+const REPORT_ROWS = 5;
+
 function DiscoveryReport({ report, openArtist }: { report: Report; openArtist: (key: string) => void }) {
   const { t } = useTexts();
+  const [all, setAll] = useState(false);
+  const rows = all ? report.rows : report.rows.slice(0, REPORT_ROWS);
   return (
     <div className="pair discover-report">
       <Card icon="star" title={report.title}>
@@ -202,7 +207,7 @@ function DiscoveryReport({ report, openArtist }: { report: Report; openArtist: (
           {report.rows.map((row) => <span key={row.title} className={row.state} />)}
         </div>
         <ol className="report-rows">
-          {report.rows.map((row) => (
+          {rows.map((row) => (
             <li key={row.title}>
               <button className="report-row"
                       title={row.artist_key ? t("discover.open_artist") : t("discover.open_spotify")}
@@ -217,6 +222,11 @@ function DiscoveryReport({ report, openArtist }: { report: Report; openArtist: (
             </li>
           ))}
         </ol>
+        {rows.length < report.rows.length && (
+          <button className="button report-more" onClick={() => setAll(true)}>
+            {t("track.more", { count: report.rows.length - rows.length })}
+          </button>
+        )}
       </Card>
       <Card icon="history" title={report.days_title}>
         <ol className="report-days">

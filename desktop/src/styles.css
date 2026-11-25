@@ -7049,3 +7049,8 @@ a.trk-list-name:hover {
   align-items: center;
   gap: 6px;
 }
+
+.report-more {
+  display: block;
+  margin: 8px auto 0;
+}
