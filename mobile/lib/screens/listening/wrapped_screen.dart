@@ -371,8 +371,8 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
   var _sound = true;
 
   /// The song of each slide with one, by the slide's place, in the order build lays them out: the song of the
-  /// period, the artist's song played most, the highest of the top songs and the second artist's song played most,
-  /// each one the slides before did not play
+  /// period, the artist's song played most, the highest of the top songs, the second artist's song played most and
+  /// a song of the biggest genre's artists, each one the slides before did not play
   late final _songs = () {
     final data = _data;
     final played = <(String, String)>{};
@@ -392,6 +392,12 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
     if (data.artists.isNotEmpty) songs[index++] = by(data.artists.first);
     if (data.tracks.length > 1) songs[index++] = first(data.tracks);
     if (data.artists.length > 1) songs[index++] = data.artists.skip(1).map(by).nonNulls.firstOrNull;
+    if (data.discoveredTracks.isNotEmpty) index++;
+    if (data.summary.plays > 0) index++;
+    // A song of the biggest genre's artists played most
+    if (data.genres.isNotEmpty) {
+      songs[index++] = (data.genreArtists[data.genres.first.$1] ?? const <Ranked>[]).map(by).nonNulls.firstOrNull;
+    }
     // Looked up ahead, so each starts as its slide comes
     for (final song in songs.values.nonNulls) {
       Preview.instance.prefetch(song.$1, song.$2);

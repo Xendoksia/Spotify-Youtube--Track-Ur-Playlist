@@ -302,7 +302,10 @@ def summary(value: str) -> dict:
         ]})
     if genres:
         name, share = genres[0]
-        slides.append({"caption": t("wrapped.genres.caption"), "parts": [{
+        # A song of the genre's artists played most, one no slide before played
+        slides.append({"caption": t("wrapped.genres.caption"),
+                       "song": next(filter(None, (song_by(a) for a in genre_artists.get(name, []))), None),
+                       "parts": [{
             "type": "spotlight", "name": capitalized(name), "family": genre_family(name),
             "share": t("wrapped.genre.share", value=t("stats.percent", value=round(share))),
             "message": t(genre_message(name, genres[1][0] if len(genres) > 1 else None)),
