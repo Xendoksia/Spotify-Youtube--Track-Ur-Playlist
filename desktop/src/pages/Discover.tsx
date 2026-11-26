@@ -258,12 +258,9 @@ function SongList({ title, summary, songs, openArtist, onHide }: {
 }
 
 /** Which of the artists suggested in the last 30 days were played since */
-// The report's rows, the played ones first
-const REPORT_ROWS = 5;
-
 function DiscoveryReport({ report, openArtist }: { report: Report; openArtist: (key: string) => void }) {
   const { t } = useTexts();
-  const rows = report.rows.slice(0, REPORT_ROWS);
+  const rows = report.rows;
   return (
     <Card icon="star" title={report.title}>
       <div className="report-score">

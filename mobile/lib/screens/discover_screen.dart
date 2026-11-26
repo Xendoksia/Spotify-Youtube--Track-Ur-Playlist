@@ -686,9 +686,6 @@ class _SongList extends StatelessWidget {
   }
 }
 
-/// The report's rows, the played ones first
-const _reportRows = 5;
-
 /// Which of the artists suggested in the last 30 days were played since
 class _ReportCard extends StatelessWidget {
   final Report report;
@@ -698,7 +695,7 @@ class _ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rows = report.rows.take(_reportRows).toList();
+    final rows = report.rows;
     final palette = Palette.of(context);
     final theme = Theme.of(context);
     final accent = palette.chart;

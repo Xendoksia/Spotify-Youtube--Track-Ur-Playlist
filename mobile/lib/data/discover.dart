@@ -470,6 +470,9 @@ const reportDays = 30;
 /// A suggested artist among this many most played of the report's days has become a favorite
 const favoriteTop = 10;
 
+/// The report is about this many of the artists suggested, the favorites and the played ones first
+const reportRows = 5;
+
 String dayKey(DateTime moment) {
   final local = moment.toLocal();
   String two(int n) => n.toString().padLeft(2, '0');
@@ -550,7 +553,7 @@ class Report {
       final played = b.plays.compareTo(a.plays);
       return played != 0 ? played : a.day.compareTo(b.day);
     });
-    return Report(rows, [for (final day in days.reversed) (day, history[day]!)]);
+    return Report(rows.take(reportRows).toList(), [for (final day in days.reversed) (day, history[day]!)]);
   }
 }
 

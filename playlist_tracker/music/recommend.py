@@ -38,6 +38,8 @@ HISTORY_DAYS = 60
 REPORT_DAYS = 30
 # A suggested artist among this many most played of the report's days has become a favorite
 FAVORITE_TOP = 10
+# The report is about this many of the artists suggested, the favorites and the played ones first
+REPORT_ROWS = 5
 # The artists the suggestions start from, by their recent plays
 SEEDS = 10
 # A play counts half as much after this many days, so the suggestions follow what is played lately
@@ -560,6 +562,7 @@ def report(now: datetime | None = None, db_path: Path = DB_PATH) -> dict:
         found.append({"name": name, "day": day, "plays": after, "state": state})
     order = {"favorite": 0, "listened": 1, "untried": 2}
     found.sort(key=lambda r: (order[r["state"]], -r["plays"], r["day"]))
+    found = found[:REPORT_ROWS]
     days = [{"day": day, "names": history[day]} for day in sorted(history, reverse=True)
             if date.fromisoformat(day) >= start]
     return {"suggested": len(found), "listened": sum(r["state"] != "untried" for r in found),
