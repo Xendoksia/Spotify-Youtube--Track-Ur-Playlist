@@ -20,8 +20,17 @@ interface Track {
   link: string;
 }
 
+/** What one of the artists or songs played added to a suggestion, share of the whole */
+interface Why {
+  name: string;
+  share: number;
+  text: string;
+  rest?: boolean;
+}
+
 interface Artist {
   key: string;
+  why: Why[];
   title: string;
   subtitle: string;
   image: string;
@@ -31,6 +40,7 @@ interface Artist {
 
 interface Song extends Track {
   key: string;
+  why: Why[];
   because: string;
   /** Shown when Deezer has no cover for the song */
   artist_image: string;
@@ -71,6 +81,7 @@ type Hide = (hidden: Hidden) => void;
 
 interface DiscoverData {
   empty: string;
+  why: string;
   loading: boolean;
   fame: Fame;
   hidden: Hidden[];
@@ -104,6 +115,35 @@ function PreviewButton({ artist, title, className = "" }: { artist: string; titl
   );
 }
 
+/** The seeds' shares of a suggestion as one bar, each a step fainter, named on hover */
+function WhyBar({ why }: { why: Why[] }) {
+  if (!why.length) return null;
+  return (
+    <span className="why-bar" title={why.map((w) => `${w.name} ${w.text}`).join("\n")} aria-hidden>
+      {why.map((w, index) => (
+        <span key={w.name} className={w.rest ? "rest" : ""}
+              style={{ flexGrow: w.share, opacity: w.rest ? undefined : 1 - index * 0.18 }} />
+      ))}
+    </span>
+  );
+}
+
+/** The seeds' shares with their names, for the top pick */
+function WhyList({ title, why }: { title: string; why: Why[] }) {
+  if (!why.length) return null;
+  return (
+    <div className="why-list">
+      <span className="hero-caption">{title}</span>
+      <WhyBar why={why} />
+      <ol>
+        {why.map((w) => (
+          <li key={w.name} className={w.rest ? "muted" : ""}><span>{w.name}</span><span className="muted">{w.text}</span></li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 function HideButton({ hidden, onHide, className = "" }: { hidden: Hidden; onHide: Hide; className?: string }) {
   const { t } = useTexts();
   return (
@@ -115,7 +155,7 @@ function HideButton({ hidden, onHide, className = "" }: { hidden: Hidden; onHide
 }
 
 /** The closest artist, large, with its songs */
-function TopPick({ artist, onHide }: { artist: Artist; onHide: Hide }) {
+function TopPick({ artist, onHide, whyTitle }: { artist: Artist; onHide: Hide; whyTitle: string }) {
   const { t } = useTexts();
   return (
     <section className="hero discover-top">
@@ -126,6 +166,7 @@ function TopPick({ artist, onHide }: { artist: Artist; onHide: Hide }) {
           <span className="hero-caption">{t("discover.top_pick")}</span>
           <span className="hero-title">{artist.title}</span>
           <span className="hero-detail">{artist.subtitle}</span>
+          <WhyList title={whyTitle} why={artist.why} />
           <a className="button accent spotify discover-top-open" href={artist.link} target="_blank" rel="noreferrer"
              onClick={openSpotify(artist.title)}>
             <Icon name="play" />{t("discover.open_spotify")}
@@ -162,6 +203,7 @@ function ArtistTile({ artist, index, onHide }: { artist: Artist; index: number; 
         <span className="discover-artist-name">{artist.title}</span>
       </a>
       <span className="discover-because" title={artist.subtitle}>{artist.subtitle}</span>
+      <WhyBar why={artist.why} />
       {artist.tracks.length > 0 && (
         <ol className="discover-tracks">
           {artist.tracks.map((track) => (
@@ -201,6 +243,7 @@ function SongList({ title, summary, songs, openArtist, onHide }: {
                 <span className="discover-song-artist">{song.subtitle}</span>
               )}
               <span className="discover-because" title={song.because}>{song.because}</span>
+              <WhyBar why={song.why} />
             </div>
             <div className="discover-song-actions">
               <PreviewButton artist={song.subtitle} title={song.title} />
@@ -331,7 +374,7 @@ export default function Discover({ hidden, openArtist }: { hidden: boolean; open
       {empty && <p className="empty">{data.empty}</p>}
       {data && !empty && (
         <div className="overview">
-          {top && <TopPick artist={top} onHide={hide} />}
+          {top && <TopPick artist={top} onHide={hide} whyTitle={data.why} />}
           {rest.length > 0 && (
             <Card icon="artists" title={t("discover.artists")} summary={t("discover.artists_summary")}>
               <div className="discover-grid">

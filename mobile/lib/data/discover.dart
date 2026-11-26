@@ -38,7 +38,7 @@ const songsPerArtist = 2;
 const discoverEvery = Duration(hours: 24);
 
 /// Raised when the models change, so the saved suggestions are worked out again with them at once
-const modelVersion = 3;
+const modelVersion = 4;
 
 /// More artists and songs are worked out than shown, so one hidden or moved down by the fame setting gives its
 /// place to the next
@@ -178,7 +178,11 @@ List<Item> score(List<Item> seeds, Map<String, List<Item>> relatedOf, Set<String
     }
     final item = shares.remove(best)!;
     final because = parts[best]!.keys.toList()..sort((a, b) => parts[best]![b]!.compareTo(parts[best]![a]!));
-    ranked.add({...item, 'score': bestValue, 'because': because});
+    // What each seed added to the score, as recommend.score
+    final added = [
+      for (final name in because) [name, parts[best]![name]! * pow(decay, used[name]!).toDouble()],
+    ]..sort((a, b) => (b[1] as double).compareTo(a[1] as double));
+    ranked.add({...item, 'score': bestValue, 'because': because, 'shares': added});
     for (final name in parts[best]!.keys) {
       used[name] = used[name]! + 1;
     }
@@ -432,6 +436,31 @@ Future<Map<String, Object?>> workOut(List<Uint8List> files, List<PlayRow> plays,
     if (lists.values.every((l) => l.length >= songPool)) break;
   }
   return {'at': now, 'model': modelVersion, 'complete': complete, 'artists': artists, ...lists, 'fans': knownFans};
+}
+
+/// The seeds named in why a suggestion came, the rest together
+const whyNamed = 4;
+
+/// What each seed added to a suggestion's score, (name, share of the whole, rest), the largest [whyNamed] by name
+/// and the rest together with an empty name and how many they are as the share's count
+typedef Why = ({String name, double share, int rest});
+
+List<Why> whyOf(Item item) {
+  final shares = [
+    for (final pair in (item['shares'] as List?) ?? const [])
+      if (pair is List && pair.length == 2) (pair[0] as String, (pair[1] as num).toDouble()),
+  ];
+  final total = shares.fold(0.0, (sum, s) => sum + s.$2);
+  if (total <= 0) return [];
+  return [
+    for (final (name, share) in shares.take(whyNamed)) (name: name, share: share / total, rest: 0),
+    if (shares.length > whyNamed)
+      (
+        name: '',
+        share: shares.skip(whyNamed).fold(0.0, (sum, s) => sum + s.$2) / total,
+        rest: shares.length - whyNamed,
+      ),
+  ];
 }
 
 /// The artists suggested each day are kept for the discovery report, the last [historyDays] days of them

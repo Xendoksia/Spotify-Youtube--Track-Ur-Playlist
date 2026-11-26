@@ -182,6 +182,15 @@ class ModelTest(RecommendTestCase):
         recommend.suggestions(fetch=True, get=deezer, now=NOW, db_path=self.db)
         self.assertEqual(deezer.requests, 2)
 
+    def test_each_suggestion_keeps_what_each_seed_added_to_its_score(self):
+        seeds = [{"key": "a", "name": "A", "weight": 2.0}, {"key": "b", "name": "B", "weight": 1.0}]
+        related = {"a": [{"name": "X"}, {"name": "Y"}], "b": [{"name": "X"}]}
+        ranked = recommend.score(seeds, related, set(), decay=0.5, size=2)
+        self.assertEqual(ranked[0]["name"], "X")
+        self.assertEqual([name for name, _ in ranked[0]["shares"]], ["A", "B"])
+        for item in ranked:
+            self.assertAlmostEqual(sum(share for _, share in item["shares"]), item["score"], places=2)
+
     def test_hidden_artists_are_left_out_and_the_fame_setting_reorders_the_rest(self):
         artists = [{"name": "Duman", "score": 3.0, "listeners": 300, "deezer_fans": 900_000},
                    {"name": "Small Band", "score": 2.8, "listeners": 50, "deezer_fans": 400},

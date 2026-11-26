@@ -31,7 +31,7 @@ CACHE_PATH = ART_DIR / "related.json"
 DISCOVER_PATH = ART_DIR / "discover.json"
 DISCOVER_SECONDS = 24 * 3600
 # Raised when the models in models/ change, so the saved suggestions are worked out again with them at once
-MODEL_VERSION = 3
+MODEL_VERSION = 4
 # The artists suggested each day, kept for the discovery report: which of them were played afterwards
 HISTORY_PATH = ART_DIR / "discover_history.json"
 HISTORY_DAYS = 60
@@ -298,7 +298,7 @@ def score(seed_list: list[dict], related_of: dict[str, list[dict]], played: set[
     """Rank the related artists (or songs, by their "key") not played yet: each seed adds its weight, scaled down
     the lower the item is in its list, so one close to several of the seeds wins. Picked one at a time, and each
     pick lowers what its seeds add to the rest (decay), so the suggestions reach beyond the most played. Each gets
-    the seeds that suggested it, most first."""
+    the seeds that suggested it, most first, and what each added to its score (shares, [name, share])."""
     shares: dict[str, dict] = {}
     for seed in seed_list:
         candidates = related_of.get(seed["key"]) or []
@@ -319,8 +319,9 @@ def score(seed_list: list[dict], related_of: dict[str, list[dict]], played: set[
         best = max(shares.values(), key=lambda a: (value(a), a.get("fans", 0)))
         del shares[best["key"]]
         because = sorted(best["shares"], key=lambda n: -best["shares"][n])
+        added = [[name, round(best["shares"][name] * decay ** used[name], 3)] for name in because]
         ranked.append({**{k: v for k, v in best.items() if k != "shares"}, "score": round(value(best), 3),
-                       "because": because})
+                       "because": because, "shares": sorted(added, key=lambda s: -s[1])})
         for name in best["shares"]:
             used[name] += 1
     return ranked

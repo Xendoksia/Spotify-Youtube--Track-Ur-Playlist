@@ -125,10 +125,31 @@ def _look_up(arrived: Callable[[], None]) -> None:
     arrived()
 
 
+# The seeds named in why a suggestion came, the rest together
+WHY_NAMED = 4
+
+
+def why(item: dict, songs: bool = False) -> list[dict]:
+    """What each seed added to a suggestion's score, {name, share, text} with share of the whole, the largest
+    WHY_NAMED by name and the rest together."""
+    shares = item.get("shares") or []
+    total = sum(share for _, share in shares)
+    if not total:
+        return []
+    found = [{"name": name, "share": share / total} for name, share in shares[:WHY_NAMED]]
+    if len(shares) > WHY_NAMED:
+        rest = sum(share for _, share in shares[WHY_NAMED:]) / total
+        found.append({"name": t("discover.why_rest_songs" if songs else "discover.why_rest",
+                                count=number(len(shares) - WHY_NAMED)), "share": rest, "rest": True})
+    for entry in found:
+        entry["text"] = t("discover.why_share", value=number(round(entry["share"] * 100)))
+    return found
+
+
 def _song(song: dict, played_artist: bool) -> dict:
     first = listening._credit_parts(song["artist"])[0]
     return {
-        "key": loose(song["key"]),
+        "key": loose(song["key"]), "why": why(song, songs=True),
         "title": song["name"], "subtitle": song["artist"], "because": because_text(song["because"], songs=True),
         "image": cover_url(song["artist"], "", song["name"]),
         "artist_image": artist_url(first),
@@ -210,10 +231,10 @@ def recommendations(arrived: Callable[[], None]) -> dict:
     hidden_songs = recommend.hidden_keys("song")
     left = lambda songs: [s for s in songs if loose(s["key"]) not in hidden_songs][:SONG_LIMIT]
     return {
-        "title": t("recommend.title"), "empty": t("recommend.none"), "loading": looking,
+        "title": t("recommend.title"), "empty": t("recommend.none"), "loading": looking, "why": t("discover.why"),
         "fame": fame, "hidden": config.get("DISCOVER_HIDDEN") or [],
         "artists": [{
-            "key": loose(recommend.fold(a["name"])),
+            "key": loose(recommend.fold(a["name"])), "why": why(a),
             "title": a["name"], "subtitle": because_text(a["because"]), "because": a["because"],
             "image": artist_url(a["name"]), "round": True, "link": spotify_search(a["name"]),
             "tracks": [{"title": tr["title"], "subtitle": tr["artist"],

@@ -65,6 +65,23 @@ void main() {
     expect(again.asked, 0);
   });
 
+  test('each suggestion keeps what each seed added, named for the largest and the rest together', () {
+    final ranked = score([
+      {'key': 'a', 'name': 'A', 'weight': 2.0},
+      {'key': 'b', 'name': 'B', 'weight': 1.0},
+    ], {
+      'a': [{'name': 'X'}, {'name': 'Y'}],
+      'b': [{'name': 'X'}],
+    }, {}, decay: 0.5, size: 2);
+    expect(ranked.first['name'], 'X');
+    final why = whyOf(ranked.first);
+    expect(why.map((w) => w.name), ['A', 'B']);
+    expect(why.fold(0.0, (sum, w) => sum + w.share), closeTo(1, 1e-9));
+    final many = whyOf({'shares': [for (var i = 0; i < 6; i++) ['S$i', 1.0]]});
+    expect((many.length, many.last.rest), (5, 2));
+    expect(many.last.share, closeTo(2 / 6, 1e-9));
+  });
+
   test('hidden artists and songs are left out and the fame setting reorders the artists', () {
     final artists = <Item>[
       {'name': 'Duman', 'score': 3.0, 'listeners': 300, 'deezer_fans': 900000},

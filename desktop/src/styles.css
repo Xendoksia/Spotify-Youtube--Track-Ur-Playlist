@@ -7124,3 +7124,58 @@ a.trk-list-name:hover {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* What each artist or song played added to a suggestion (pages/Discover.tsx) */
+
+.why-bar {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+  max-width: 220px;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.why-bar > span {
+  min-width: 3px;
+  background: var(--accent);
+}
+
+.why-bar > span.rest {
+  background: var(--border);
+}
+
+.discover-artist .why-bar {
+  max-width: 120px;
+}
+
+.why-list {
+  display: grid;
+  gap: 4px;
+  max-width: 320px;
+  margin-top: 12px;
+}
+
+.why-list .why-bar {
+  max-width: none;
+  height: 8px;
+  margin: 2px 0 4px;
+}
+
+.why-list ol {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.why-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+}

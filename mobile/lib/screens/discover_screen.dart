@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -39,6 +41,80 @@ String _because(BuildContext context, List<String> names, {bool songs = false}) 
 };
 
 List<String> _names(Item item) => (item['because'] as List).cast<String>();
+
+/// The seeds' shares of a suggestion as one bar, each a step fainter
+class _WhyBar extends StatelessWidget {
+  final List<Why> why;
+  final double height;
+
+  const _WhyBar({required this.why, this.height = 5});
+
+  @override
+  Widget build(BuildContext context) {
+    if (why.isEmpty) return const SizedBox.shrink();
+    final accent = Theme.of(context).colorScheme.primary;
+    final palette = Palette.of(context);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(height / 2),
+      child: SizedBox(
+        height: height,
+        child: Row(
+          children: [
+            for (final (index, w) in why.indexed) ...[
+              if (index > 0) const SizedBox(width: 2),
+              Expanded(
+                flex: max(1, (w.share * 1000).round()),
+                child: ColoredBox(
+                  color: w.rest > 0 ? palette.border : accent.withValues(alpha: 1 - index * 0.18),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The seeds' shares with their names, for the top pick
+class _WhyList extends StatelessWidget {
+  final List<Why> why;
+
+  const _WhyList({required this.why});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Palette.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(context.t('discover.why').toUpperCase(),
+            style: TextStyle(color: palette.muted, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
+        const SizedBox(height: 6),
+        _WhyBar(why: why, height: 8),
+        const SizedBox(height: 6),
+        for (final w in why)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 1),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    w.rest > 0 ? context.t('discover.why_rest', {'count': context.number(w.rest)}) : w.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, color: w.rest > 0 ? palette.muted : null),
+                  ),
+                ),
+                Text(context.t('discover.why_share', {'value': context.number((w.share * 100).round())}),
+                    style: TextStyle(fontSize: 13, color: palette.muted, fontFeatures: const [FontFeature.tabularFigures()])),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
 
 /// The menu of a suggestion: leave it out for good
 class _HideMenu extends StatelessWidget {
@@ -338,6 +414,10 @@ class _TopPick extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (whyOf(artist) case final why when why.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  _WhyList(why: why),
+                ],
                 const SizedBox(height: 12),
                 for (final track in tracks)
                   _TrackRow(artist: track['artist'] as String, title: track['title'] as String),
@@ -487,6 +567,11 @@ class _ArtistCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,
                           style: TextStyle(color: palette.muted, fontSize: 11)),
+                      const SizedBox(height: 6),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _WhyBar(why: whyOf(artist), height: 4),
+                      ),
                       const Spacer(),
                       for (final track in tracks.take(2))
                         InkWell(
@@ -578,6 +663,8 @@ class _SongList extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(color: palette.muted, fontSize: 12)),
+                          const SizedBox(height: 4),
+                          FractionallySizedBox(widthFactor: 0.6, child: _WhyBar(why: whyOf(song), height: 4)),
                         ],
                       ),
                     ),
