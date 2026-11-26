@@ -89,6 +89,11 @@ class Preview extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Play a song's preview unless it is the one playing already (as a slide of the summary does)
+  Future<void> play(String artist, String title) async {
+    if (_keyOf(artist, title) != _key) await toggle(artist, title);
+  }
+
   /// A preview stops when the app goes to the background
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {

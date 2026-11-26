@@ -60,6 +60,11 @@ async function toggle(artist: string, title: string) {
   }
 }
 
+/** Play a song's preview unless it is the one playing already (as a slide of the summary does) */
+export function playPreview(artist: string, title: string) {
+  if (current.key !== `${artist}|${title}`) toggle(artist, title);
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);

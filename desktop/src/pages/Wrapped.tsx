@@ -13,6 +13,7 @@ import Sigil from "../components/Sigil";
 import { AppInfo, makeTexts, TextsContext, useTexts } from "../i18n";
 import type { Mood } from "../mood";
 import { Column, useOpenDetail } from "../navigation";
+import { playPreview, stopPreview } from "../preview";
 
 type Part =
   | { type: "big"; value: number; kind: "minutes" | "plays" | "new_tracks" | "times" }
@@ -50,6 +51,8 @@ interface Slide {
   mood?: Mood | null;
   /** The covers behind the first slide */
   wall?: string[];
+  /** The song whose 30 second preview plays while the slide shows */
+  song?: { artist: string; title: string } | null;
 }
 
 interface SummaryData {
@@ -533,6 +536,7 @@ export default function Wrapped({ id, active, onClose, onSeen }: {
   const [leaving, setLeaving] = useState(false);
   const [paused, setPaused] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [sound, setSound] = useState(true);
   // "Saved" or "Copied" for a moment after sharing
   const [shared, setShared] = useState<string | null>(null);
   const sharing = useRef(false);
@@ -555,6 +559,14 @@ export default function Wrapped({ id, active, onClose, onSeen }: {
       onSeen();
     }, () => onClose());
   }, [id, onClose, onSeen]);
+
+  // The song of the slide showing plays, and stops with the slide, the summary or the sound turned off
+  const song = data?.slides[index]?.song;
+  useEffect(() => {
+    if (song && sound && active) playPreview(song.artist, song.title);
+    else stopPreview();
+  }, [song?.artist, song?.title, sound, active]);
+  useEffect(() => stopPreview, []);
 
   const count = data?.slides.length ?? 0;
   const step = (direction: number) => {
@@ -647,6 +659,8 @@ export default function Wrapped({ id, active, onClose, onSeen }: {
             </div>
           )}
         </div>
+        <button className="icon-button" title={t(sound ? "wrapped.sound_off" : "wrapped.sound_on")}
+                onClick={() => setSound(!sound)}><Icon name={sound ? "volume" : "mute"} /></button>
         <button className="icon-button" title={t(paused ? "wrapped.play" : "wrapped.pause")}
                 onClick={() => setPaused(!paused)}><Icon name={paused ? "play" : "pause"} /></button>
         <button className="icon-button" onClick={onClose}><Icon name="close" /></button>

@@ -213,6 +213,8 @@ def summary(value: str) -> dict:
                           "text": t("wrapped.track.time", time=duration_text(track["minutes"]))})
         slides.append({"caption": t(of_period("wrapped.track.caption")), "parts": parts,
                        "open": {"column": "track_key", "key": track["key"]},
+                       # Its 30 second preview plays while the slide shows
+                       "song": {"artist": track["artist"], "title": track["name"]},
                        "mood": artwork.mood(artwork.fetch_cover(track["artist"], track["album"], track["name"]))})
     if artists:
         artist = artists[0]
@@ -226,8 +228,11 @@ def summary(value: str) -> dict:
         facts = artist_info.cached(artist["key"])
         if facts:
             parts.append(text(artist_info.describe(facts), gap=True))
+        # The artist's song played most in the period plays while the slide shows
+        [song] = listening.top_tracks(start, end, 1, artist_key=artist["key"]) or [None]
         slides.append({"caption": t(of_period("wrapped.artist.caption")), "parts": parts,
                        "open": {"column": "artist_key", "key": artist["key"]},
+                       "song": {"artist": song["artist"], "title": song["name"]} if song else None,
                        "mood": artwork.mood(artwork.fetch_artist(artist["name"]))})
     if len(tracks) > 1:
         slides.append({"caption": t("wrapped.tracks.caption"), "parts": [{"type": "podium", "round": False, "rows": [{

@@ -9,6 +9,7 @@ import '../../data/artwork.dart';
 import '../../data/genres.dart';
 import '../../data/models.dart';
 import '../../data/mood.dart';
+import '../../data/preview.dart';
 import '../../data/stats.dart';
 import '../../l10n/strings.dart';
 import '../../state/data_store.dart';
@@ -365,6 +366,34 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
   final _hues = <int, double>{};
   var _count = 0;
 
+  /// The song's slide plays its 30 second preview, and the artist's slide the artist's song played most in the
+  /// period, unless the sound is turned off
+  var _sound = true;
+
+  late final _artistSong = () {
+    if (_data.artists.isEmpty) return null;
+    final key = _data.artists.first.key;
+    final theirs = playsIn(widget.store.plays, widget.month).where((p) => artistKeysOf(p).contains(key)).toList();
+    final top = topTracks(theirs, limit: 1);
+    return top.isEmpty ? null : (top.first.artist, top.first.title);
+  }();
+
+  (String, String)? _songOf(int index) {
+    final track = _data.tracks.isEmpty ? null : _data.tracks.first;
+    if (track != null && index == 1) return (track.artist, track.title);
+    if (_data.artists.isNotEmpty && index == (track == null ? 1 : 2)) return _artistSong;
+    return null;
+  }
+
+  void _playFor(int index) {
+    final song = _sound ? _songOf(index) : null;
+    if (song == null) {
+      Preview.instance.stop();
+    } else {
+      Preview.instance.play(song.$1, song.$2);
+    }
+  }
+
   /// The year's wording of a text in a yearly summary: "Song of the year" for "Song of the month"
   String _of(String key) => _year ? '$key.year' : key;
 
@@ -484,6 +513,7 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
 
   @override
   void dispose() {
+    Preview.instance.stop();
     _pages.dispose();
     _index.dispose();
     _timer.dispose();
@@ -551,6 +581,14 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
                             ),
                           ),
                           IconButton(
+                            tooltip: context.t(_sound ? 'wrapped.sound_off' : 'wrapped.sound_on'),
+                            icon: Icon(_sound ? Icons.volume_up : Icons.volume_off, color: Colors.white),
+                            onPressed: () {
+                              setState(() => _sound = !_sound);
+                              _playFor(_index.value);
+                            },
+                          ),
+                          IconButton(
                             tooltip: context.t('wrapped.share'),
                             icon: const Icon(Icons.ios_share, color: Colors.white),
                             onPressed: () => _chooseShare(context.t('wrapped.title', {'month': month})),
@@ -576,6 +614,7 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
                             itemCount: slides.length,
                             onPageChanged: (index) {
                               _index.value = index;
+                              _playFor(index);
                               _timer.forward(from: 0);
                               if (_paused.value) _timer.stop();
                             },
