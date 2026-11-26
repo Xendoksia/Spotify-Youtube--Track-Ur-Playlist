@@ -3156,7 +3156,8 @@ polygon.web-before {
   display: block;
   height: 4px;
   border-radius: 2px;
-  background: linear-gradient(#fff, #fff) left / 100% 100% no-repeat, rgb(255 255 255 / 0.28);
+  /* One layer over the color: with a second layer the size could not be eased and the bar jumped full halfway */
+  background: linear-gradient(#fff, #fff) left / 100% 100% no-repeat rgb(255 255 255 / 0.28);
   animation: story-fill linear both;
 }
 
