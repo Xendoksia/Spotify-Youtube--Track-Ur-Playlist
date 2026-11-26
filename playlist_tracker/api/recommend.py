@@ -158,9 +158,6 @@ def discovery_report() -> dict | None:
             t("discover.report.since", day=_day(r["day"])),
             "artist_key": listening.key(r["name"]) if r["plays"] else None,
         } for r in found["rows"]],
-        "days_title": t("discover.report.days"),
-        "days": [{"label": _day(d["day"]), "artists": [{"title": n, "image": artist_url(n)} for n in d["names"]]}
-                 for d in found["days"][:7]],
     }
 
 

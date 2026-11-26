@@ -587,36 +587,6 @@ class _ReportCardState extends State<_ReportCard> {
                 child: Text(context.t('track.more', {'count': context.number(report.rows.length - rows.length)})),
               ),
             ),
-          const SizedBox(height: 12),
-          Text(context.t('discover.report.days'), style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
-          for (final (key, names) in report.days.take(7))
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  SizedBox(width: 56, child: Text(day(key), style: TextStyle(color: palette.muted, fontSize: 13))),
-                  Expanded(
-                    child: Wrap(
-                      runSpacing: 4,
-                      children: [
-                        for (final name in names)
-                          Align(
-                            widthFactor: 0.8,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(color: theme.cardColor, width: 2),
-                              ),
-                              child: ArtworkImage.artist(artist: name, size: 26),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );

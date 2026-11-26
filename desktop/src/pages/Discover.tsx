@@ -53,8 +53,6 @@ interface Report {
   listened: number;
   favorites: number;
   rows: ReportRow[];
-  days_title: string;
-  days: { label: string; artists: { title: string; image: string }[] }[];
 }
 
 interface DiscoverData {
@@ -187,7 +185,7 @@ function SongList({ title, summary, songs, openArtist }: {
   );
 }
 
-/** Which of the artists suggested in the last 30 days were played since, and the suggestions by day */
+/** Which of the artists suggested in the last 30 days were played since */
 // The report's first rows, the played ones first, the rest a click away
 const REPORT_ROWS = 5;
 
@@ -196,55 +194,37 @@ function DiscoveryReport({ report, openArtist }: { report: Report; openArtist: (
   const [all, setAll] = useState(false);
   const rows = all ? report.rows : report.rows.slice(0, REPORT_ROWS);
   return (
-    <div className="pair discover-report">
-      <Card icon="star" title={report.title}>
-        <div className="report-score">
-          <span className="report-number">{report.listened}</span>
-          <span className="muted">/ {report.suggested}</span>
-          <p className="muted">{report.summary}</p>
-        </div>
-        <div className="report-meter" aria-hidden>
-          {report.rows.map((row) => <span key={row.title} className={row.state} />)}
-        </div>
-        <ol className="report-rows">
-          {rows.map((row) => (
-            <li key={row.title}>
-              <button className="report-row"
-                      title={row.artist_key ? t("discover.open_artist") : t("discover.open_spotify")}
-                      onClick={(event) => row.artist_key ? openArtist(row.artist_key) : openSpotify(row.title)(event)}>
-                <Picture src={row.image} alt={row.title} round className="report-photo" />
-                <span className="report-text">
-                  <span className="report-name">{row.title}</span>
-                  <span className="muted">{row.detail}</span>
-                </span>
-                <span className={`report-state ${row.state}`}>{row.state_text}</span>
-              </button>
-            </li>
-          ))}
-        </ol>
-        {rows.length < report.rows.length && (
-          <button className="button report-more" onClick={() => setAll(true)}>
-            {t("track.more", { count: report.rows.length - rows.length })}
-          </button>
-        )}
-      </Card>
-      <Card icon="history" title={report.days_title}>
-        <ol className="report-days">
-          {report.days.map((day) => (
-            <li key={day.label}>
-              <span className="muted">{day.label}</span>
-              <span className="report-faces">
-                {day.artists.map((artist) => (
-                  <span key={artist.title} title={artist.title}>
-                    <Picture src={artist.image} alt={artist.title} round className="report-face" />
-                  </span>
-                ))}
+    <Card icon="star" title={report.title}>
+      <div className="report-score">
+        <span className="report-number">{report.listened}</span>
+        <span className="muted">/ {report.suggested}</span>
+        <p className="muted">{report.summary}</p>
+      </div>
+      <div className="report-meter" aria-hidden>
+        {report.rows.map((row) => <span key={row.title} className={row.state} />)}
+      </div>
+      <ol className="report-rows">
+        {rows.map((row) => (
+          <li key={row.title}>
+            <button className="report-row"
+                    title={row.artist_key ? t("discover.open_artist") : t("discover.open_spotify")}
+                    onClick={(event) => row.artist_key ? openArtist(row.artist_key) : openSpotify(row.title)(event)}>
+              <Picture src={row.image} alt={row.title} round className="report-photo" />
+              <span className="report-text">
+                <span className="report-name">{row.title}</span>
+                <span className="muted">{row.detail}</span>
               </span>
-            </li>
-          ))}
-        </ol>
-      </Card>
-    </div>
+              <span className={`report-state ${row.state}`}>{row.state_text}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      {rows.length < report.rows.length && (
+        <button className="button report-more" onClick={() => setAll(true)}>
+          {t("track.more", { count: report.rows.length - rows.length })}
+        </button>
+      )}
+    </Card>
   );
 }
 
