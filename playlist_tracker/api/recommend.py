@@ -209,7 +209,7 @@ def show(kind: str, key: str) -> dict:
 
 def set_fame(setting: str) -> dict:
     """Suggest better known artists, lesser known ones or the model's order."""
-    _set("DISCOVER_FAME", setting if setting in recommend.FAME_POWER else "balanced")
+    _set("DISCOVER_FAME", setting if setting in recommend.FAME_DIRECTION else "balanced")
     return {"ok": True}
 
 

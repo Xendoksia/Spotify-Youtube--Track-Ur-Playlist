@@ -68,9 +68,11 @@ REFRESH_SECONDS = 30 * 24 * 3600
 # place to the next
 ARTIST_POOL = 30
 SONG_POOL = 20
-# The fame setting (DISCOVER_FAME) weighs an artist's score by (fame / FAME_MIDDLE) ** FAME_POWER[setting]
-FAME_POWER = {"known": 3, "balanced": 0, "lesser": -3}
-FAME_MIDDLE = 6.0
+# The fame setting (DISCOVER_FAME) ranks by the square root of an artist's score, so the model's first few do not
+# always stay on top, times ten for each power of ten it is better known (or lesser known) than the middle of the
+# suggestions, at most FAME_LIMIT times either way
+FAME_DIRECTION = {"known": 1, "balanced": 0, "lesser": -1}
+FAME_LIMIT = 5.0
 # ListenBrainz's listener counts, in the model, are about a hundredth of Deezer's fan counts, and low for many
 # artists Deezer knows well (Turkish ones above all), so the larger of the two on one scale is taken
 LISTENERS_SCALE = 2.0
@@ -245,10 +247,12 @@ def pick_artists(artists: list[dict], limit: int, hidden: set[str] = frozenset()
     """The suggested artists to show: without the hidden ones (by key), in the model's order for the balanced
     setting, else with their scores weighed toward the better or the lesser known."""
     left = [a for a in artists if loose(fold(a["name"])) not in hidden]
-    power = FAME_POWER.get(setting, 0)
-    if power:
-        known = lambda a: fame(a.get("listeners", 0), a.get("deezer_fans", 0)) / FAME_MIDDLE
-        left = sorted(left, key=lambda a: -a.get("score", 0) * known(a) ** power)
+    direction = FAME_DIRECTION.get(setting, 0)
+    if direction and left:
+        known = {id(a): fame(a.get("listeners", 0), a.get("deezer_fans", 0)) for a in left}
+        middle = sorted(known.values())[len(known) // 2]
+        factor = lambda a: min(FAME_LIMIT, max(1 / FAME_LIMIT, 10 ** (direction * (known[id(a)] - middle))))
+        left = sorted(left, key=lambda a: -math.sqrt(max(0.0, a.get("score", 0))) * factor(a))
     return left[:limit]
 
 

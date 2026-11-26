@@ -46,7 +46,7 @@ class AppController extends ChangeNotifier {
       }
     }
     final fame = data[fameSetting];
-    if (fame is String && famePower.containsKey(fame) && fame != readFame(_prefs)) {
+    if (fame is String && fameDirection.containsKey(fame) && fame != readFame(_prefs)) {
       await _prefs.setString(fameSetting, fame);
       changed = true;
     }

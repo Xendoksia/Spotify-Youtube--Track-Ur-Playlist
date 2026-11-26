@@ -45,9 +45,11 @@ const modelVersion = 4;
 const artistPool = 30;
 const songPool = 20;
 
-/// The fame setting (DISCOVER_FAME) weighs an artist's score by (fame / [fameMiddle]) ^ famePower[setting]
-const famePower = {'known': 3, 'balanced': 0, 'lesser': -3};
-const fameMiddle = 6.0;
+/// The fame setting (DISCOVER_FAME) ranks by the square root of an artist's score, so the model's first few do not
+/// always stay on top, times ten for each power of ten it is better known (or lesser known) than the middle of the
+/// suggestions, at most [fameLimit] times either way
+const fameDirection = {'known': 1, 'balanced': 0, 'lesser': -1};
+const fameLimit = 5.0;
 
 /// ListenBrainz's listener counts, in the model, are about a hundredth of Deezer's fan counts, and low for many
 /// artists Deezer knows well (Turkish ones above all), so the larger of the two on one scale is taken
@@ -304,11 +306,13 @@ double fame(int listeners, int fans) =>
 /// else with their scores weighed toward the better or the lesser known
 List<Item> pickArtists(List<Item> artists, int limit, {Set<String> hidden = const {}, String setting = 'balanced'}) {
   final left = [for (final a in artists) if (!hidden.contains(artistMatch(a['name'] as String))) a];
-  final power = famePower[setting] ?? 0;
-  if (power != 0) {
+  final direction = fameDirection[setting] ?? 0;
+  if (direction != 0 && left.isNotEmpty) {
+    final known = {for (final a in left) a: fame((a['listeners'] as int?) ?? 0, (a['deezer_fans'] as int?) ?? 0)};
+    final middle = (known.values.toList()..sort())[known.length ~/ 2];
     double weight(Item a) =>
-        ((a['score'] as num?) ?? 0) *
-        pow(fame((a['listeners'] as int?) ?? 0, (a['deezer_fans'] as int?) ?? 0) / fameMiddle, power).toDouble();
+        sqrt(max(0, ((a['score'] as num?) ?? 0).toDouble())) *
+        pow(10, direction * (known[a]! - middle)).toDouble().clamp(1 / fameLimit, fameLimit);
     // Sorted with the place as the tie-break, so equal weights keep the model's order
     final place = {for (final (i, a) in left.indexed) a: i};
     left.sort((a, b) {
@@ -626,7 +630,7 @@ List<Hidden> readHidden(SharedPreferences prefs) {
 
 String readFame(SharedPreferences prefs) {
   final setting = prefs.getString(fameSetting);
-  return famePower.containsKey(setting) ? setting! : 'balanced';
+  return fameDirection.containsKey(setting) ? setting! : 'balanced';
 }
 
 
