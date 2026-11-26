@@ -14,6 +14,8 @@ from typing import Callable
 from urllib.parse import quote, urlencode
 
 from playlist_tracker.api.overview import artist_url, cover_url
+from playlist_tracker.core import sync
+from playlist_tracker.core.config import load_config, save_config
 from playlist_tracker.core.i18n import number, t
 from datetime import date
 
@@ -126,6 +128,7 @@ def _look_up(arrived: Callable[[], None]) -> None:
 def _song(song: dict, played_artist: bool) -> dict:
     first = listening._credit_parts(song["artist"])[0]
     return {
+        "key": loose(song["key"]),
         "title": song["name"], "subtitle": song["artist"], "because": because_text(song["because"], songs=True),
         "image": cover_url(song["artist"], "", song["name"]),
         "artist_image": artist_url(first),
@@ -161,6 +164,34 @@ def discovery_report() -> dict | None:
     }
 
 
+def _set(key: str, value) -> None:
+    """Keep a Discover setting and send it to the other devices with the next sync."""
+    config = load_config()
+    config[key] = value
+    sync.settings_changed(config)
+    save_config(config)
+
+
+def hide(kind: str, key: str, name: str) -> dict:
+    """Leave an artist or a song out of the suggestions for good, the next one taking its place."""
+    hidden = [h for h in load_config().get("DISCOVER_HIDDEN") or [] if (h["kind"], h["key"]) != (kind, key)]
+    _set("DISCOVER_HIDDEN", [*hidden, {"kind": kind, "key": key, "name": name}])
+    return {"ok": True}
+
+
+def show(kind: str, key: str) -> dict:
+    """Suggest a hidden artist or song again."""
+    _set("DISCOVER_HIDDEN", [h for h in load_config().get("DISCOVER_HIDDEN") or []
+                             if (h["kind"], h["key"]) != (kind, key)])
+    return {"ok": True}
+
+
+def set_fame(setting: str) -> dict:
+    """Suggest better known artists, lesser known ones or the model's order."""
+    _set("DISCOVER_FAME", setting if setting in recommend.FAME_POWER else "balanced")
+    return {"ok": True}
+
+
 def recommendations(arrived: Callable[[], None]) -> dict:
     """{title, artists, new_songs, known_songs, loading, empty}: the suggested artists with the reason and their
     top tracks, and the suggested songs by new artists and by artists played."""
@@ -174,18 +205,23 @@ def recommendations(arrived: Callable[[], None]) -> dict:
                 _lookup = threading.Thread(target=_look_up, args=(arrived,), name="recommend", daemon=True)
                 _lookup.start()
             looking = _lookup is not None
-    songs = found
+    config = load_config()
+    fame = config.get("DISCOVER_FAME") or "balanced"
+    hidden_songs = recommend.hidden_keys("song")
+    left = lambda songs: [s for s in songs if loose(s["key"]) not in hidden_songs][:SONG_LIMIT]
     return {
         "title": t("recommend.title"), "empty": t("recommend.none"), "loading": looking,
+        "fame": fame, "hidden": config.get("DISCOVER_HIDDEN") or [],
         "artists": [{
+            "key": loose(recommend.fold(a["name"])),
             "title": a["name"], "subtitle": because_text(a["because"]), "because": a["because"],
             "image": artist_url(a["name"]), "round": True, "link": spotify_search(a["name"]),
             "tracks": [{"title": tr["title"], "subtitle": tr["artist"],
                         "image": cover_url(tr["artist"], tr["album"], tr["title"]),
                         "link": spotify_search(tr["artist"], tr["title"]), "deezer": tr["link"]}
                        for tr in a["tracks"]],
-        } for a in found["artists"][:LIMIT]],
-        "new_songs": [_song(s, False) for s in songs["new"]],
-        "known_songs": [_song(s, True) for s in songs["known"]],
+        } for a in recommend.pick_artists(found["artists"], LIMIT, recommend.hidden_keys("artist"), fame)],
+        "new_songs": [_song(s, False) for s in left(found["new"])],
+        "known_songs": [_song(s, True) for s in left(found["known"])],
         "report": discovery_report(),
     }

@@ -7012,3 +7012,120 @@ a.trk-list-name:hover {
   display: block;
   margin: 8px auto 0;
 }
+
+/* Hiding a suggestion and the fame setting (pages/Discover.tsx) */
+
+.discover-head-side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.discover-fame {
+  margin-right: 0;
+}
+
+.discover-fame button {
+  padding: 5px 14px;
+  font-size: 13px;
+}
+
+.discover-hide {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.discover-hide:hover {
+  color: var(--text);
+}
+
+.discover-artist {
+  position: relative;
+}
+
+.discover-hide.corner {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+
+.discover-artist:hover .discover-hide.corner,
+.discover-hide.corner:focus-visible {
+  opacity: 1;
+}
+
+.discover-song .discover-hide {
+  opacity: 0;
+  transition: opacity 150ms;
+}
+
+.discover-song:hover .discover-hide,
+.discover-song .discover-hide:focus-visible {
+  opacity: 1;
+}
+
+.discover-hide.on-hero {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: color-mix(in oklch, var(--surface) 70%, transparent);
+}
+
+.discover-top .hero-body {
+  position: relative;
+}
+
+.discover-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  animation: rise 240ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.discover-note .button {
+  margin-left: auto;
+}
+
+.discover-hidden {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.discover-hidden-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 150ms;
+}
+
+.discover-hidden-chip:hover {
+  background: var(--hover);
+}
+
+.discover-hidden-chip .icon {
+  color: var(--muted);
+  font-size: 12px;
+}

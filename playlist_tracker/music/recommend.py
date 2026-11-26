@@ -10,6 +10,7 @@ only artist names and Deezer ids are sent. Its lookups are cached in artwork/rel
 from __future__ import annotations
 
 import json
+import math
 import threading
 import time
 import unicodedata
@@ -30,7 +31,7 @@ CACHE_PATH = ART_DIR / "related.json"
 DISCOVER_PATH = ART_DIR / "discover.json"
 DISCOVER_SECONDS = 24 * 3600
 # Raised when the models in models/ change, so the saved suggestions are worked out again with them at once
-MODEL_VERSION = 2
+MODEL_VERSION = 3
 # The artists suggested each day, kept for the discovery report: which of them were played afterwards
 HISTORY_PATH = ART_DIR / "discover_history.json"
 HISTORY_DAYS = 60
@@ -60,6 +61,17 @@ SONG_PER_ARTIST = 2
 EMPTY_RETRY_SECONDS = 3600
 # Related artists and top tracks change slowly, so they are looked up again after this long
 REFRESH_SECONDS = 30 * 24 * 3600
+
+# More artists and songs are worked out than shown, so one hidden or moved down by the fame setting gives its
+# place to the next
+ARTIST_POOL = 30
+SONG_POOL = 20
+# The fame setting (DISCOVER_FAME) weighs an artist's score by (fame / FAME_MIDDLE) ** FAME_POWER[setting]
+FAME_POWER = {"known": 3, "balanced": 0, "lesser": -3}
+FAME_MIDDLE = 6.0
+# ListenBrainz's listener counts, in the model, are about a hundredth of Deezer's fan counts, and low for many
+# artists Deezer knows well (Turkish ones above all), so the larger of the two on one scale is taken
+LISTENERS_SCALE = 2.0
 
 _lock = threading.Lock()
 _cache: dict | None = None
@@ -147,7 +159,8 @@ def model_related(name: str) -> list[dict] | None:
     index = model.artists.find(fold(name))
     if index is None:
         return None
-    return [{"name": model.artists.items[j]["name"], "fans": model.artists.items[j]["listeners"]}
+    return [{"name": model.artists.items[j]["name"], "fans": model.artists.items[j]["listeners"],
+             "listeners": model.artists.items[j]["listeners"]}
             for j in model.artists.neighbours(index)[:MODEL_RELATED]]
 
 
@@ -160,12 +173,17 @@ def _data(get: Callable, url: str) -> list[dict]:
     return answer.get("data") or []
 
 
-def _find_id(name: str, get: Callable) -> int | None:
-    """The Deezer id of an artist: of the results with the same name, apart from accents, the one with most fans,
-    as Deezer may also hold a same named artist with a handful of fans."""
+def _find(name: str, get: Callable) -> dict | None:
+    """An artist on Deezer: of the results with the same name, apart from accents, the one with most fans, as
+    Deezer may also hold a same named artist with a handful of fans."""
     results = _data(get, f"{SEARCH_URL}/search/artist?" + urlencode({"q": name, "limit": 10}))
     same = [r for r in results if fold(r.get("name", "")) == fold(name)]
-    return max(same, key=lambda r: r.get("nb_fan") or 0)["id"] if same else None
+    return max(same, key=lambda r: r.get("nb_fan") or 0) if same else None
+
+
+def _find_id(name: str, get: Callable) -> int | None:
+    found = _find(name, get)
+    return found["id"] if found else None
 
 
 def related(name: str, get: Callable = _get, fetch: bool = True) -> list[dict] | None:
@@ -188,21 +206,53 @@ def related(name: str, get: Callable = _get, fetch: bool = True) -> list[dict] |
     return entry["related"]
 
 
-def _artist_id(name: str, get: Callable, fetch: bool) -> int | None:
-    """The Deezer id of an artist the model suggested, for its top tracks. Raises LookupError when not looked up
-    yet and fetch is off."""
+def _artist_entry(name: str, get: Callable, fetch: bool) -> dict:
+    """{id, fans} of a suggested artist on Deezer, for its top tracks and how well known it is. Raises LookupError
+    when not looked up yet and fetch is off."""
     with _lock:
         entry = _load()["ids"].get(fold(name))
-    if not _fresh(entry):
+    # Ids kept before the fans were are looked up again
+    if not _fresh(entry) or "fans" not in entry:
         if not fetch:
             raise LookupError(name)
-        entry = {"at": time.time(), "id": _find_id(name, get)}
+        found = _find(name, get)
+        entry = {"at": time.time(), "id": found["id"] if found else None,
+                 "fans": (found.get("nb_fan") or 0) if found else 0}
         if not entry["id"]:
             entry["missing"] = True
         with _lock:
             _load()["ids"][fold(name)] = entry
             _save()
-    return entry["id"]
+    return entry
+
+
+def _artist_id(name: str, get: Callable, fetch: bool) -> int | None:
+    """The Deezer id of an artist the model suggested, for its top tracks. Raises LookupError when not looked up
+    yet and fetch is off."""
+    return _artist_entry(name, get, fetch)["id"]
+
+
+def fame(listeners: int, fans: int) -> float:
+    """How well known an artist is, about 2 to 7: the larger of its Deezer fans and its ListenBrainz listeners
+    on the same scale, in powers of ten."""
+    return max(math.log10(1 + fans), math.log10(1 + listeners) + LISTENERS_SCALE)
+
+
+def pick_artists(artists: list[dict], limit: int, hidden: set[str] = frozenset(), setting: str = "balanced") \
+        -> list[dict]:
+    """The suggested artists to show: without the hidden ones (by key), in the model's order for the balanced
+    setting, else with their scores weighed toward the better or the lesser known."""
+    left = [a for a in artists if loose(fold(a["name"])) not in hidden]
+    power = FAME_POWER.get(setting, 0)
+    if power:
+        known = lambda a: fame(a.get("listeners", 0), a.get("deezer_fans", 0)) / FAME_MIDDLE
+        left = sorted(left, key=lambda a: -a.get("score", 0) * known(a) ** power)
+    return left[:limit]
+
+
+def hidden_keys(kind: str) -> set[str]:
+    """The keys of the artists or songs hidden from the suggestions (DISCOVER_HIDDEN)."""
+    return {h["key"] for h in load_config().get("DISCOVER_HIDDEN") or [] if h.get("kind") == kind}
 
 
 def top_tracks(artist_id: int, get: Callable = _get, fetch: bool = True) -> list[dict] | None:
@@ -299,6 +349,17 @@ def suggestions(limit: int = 12, fetch: bool = True, get: Callable = _get, now: 
     artists = score(seed_list, related_of, heard(db_path), MODEL_SEED_DECAY if use_model else SEED_DECAY,
                     MODEL_RELATED if use_model else RELATED, limit)
     for artist in artists:
+        if "listeners" not in artist and use_model:
+            index = model.artists.find(fold(artist["name"]))
+            artist["listeners"] = model.artists.items[index]["listeners"] if index is not None else 0
+        if "listeners" not in artist:
+            # A Deezer related artist's fans are Deezer's own
+            artist["deezer_fans"] = artist.get("fans", 0)
+        elif chosen != "model":
+            try:
+                artist["deezer_fans"] = _artist_entry(artist["name"], get, fetch)["fans"]
+            except Exception:  # not looked up yet, offline or Deezer unavailable: tried again next time
+                complete = False
         tracks = model_tracks(artist["name"], played_songs) if use_model else []
         if not tracks and chosen != "model":
             try:
@@ -412,16 +473,23 @@ def discover(limit: int = 12, song_limit: int = 10, fetch: bool = False, force: 
     are used. Either way the artists and songs played since are left out."""
     saved = None if force else _read_discover()
     if saved is None or time.time() - saved["at"] >= DISCOVER_SECONDS or saved.get("model") != MODEL_VERSION:
-        found = suggestions(limit, fetch, get, now, db_path)
-        songs = song_suggestions(song_limit, now, db_path, skip_artists={a["key"] for a in found["artists"]})
+        found = suggestions(max(limit, ARTIST_POOL), fetch, get, now, db_path)
+        shown = pick_artists(found["artists"], limit, hidden_keys("artist"),
+                             load_config().get("DISCOVER_FAME") or "balanced")
+        songs = song_suggestions(max(song_limit, SONG_POOL), now, db_path, skip_artists={a["key"] for a in shown})
         saved = {"at": time.time(), "model": MODEL_VERSION, "complete": found["complete"], "artists": found["artists"],
                  **songs}
         _write_discover(saved)
-        _remember([a["name"] for a in found["artists"]], now)
+        _remember([a["name"] for a in shown], now)
     else:
-        # An artist saved without songs, as Deezer could not be reached, takes them once they are found
+        # An artist saved without songs or fans, as Deezer could not be reached, takes them once they are found
         filled = False
         for artist in saved["artists"]:
+            if "deezer_fans" not in artist and source() == "hybrid":
+                try:
+                    artist["deezer_fans"], filled = _artist_entry(artist["name"], get, fetch=False)["fans"], True
+                except LookupError:
+                    saved["complete"] = False
             if not artist["tracks"] and artist.get("id"):
                 tracks = top_tracks(artist["id"], get, fetch=False)
                 if tracks:
@@ -432,7 +500,8 @@ def discover(limit: int = 12, song_limit: int = 10, fetch: bool = False, force: 
             _write_discover(saved)
         # Suggestions saved before the history was kept start it, on the day they were worked out
         if not _read_history():
-            _remember([a["name"] for a in saved["artists"][:limit]], datetime.fromtimestamp(saved["at"], timezone.utc))
+            _remember([a["name"] for a in pick_artists(saved["artists"], limit)],
+                      datetime.fromtimestamp(saved["at"], timezone.utc))
     played_artists, played_songs = heard(db_path), heard_songs(db_path)
     artists = [{**a, "tracks": [t for t in a["tracks"] if song_key(t["artist"], t["title"]) not in played_songs]}
                for a in saved["artists"] if loose(fold(a["name"])) not in played_artists]

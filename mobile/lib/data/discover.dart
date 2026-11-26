@@ -38,7 +38,23 @@ const songsPerArtist = 2;
 const discoverEvery = Duration(hours: 24);
 
 /// Raised when the models change, so the saved suggestions are worked out again with them at once
-const modelVersion = 2;
+const modelVersion = 3;
+
+/// More artists and songs are worked out than shown, so one hidden or moved down by the fame setting gives its
+/// place to the next
+const artistPool = 30;
+const songPool = 20;
+
+/// The fame setting (DISCOVER_FAME) weighs an artist's score by (fame / [fameMiddle]) ^ famePower[setting]
+const famePower = {'known': 3, 'balanced': 0, 'lesser': -3};
+const fameMiddle = 6.0;
+
+/// ListenBrainz's listener counts, in the model, are about a hundredth of Deezer's fan counts, and low for many
+/// artists Deezer knows well (Turkish ones above all), so the larger of the two on one scale is taken
+const listenersScale = 2.0;
+
+/// An artist's Deezer fans are looked up again after this long
+const fansEvery = Duration(days: 30);
 const retryIncomplete = Duration(hours: 1);
 
 /// Copies of the repository's models/ files (see pubspec.yaml)
@@ -244,15 +260,17 @@ class Deezer {
     return list is List ? list.whereType<Map<String, dynamic>>().toList() : [];
   }
 
-  /// The Deezer id of an artist: of the results with the same name, the one with most fans
-  Future<int?> artistId(String name) async {
+  /// An artist on Deezer, (id, fans): of the results with the same name, the one with most fans
+  Future<(int, int)?> artist(String name) async {
     final same = (await data('/search/artist', {'q': name, 'limit': '10'}))
         .where((r) => fold(r['name'] as String? ?? '') == fold(name))
         .toList();
     if (same.isEmpty) return null;
     same.sort((a, b) => ((b['nb_fan'] as num?) ?? 0).compareTo((a['nb_fan'] as num?) ?? 0));
-    return (same.first['id'] as num).toInt();
+    return ((same.first['id'] as num).toInt(), ((same.first['nb_fan'] as num?) ?? 0).toInt());
   }
+
+  Future<int?> artistId(String name) async => (await artist(name))?.$1;
 
   Future<List<Item>> related(String name) async {
     final id = await artistId(name);
@@ -273,9 +291,37 @@ class Deezer {
   }
 }
 
-/// Everything worked out from the models: {at, complete, artists, new, known}
-Future<Map<String, Object?>> workOut(List<Uint8List> files, List<PlayRow> plays, int now, {Deezer? deezer}) async {
+/// How well known an artist is, about 2 to 7: the larger of its Deezer fans and its ListenBrainz listeners on the
+/// same scale, in powers of ten
+double fame(int listeners, int fans) =>
+    max(log(1 + fans) / ln10, log(1 + listeners) / ln10 + listenersScale);
+
+/// The suggested artists to show: without the hidden ones (by key), in the model's order for the balanced setting,
+/// else with their scores weighed toward the better or the lesser known
+List<Item> pickArtists(List<Item> artists, int limit, {Set<String> hidden = const {}, String setting = 'balanced'}) {
+  final left = [for (final a in artists) if (!hidden.contains(artistMatch(a['name'] as String))) a];
+  final power = famePower[setting] ?? 0;
+  if (power != 0) {
+    double weight(Item a) =>
+        ((a['score'] as num?) ?? 0) *
+        pow(fame((a['listeners'] as int?) ?? 0, (a['deezer_fans'] as int?) ?? 0) / fameMiddle, power).toDouble();
+    // Sorted with the place as the tie-break, so equal weights keep the model's order
+    final place = {for (final (i, a) in left.indexed) a: i};
+    left.sort((a, b) {
+      final order = weight(b).compareTo(weight(a));
+      return order != 0 ? order : place[a]!.compareTo(place[b]!);
+    });
+  }
+  return left.take(limit).toList();
+}
+
+/// Everything worked out from the models: {at, complete, artists, new, known, fans}. [fans] are the Deezer fans
+/// looked up before, by artist key, {fans, at}, given back with the new ones; the songs leave out the artists
+/// shown, the first [artistLimit] not [hidden] in the [setting]'s order
+Future<Map<String, Object?>> workOut(List<Uint8List> files, List<PlayRow> plays, int now,
+    {Deezer? deezer, Map<String, Object?> fans = const {}, Set<String> hidden = const {}, String setting = 'balanced'}) async {
   deezer ??= Deezer();
+  final knownFans = {...fans};
   final artistModel = Model.parse(files[0], files[1], songs: false);
   final songModel = Model.parse(files[2], files[3], songs: true, rp3: files.length > 4 ? files[4] : null);
   final playedArtists = heardArtists(plays);
@@ -290,7 +336,7 @@ Future<Map<String, Object?>> workOut(List<Uint8List> files, List<PlayRow> plays,
     if (index != null) {
       relatedOf[seed['key'] as String] = [
         for (final j in artistModel.neighbours(index).take(relatedCount))
-          {'name': artistModel.names[j], 'fans': artistModel.listeners[j]},
+          {'name': artistModel.names[j], 'fans': artistModel.listeners[j], 'listeners': artistModel.listeners[j]},
       ];
     } else {
       try {
@@ -304,8 +350,31 @@ Future<Map<String, Object?>> workOut(List<Uint8List> files, List<PlayRow> plays,
   for (var i = 0; i < songModel.keys.length; i++) {
     songsOf.putIfAbsent(loose(songModel.keys[i].split('|').first), () => []).add(i);
   }
-  final artists = score(seeds, relatedOf, playedArtists, limit: artistLimit);
+  final artists = score(seeds, relatedOf, playedArtists, limit: artistPool);
   for (final artist in artists) {
+    final name = artist['name'] as String;
+    if (artist['listeners'] == null) {
+      final index = artistModel.find(fold(name));
+      if (index != null) artist['listeners'] = artistModel.listeners[index];
+    }
+    if (artist['listeners'] == null) {
+      // A Deezer related artist's fans are Deezer's own
+      artist['deezer_fans'] = artist['fans'];
+    } else {
+      final kept = (knownFans[artistMatch(name)] as Map?)?.cast<String, Object?>();
+      if (kept != null && now - (kept['at'] as int) < fansEvery.inMilliseconds) {
+        artist['deezer_fans'] = kept['fans'];
+      } else {
+        try {
+          final found = await deezer.artist(name);
+          artist['deezer_fans'] = found?.$2 ?? 0;
+          artist['id'] ??= found?.$1;
+          knownFans[artistMatch(name)] = {'fans': artist['deezer_fans'], 'at': now};
+        } catch (_) {
+          complete = false;
+        }
+      }
+    }
     final seen = {...playedSongs};
     final own = (songsOf[artistMatch(artist['name'] as String)] ?? [])
       ..sort((a, b) => songModel.listeners[b].compareTo(songModel.listeners[a]));
@@ -349,20 +418,20 @@ Future<Map<String, Object?>> workOut(List<Uint8List> files, List<PlayRow> plays,
       }, playedSongs);
   final knn = ranked(songModel.neighbours);
   final songRanked = songModel.hasRp3 ? fuse([knn, ranked(songModel.neighboursRp3)]) : knn;
-  final skip = {for (final a in artists) a['key'] as String};
+  final skip = {for (final a in pickArtists(artists, artistLimit, hidden: hidden, setting: setting)) a['key'] as String};
   final lists = <String, List<Item>>{'new': [], 'known': []};
   final perArtist = <String, int>{};
   for (final song in songRanked) {
     final names = creditParts(song['artist'] as String).map(artistMatch).toList();
     final known = names.any(playedArtists.contains);
     final target = lists[known ? 'known' : 'new']!;
-    if (target.length >= songLimit || (perArtist[names.first] ?? 0) >= songsPerArtist) continue;
+    if (target.length >= songPool || (perArtist[names.first] ?? 0) >= songsPerArtist) continue;
     if (!known && skip.contains(names.first)) continue;
     perArtist[names.first] = (perArtist[names.first] ?? 0) + 1;
     target.add(song);
-    if (lists.values.every((l) => l.length >= songLimit)) break;
+    if (lists.values.every((l) => l.length >= songPool)) break;
   }
-  return {'at': now, 'model': modelVersion, 'complete': complete, 'artists': artists, ...lists};
+  return {'at': now, 'model': modelVersion, 'complete': complete, 'artists': artists, ...lists, 'fans': knownFans};
 }
 
 /// The artists suggested each day are kept for the discovery report, the last [historyDays] days of them
@@ -467,28 +536,67 @@ class Suggestions {
 
   bool get isEmpty => artists.isEmpty && newSongs.isEmpty && knownSongs.isEmpty;
 
-  factory Suggestions.of(Map<String, Object?> saved, List<PlayRow> plays, [Report? report]) {
+  factory Suggestions.of(Map<String, Object?> saved, List<PlayRow> plays,
+      {Report? report, List<Hidden> hidden = const [], String setting = 'balanced'}) {
     final playedArtists = heardArtists(plays);
     final playedSongs = heardSongs(plays);
+    final hiddenSongs = {for (final h in hidden) if (h.kind == 'song') h.key};
     List<Item> items(String name) => ((saved[name] as List?) ?? const []).cast<Map>().map((m) => m.cast<String, Object?>()).toList();
+    List<Item> songs(String name) => [
+          for (final song in items(name))
+            if (!playedSongs.contains(loose(song['key'] as String)) && !hiddenSongs.contains(loose(song['key'] as String)))
+              song,
+        ].take(songLimit).toList();
+    final artists = [
+      for (final artist in items('artists'))
+        if (!playedArtists.contains(artistMatch(artist['name'] as String)))
+          {
+            ...artist,
+            'tracks': [
+              for (final track in (artist['tracks'] as List).cast<Map>())
+                if (!playedSongs.contains(songKey(track['artist'] as String, track['title'] as String))) track,
+            ],
+          },
+    ];
     return Suggestions(
-      [
-        for (final artist in items('artists'))
-          if (!playedArtists.contains(artistMatch(artist['name'] as String)))
-            {
-              ...artist,
-              'tracks': [
-                for (final track in (artist['tracks'] as List).cast<Map>())
-                  if (!playedSongs.contains(songKey(track['artist'] as String, track['title'] as String))) track,
-              ],
-            },
-      ],
-      [for (final song in items('new')) if (!playedSongs.contains(loose(song['key'] as String))) song],
-      [for (final song in items('known')) if (!playedSongs.contains(loose(song['key'] as String))) song],
+      pickArtists(artists, artistLimit, hidden: {for (final h in hidden) if (h.kind == 'artist') h.key}, setting: setting),
+      songs('new'),
+      songs('known'),
       report,
     );
   }
 }
+
+/// A suggestion left out for good, as the desktop app's DISCOVER_HIDDEN: an artist by its artistMatch key or a
+/// song by its loose model key, with the name shown in the list of hidden ones
+typedef Hidden = ({String kind, String key, String name});
+
+const hiddenSetting = 'DISCOVER_HIDDEN';
+const fameSetting = 'DISCOVER_FAME';
+
+List<Hidden> hiddenFrom(Object? list) => [
+      if (list is List)
+        for (final item in list.whereType<Map>())
+          (kind: '${item['kind']}', key: '${item['key']}', name: '${item['name']}'),
+    ];
+
+List<Map<String, String>> hiddenJson(List<Hidden> hidden) =>
+    [for (final h in hidden) {'kind': h.kind, 'key': h.key, 'name': h.name}];
+
+/// The hidden suggestions and the fame setting kept on the phone
+List<Hidden> readHidden(SharedPreferences prefs) {
+  try {
+    return hiddenFrom(jsonDecode(prefs.getString(hiddenSetting) ?? '[]'));
+  } catch (_) {
+    return [];
+  }
+}
+
+String readFame(SharedPreferences prefs) {
+  final setting = prefs.getString(fameSetting);
+  return famePower.containsKey(setting) ? setting! : 'balanced';
+}
+
 
 List<PlayRow> playRows(List<Play> plays) =>
     [for (final p in plays) (artist: p.artist, name: p.name, at: p.playedAt.millisecondsSinceEpoch)];
@@ -499,6 +607,7 @@ Future<List<Uint8List>> _readModels(Iterable<String> paths) async =>
 
 const _savedKey = 'DISCOVER';
 const _historyKey = 'DISCOVER_HISTORY';
+const _fansKey = 'DISCOVER_FANS';
 
 Future<Suggestions>? _working;
 
@@ -529,19 +638,35 @@ Future<Suggestions> _discover(List<Play> plays, DateTime? now) async {
   } catch (_) {}
   List<String> names(Map<String, Object?> found) =>
       [for (final artist in (found['artists'] as List).cast<Map>()) artist['name'] as String];
+  final hidden = readHidden(prefs);
+  final setting = readFame(prefs);
+  final hiddenArtists = {for (final h in hidden) if (h.kind == 'artist') h.key};
+  List<String> shown(Map<String, Object?> found) => [
+        for (final artist in pickArtists((found['artists'] as List).cast<Map>().map((m) => m.cast<String, Object?>()).toList(),
+            artistLimit,
+            hidden: hiddenArtists, setting: setting))
+          artist['name'] as String,
+      ];
   if (stale && rows.isNotEmpty) {
     final files = await _readModels(modelAssets);
-    saved = await Isolate.run(() => workOut(files, rows, moment));
+    Map<String, Object?> fans = {};
+    try {
+      fans = (jsonDecode(prefs.getString(_fansKey) ?? '{}') as Map).cast<String, Object?>();
+    } catch (_) {}
+    final found = await Isolate.run(() => workOut(files, rows, moment, fans: fans, hidden: hiddenArtists, setting: setting));
+    await prefs.setString(_fansKey, jsonEncode(found.remove('fans')));
+    saved = found;
     await prefs.setString(_savedKey, jsonEncode(saved));
-    history = remember(history, names(saved!), DateTime.fromMillisecondsSinceEpoch(moment));
+    history = remember(history, shown(saved), DateTime.fromMillisecondsSinceEpoch(moment));
     await prefs.setString(_historyKey, jsonEncode(history));
   } else if (saved != null && history.isEmpty) {
     // Suggestions saved before the history was kept start it, on the day they were worked out
-    history = remember(history, names(saved), DateTime.fromMillisecondsSinceEpoch(saved['at'] as int));
+    history = remember(history, names(saved).take(artistLimit).toList(), DateTime.fromMillisecondsSinceEpoch(saved['at'] as int));
     await prefs.setString(_historyKey, jsonEncode(history));
   }
   if (saved == null) return const Suggestions([], [], []);
-  return Suggestions.of(saved, rows, Report.of(history, rows, DateTime.fromMillisecondsSinceEpoch(moment)));
+  return Suggestions.of(saved, rows,
+      report: Report.of(history, rows, DateTime.fromMillisecondsSinceEpoch(moment)), hidden: hidden, setting: setting);
 }
 
 /// One of the most alike songs or artists: a song's artist and title, or an artist's name with an empty title

@@ -4,7 +4,7 @@
  * playing it is recorded, rather than in the browser, and every song's 30 second preview plays in the window. */
 
 import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
-import { get, imageUrl } from "../api";
+import { get, imageUrl, post } from "../api";
 import Card from "../components/Card";
 import Icon from "../components/Icon";
 import Picture from "../components/Picture";
@@ -21,6 +21,7 @@ interface Track {
 }
 
 interface Artist {
+  key: string;
   title: string;
   subtitle: string;
   image: string;
@@ -29,6 +30,7 @@ interface Artist {
 }
 
 interface Song extends Track {
+  key: string;
   because: string;
   /** Shown when Deezer has no cover for the song */
   artist_image: string;
@@ -55,9 +57,23 @@ interface Report {
   rows: ReportRow[];
 }
 
+type Fame = "known" | "balanced" | "lesser";
+const FAMES: Fame[] = ["known", "balanced", "lesser"];
+
+interface Hidden {
+  kind: "artist" | "song";
+  key: string;
+  name: string;
+}
+
+/** Leaves an artist or a song out of the suggestions for good */
+type Hide = (hidden: Hidden) => void;
+
 interface DiscoverData {
   empty: string;
   loading: boolean;
+  fame: Fame;
+  hidden: Hidden[];
   artists: Artist[];
   new_songs: Song[];
   known_songs: Song[];
@@ -88,8 +104,18 @@ function PreviewButton({ artist, title, className = "" }: { artist: string; titl
   );
 }
 
+function HideButton({ hidden, onHide, className = "" }: { hidden: Hidden; onHide: Hide; className?: string }) {
+  const { t } = useTexts();
+  return (
+    <button className={`icon-button discover-hide ${className}`} title={t("discover.hide")} aria-label={t("discover.hide")}
+            onClick={(event) => { event.preventDefault(); event.stopPropagation(); onHide(hidden); }}>
+      <Icon name="hide" />
+    </button>
+  );
+}
+
 /** The closest artist, large, with its songs */
-function TopPick({ artist }: { artist: Artist }) {
+function TopPick({ artist, onHide }: { artist: Artist; onHide: Hide }) {
   const { t } = useTexts();
   return (
     <section className="hero discover-top">
@@ -105,6 +131,7 @@ function TopPick({ artist }: { artist: Artist }) {
             <Icon name="play" />{t("discover.open_spotify")}
           </a>
         </div>
+        <HideButton hidden={{ kind: "artist", key: artist.key, name: artist.title }} onHide={onHide} className="on-hero" />
         {artist.tracks.length > 0 && (
           <ol className="discover-top-tracks">
             {artist.tracks.map((track) => (
@@ -124,10 +151,11 @@ function TopPick({ artist }: { artist: Artist }) {
   );
 }
 
-function ArtistTile({ artist, index }: { artist: Artist; index: number }) {
+function ArtistTile({ artist, index, onHide }: { artist: Artist; index: number; onHide: Hide }) {
   const { t } = useTexts();
   return (
     <article className="discover-artist" style={{ animationDelay: `${index * 40}ms` }}>
+      <HideButton hidden={{ kind: "artist", key: artist.key, name: artist.title }} onHide={onHide} className="corner" />
       <a className="discover-artist-head" href={artist.link} target="_blank" rel="noreferrer"
          title={t("discover.open_spotify")} onClick={openSpotify(artist.title)}>
         <Picture src={artist.image} alt={artist.title} round className="discover-artist-photo" />
@@ -151,8 +179,8 @@ function ArtistTile({ artist, index }: { artist: Artist; index: number }) {
   );
 }
 
-function SongList({ title, summary, songs, openArtist }: {
-  title: string; summary: string; songs: Song[]; openArtist: (key: string) => void;
+function SongList({ title, summary, songs, openArtist, onHide }: {
+  title: string; summary: string; songs: Song[]; openArtist: (key: string) => void; onHide: Hide;
 }) {
   const { t } = useTexts();
   return (
@@ -177,6 +205,7 @@ function SongList({ title, summary, songs, openArtist }: {
             <div className="discover-song-actions">
               <PreviewButton artist={song.subtitle} title={song.title} />
               <SpotifyLink href={song.link} label={t("discover.open_spotify")} artist={song.subtitle} title={song.title} />
+              <HideButton hidden={{ kind: "song", key: song.key, name: `${song.subtitle} · ${song.title}` }} onHide={onHide} />
             </div>
           </li>
         ))}
@@ -253,6 +282,26 @@ export default function Discover({ hidden, openArtist }: { hidden: boolean; open
     if (message.event === "plays" || message.event === "synced") stale.current = true;
   }), [load]);
 
+  // The suggestion just hidden, to take back for a while
+  const [note, setNote] = useState<Hidden | null>(null);
+  useEffect(() => {
+    if (!note) return;
+    const timer = window.setTimeout(() => setNote(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [note]);
+  const hide: Hide = (hidden) => {
+    setNote(hidden);
+    post("/api/recommend/hide", hidden).then(load, load);
+  };
+  const show = (hidden: Hidden) => {
+    setNote(null);
+    post("/api/recommend/show", hidden).then(load, load);
+  };
+  const chooseFame = (fame: Fame) => {
+    setData((now) => now && { ...now, fame });
+    post("/api/recommend/fame", { fame }).then(load, load);
+  };
+
   const [top, ...rest] = data?.artists ?? [];
   const empty = data && !data.artists.length && !data.new_songs.length && !data.known_songs.length;
   return (
@@ -262,28 +311,60 @@ export default function Discover({ hidden, openArtist }: { hidden: boolean; open
           <h1>{t("discover.heading")}</h1>
           <p className="muted">{t("discover.intro")}</p>
         </div>
-        {data?.loading && <span className="discover-loading"><span className="discover-pulse" />{t("discover.loading")}</span>}
+        <div className="discover-head-side">
+          {data?.loading && <span className="discover-loading"><span className="discover-pulse" />{t("discover.loading")}</span>}
+          {data && (
+            <div className="segmented discover-fame" role="radiogroup" aria-label={t("discover.fame")} title={t("discover.fame")}>
+              {FAMES.map((fame) => (
+                <button key={fame} role="radio" aria-checked={data.fame === fame}
+                        className={data.fame === fame ? "selected" : ""} onClick={() => chooseFame(fame)}>
+                  {t(`discover.fame.${fame}`)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </header>
+      {note && (
+        <div className="discover-note" role="status">
+          <Icon name="hide" />
+          <span>{t("discover.hidden_note", { name: note.name })}</span>
+          <button className="button" onClick={() => show(note)}>{t("discover.undo")}</button>
+        </div>
+      )}
       {!data && !failed && <DiscoverSkeleton />}
       {failed && !data && <p className="empty error">{t("discover.failed")}</p>}
       {empty && <p className="empty">{data.empty}</p>}
       {data && !empty && (
         <div className="overview">
-          {top && <TopPick artist={top} />}
+          {top && <TopPick artist={top} onHide={hide} />}
           {rest.length > 0 && (
             <Card icon="artists" title={t("discover.artists")} summary={t("discover.artists_summary")}>
               <div className="discover-grid">
-                {rest.map((artist, index) => <ArtistTile key={artist.title} artist={artist} index={index} />)}
+                {rest.map((artist, index) => <ArtistTile key={artist.title} artist={artist} index={index} onHide={hide} />)}
               </div>
             </Card>
           )}
           <div className="pair">
             <SongList title={t("discover.new_songs")} summary={t("discover.new_songs_summary")}
-                      songs={data.new_songs} openArtist={openArtist} />
+                      songs={data.new_songs} openArtist={openArtist} onHide={hide} />
             <SongList title={t("discover.known_songs")} summary={t("discover.known_songs_summary")}
-                      songs={data.known_songs} openArtist={openArtist} />
+                      songs={data.known_songs} openArtist={openArtist} onHide={hide} />
           </div>
           {data.report && <DiscoveryReport report={data.report} openArtist={openArtist} />}
+          {data.hidden.length > 0 && (
+            <Card icon="hide" title={t("discover.hidden_title")} summary={t("discover.hidden_summary")}>
+              <ul className="discover-hidden">
+                {data.hidden.map((hidden) => (
+                  <li key={`${hidden.kind}|${hidden.key}`}>
+                    <button className="discover-hidden-chip" onClick={() => show(hidden)}>
+                      <Icon name={hidden.kind === "artist" ? "artists" : "music"} />{hidden.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
         </div>
       )}
     </div>

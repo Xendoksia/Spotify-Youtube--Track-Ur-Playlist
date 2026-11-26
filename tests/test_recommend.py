@@ -171,13 +171,28 @@ class ModelTest(RecommendTestCase):
                  {"artist": "Slayer", "title": "Raining Blood", "key": "slayer|raining blood", "listeners": 40}]
         self.write_model("song", songs, [[1, 2, 3], [0], [0], [0], [1]])
 
-    def test_the_model_suggests_unplayed_artists_with_their_unplayed_songs_and_asks_deezer_nothing(self):
+    def test_the_model_suggests_unplayed_artists_with_their_unplayed_songs_and_asks_deezer_only_their_fans(self):
         self.play("Metallica", "One - Remastered", "2026-11-19 10:00")
         deezer = FakeDeezer({}, {})
         found = recommend.suggestions(fetch=True, get=deezer, now=NOW, db_path=self.db)
         self.assertEqual([a["name"] for a in found["artists"]], ["Megadeth", "Slayer"])
         self.assertEqual(found["artists"][1]["tracks"][0]["title"], "Raining Blood")
-        self.assertEqual((deezer.requests, found["complete"]), (0, True))
+        # One search for each artist's fans, kept, so not asked again
+        self.assertEqual((deezer.requests, found["complete"]), (2, True))
+        recommend.suggestions(fetch=True, get=deezer, now=NOW, db_path=self.db)
+        self.assertEqual(deezer.requests, 2)
+
+    def test_hidden_artists_are_left_out_and_the_fame_setting_reorders_the_rest(self):
+        artists = [{"name": "Duman", "score": 3.0, "listeners": 300, "deezer_fans": 900_000},
+                   {"name": "Small Band", "score": 2.8, "listeners": 50, "deezer_fans": 400},
+                   {"name": "Metallica", "score": 2.0, "listeners": 90_000, "deezer_fans": 12_000_000}]
+        names = lambda found: [a["name"] for a in found]
+        self.assertEqual(names(recommend.pick_artists(artists, 3)), ["Duman", "Small Band", "Metallica"])
+        self.assertEqual(names(recommend.pick_artists(artists, 2, {"duman"})), ["Small Band", "Metallica"])
+        self.assertEqual(names(recommend.pick_artists(artists, 3, setting="known")), ["Metallica", "Duman", "Small Band"])
+        self.assertEqual(names(recommend.pick_artists(artists, 1, setting="lesser")), ["Small Band"])
+        # Few ListenBrainz listeners do not make an artist with many Deezer fans unknown
+        self.assertGreater(recommend.fame(300, 900_000), recommend.fame(50, 400) + 2)
 
     def test_an_artist_the_model_does_not_know_falls_back_to_deezer(self):
         self.play("Kenan Doğulu", "Tutamıyorum Zamanı", "2026-11-19 10:00")

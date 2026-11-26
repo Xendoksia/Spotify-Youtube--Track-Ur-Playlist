@@ -51,14 +51,40 @@ class NoDeezer extends Deezer {
 }
 
 void main() {
-  test('unplayed artists with their unplayed songs, and Deezer is not asked for what the model knows', () async {
+  test('unplayed artists with their unplayed songs, and Deezer is asked only for their fans, once', () async {
     final deezer = NoDeezer();
     final found = await workOut(models, [play('Metallica', 'One - Remastered')], now, deezer: deezer);
     final artists = (found['artists'] as List).cast<Map>();
     expect(artists.map((a) => a['name']), ['Megadeth', 'Slayer']);
     expect((artists[1]['tracks'] as List).first['title'], 'Raining Blood');
-    expect(deezer.asked, 0);
+    expect(deezer.asked, 2);
     expect(found['complete'], true);
+    final again = NoDeezer();
+    await workOut(models, [play('Metallica', 'One - Remastered')], now,
+        deezer: again, fans: (found['fans'] as Map).cast<String, Object?>());
+    expect(again.asked, 0);
+  });
+
+  test('hidden artists and songs are left out and the fame setting reorders the artists', () {
+    final artists = <Item>[
+      {'name': 'Duman', 'score': 3.0, 'listeners': 300, 'deezer_fans': 900000},
+      {'name': 'Small Band', 'score': 2.8, 'listeners': 50, 'deezer_fans': 400},
+      {'name': 'Metallica', 'score': 2.0, 'listeners': 90000, 'deezer_fans': 12000000},
+    ];
+    List<Object?> names(List<Item> found) => found.map((a) => a['name']).toList();
+    expect(names(pickArtists(artists, 3)), ['Duman', 'Small Band', 'Metallica']);
+    expect(names(pickArtists(artists, 2, hidden: {'duman'})), ['Small Band', 'Metallica']);
+    expect(names(pickArtists(artists, 3, setting: 'known')), ['Metallica', 'Duman', 'Small Band']);
+    expect(names(pickArtists(artists, 1, setting: 'lesser')), ['Small Band']);
+    // Few ListenBrainz listeners do not make an artist with many Deezer fans unknown
+    expect(fame(300, 900000), greaterThan(fame(50, 400) + 2));
+  });
+
+  test('a hidden song gives its place to the next', () async {
+    final saved = await workOut(models, [play('Metallica', 'One')], now, deezer: NoDeezer());
+    final shown = Suggestions.of(saved, [play('Metallica', 'One')],
+        hidden: [(kind: 'song', key: 'metallica|fade to black', name: 'Fade to Black')]);
+    expect(shown.knownSongs.map((s) => s['name']), ['Enter Sandman']);
   });
 
   test('songs leave out played ones, spelt any way, and split new and known artists', () async {

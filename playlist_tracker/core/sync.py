@@ -34,7 +34,7 @@ OVERLAP = timedelta(minutes=2)
 PLAYLIST_DATABASES = {"spotify": spotify.DB_PATH, "youtube": youtube.DB_PATH}
 
 # Settings that follow the user to every device; the others (tray, autostart, credentials) belong to a computer
-SYNCED_SETTINGS = ("LANGUAGE", "THEME")
+SYNCED_SETTINGS = ("LANGUAGE", "THEME", "DISCOVER_HIDDEN", "DISCOVER_FAME")
 
 # The outcome of the last sync, for the account page: at (local time), sent, received, error
 last: dict = {}
@@ -230,7 +230,7 @@ def pull_events(client: account.AccountClient) -> int:
 
 
 def settings_changed(config: dict) -> None:
-    """The language or theme was changed here (config is saved by the caller): send it with the next sync."""
+    """The language, theme or Discover settings were changed here (config is saved by the caller): send it with the next sync."""
     config["SETTINGS_CHANGED_AT"] = history.now_utc()
     config["SETTINGS_SYNCED"] = False
 
@@ -240,7 +240,8 @@ def push_settings(client: account.AccountClient, user_id: str) -> bool:
     changed_at = config.get("SETTINGS_CHANGED_AT")
     if not changed_at or config.get("SETTINGS_SYNCED"):
         return False
-    data = {key: config[key] for key in SYNCED_SETTINGS if config.get(key)}
+    # An emptied list of hidden suggestions is sent too, so the other devices show them again
+    data = {key: config[key] for key in SYNCED_SETTINGS if config.get(key) is not None}
     client.rest("POST", "settings?on_conflict=user_id", [{"user_id": user_id, "data": data,
                                                          "changed_at": changed_at}],
                 "resolution=merge-duplicates,return=minimal")

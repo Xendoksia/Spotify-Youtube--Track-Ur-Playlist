@@ -49,6 +49,10 @@ class Api:
             ("GET", "/api/recommend"): lambda query, body: recommend.recommendations(self.found("recommend")),
             ("POST", "/api/recommend/open"):
                 lambda query, body: recommend.open_spotify(body["artist"], body.get("title", "")),
+            ("POST", "/api/recommend/hide"):
+                lambda query, body: recommend.hide(body["kind"], body["key"], body["name"]),
+            ("POST", "/api/recommend/show"): lambda query, body: recommend.show(body["kind"], body["key"]),
+            ("POST", "/api/recommend/fame"): lambda query, body: recommend.set_fame(body["fame"]),
             ("GET", "/api/recommend/preview"):
                 lambda query, body: recommend.preview(query.get("artist", ""), query.get("title", "")),
             ("GET", "/api/inbox"): lambda query, body: wrapped.inbox(),

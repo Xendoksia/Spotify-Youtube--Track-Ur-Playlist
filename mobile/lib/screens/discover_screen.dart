@@ -6,6 +6,7 @@ import '../data/discover.dart';
 import '../data/preview.dart';
 import '../data/stats.dart';
 import '../l10n/strings.dart';
+import '../state/app_controller.dart';
 import '../state/data_store.dart';
 import '../theme/palette.dart';
 import '../widgets/artwork_image.dart';
@@ -39,6 +40,47 @@ String _because(BuildContext context, List<String> names, {bool songs = false}) 
 
 List<String> _names(Item item) => (item['because'] as List).cast<String>();
 
+/// The menu of a suggestion: leave it out for good
+class _HideMenu extends StatelessWidget {
+  final Hidden hidden;
+  final double size;
+
+  const _HideMenu({required this.hidden, this.size = 20});
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<void>(
+        icon: Icon(Icons.more_vert, size: size, color: Palette.of(context).muted),
+        padding: EdgeInsets.zero,
+        tooltip: context.t('discover.hide'),
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            onTap: () => _hide(context, hidden),
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.visibility_off_outlined),
+              title: Text(context.t('discover.hide')),
+            ),
+          ),
+        ],
+      );
+}
+
+/// Hide a suggestion, the next one taking its place, with a moment to take it back
+void _hide(BuildContext context, Hidden hidden) {
+  final controller = AppScope.read(context);
+  final messenger = ScaffoldMessenger.of(context);
+  final note = context.t('discover.hidden_note', {'name': hidden.name});
+  final undo = context.t('discover.undo');
+  controller.hide(hidden);
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(
+      content: Text(note),
+      action: SnackBarAction(label: undo, onPressed: () => controller.show(hidden)),
+    ));
+}
+
 /// The Discover page, as the desktop app's: artists and songs not played yet, picked by the models from what is
 /// played. Worked out once a day, ahead a little after the app opens (HomeScreen), and what is played since is
 /// taken out at once.
@@ -60,12 +102,25 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   Object? _error;
   var _working = false;
   var _plays = -1;
+  int? _revision;
 
   @override
   void initState() {
     super.initState();
     widget.store.addListener(_update);
     _update();
+  }
+
+  /// The hidden suggestions or the fame setting changed, here or on another device
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final revision = AppScope.of(context).discoverRevision;
+    if (_revision != null && revision != _revision) {
+      _plays = -1;
+      _update();
+    }
+    _revision = revision;
   }
 
   @override
@@ -86,6 +141,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   /// Asked again when the plays change, which also takes out what was played since
   Future<void> _update() async {
     final store = widget.store;
+    if (_working && _plays == -1 && _found != null) {
+      // Asked again by a settings change while working: once more when done
+      _again = true;
+      return;
+    }
     if (!widget.active || !store.loaded || _working || store.plays.length == _plays) return;
     _working = true;
     try {
@@ -101,8 +161,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       if (mounted) setState(() => _error = e);
     } finally {
       _working = false;
+      if (_again) {
+        _again = false;
+        _plays = -1;
+        _update();
+      }
     }
   }
+
+  var _again = false;
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +192,21 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           else if (found.isEmpty)
             MessageView(icon: Icons.explore_outlined, text: context.t('recommend.none'))
           else ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SegmentedButton<String>(
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                segments: [
+                  for (final fame in famePower.keys)
+                    ButtonSegment(
+                        value: fame, label: Text(context.t('discover.fame.$fame'), maxLines: 1, softWrap: false)),
+                ],
+                selected: {AppScope.of(context).fame},
+                onSelectionChanged: (chosen) => AppScope.read(context).chooseFame(chosen.first),
+              ),
+            ),
+            const SizedBox(height: 12),
             if (found.artists.isNotEmpty) _TopPick(artist: found.artists.first),
             if (found.artists.length > 1) ...[
               const SizedBox(height: 20),
@@ -162,6 +244,31 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 onArtist: (artist) => openDetail(context, widget.store, DetailTarget.artist(artist)),
               ),
             ],
+            if (AppScope.of(context).hidden case final hidden when hidden.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              SectionCard(
+                title: context.t('discover.hidden_title'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(context.t('discover.hidden_summary'), style: TextStyle(color: palette.muted, fontSize: 13)),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final item in hidden)
+                          ActionChip(
+                            avatar: Icon(item.kind == 'artist' ? Icons.person_outline : Icons.music_note_outlined, size: 16),
+                            label: Text(item.name),
+                            onPressed: () => AppScope.read(context).show(item),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ],
       ),
@@ -195,6 +302,11 @@ class _TopPick extends StatelessWidget {
                       child: BlurredPicture(url: photo.data!),
                     ),
             ),
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: _HideMenu(hidden: (kind: 'artist', key: artistMatch(name), name: name)),
           ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -353,47 +465,58 @@ class _ArtistCard extends StatelessWidget {
       child: Card(
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => openInSpotify(name),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 14, 10, 8),
-            child: Column(
-              children: [
-                ArtworkImage.artist(artist: name, size: 80),
-                const SizedBox(height: 8),
-                Text(name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text(_because(context, _names(artist)),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: palette.muted, fontSize: 11)),
-                const Spacer(),
-                for (final track in tracks.take(2))
-                  InkWell(
-                    borderRadius: BorderRadius.circular(6),
-                    onTap: () => openInSpotify(track['artist'] as String, track['title'] as String),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                      child: Row(
-                        children: [
-                          _PreviewButton(artist: track['artist'] as String, title: track['title'] as String, size: 26),
-                          const SizedBox(width: 2),
-                          Expanded(
-                            child: Text(track['title'] as String,
-                                maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: InkWell(
+                onTap: () => openInSpotify(name),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 14, 10, 8),
+                  child: Column(
+                    children: [
+                      ArtworkImage.artist(artist: name, size: 80),
+                      const SizedBox(height: 8),
+                      Text(name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(_because(context, _names(artist)),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: palette.muted, fontSize: 11)),
+                      const Spacer(),
+                      for (final track in tracks.take(2))
+                        InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: () => openInSpotify(track['artist'] as String, track['title'] as String),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                            child: Row(
+                              children: [
+                                _PreviewButton(artist: track['artist'] as String, title: track['title'] as String, size: 26),
+                                const SizedBox(width: 2),
+                                Expanded(
+                                  child: Text(track['title'] as String,
+                                      maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
-                      ),
-                    ),
+                        ),
+                    ],
                   ),
-              ],
+                ),
+              ),
             ),
-          ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: _HideMenu(hidden: (kind: 'artist', key: artistMatch(name), name: name), size: 18),
+            ),
+          ],
         ),
       ),
     );
@@ -459,6 +582,13 @@ class _SongList extends StatelessWidget {
                       ),
                     ),
                     _PreviewButton(artist: song['artist'] as String, title: song['name'] as String, size: 40),
+                    _HideMenu(
+                      hidden: (
+                        kind: 'song',
+                        key: loose(song['key'] as String),
+                        name: '${song['artist']} · ${song['name']}',
+                      ),
+                    ),
                   ],
                 ),
               ),
