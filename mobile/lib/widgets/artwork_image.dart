@@ -35,6 +35,8 @@ class ArtworkImage extends StatefulWidget {
     this.corner,
   });
 
+  /// With [artistFallback] the artist's photo stands in when Deezer has no cover for the song (a suggested song
+  /// Deezer does not have), as on the desktop app's Discover page
   ArtworkImage.cover(
       {Key? key,
       required String artist,
@@ -42,11 +44,13 @@ class ArtworkImage extends StatefulWidget {
       required String name,
       double size = 44,
       String? hero,
-      double? corner})
+      double? corner,
+      bool artistFallback = false})
       : this(
             key: key,
-            find: (a) => a.cover(artist, album, name),
-            which: 'cover|$artist|$album|$name',
+            find: (a) async =>
+                await a.cover(artist, album, name) ?? (artistFallback ? await a.artistPhoto(artist) : null),
+            which: 'cover|$artist|$album|$name${artistFallback ? '|artist' : ''}',
             name: album.isNotEmpty ? album : name,
             size: size,
             hero: hero,

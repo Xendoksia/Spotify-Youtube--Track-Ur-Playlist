@@ -274,7 +274,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 showSelectedIcon: false,
                 style: const ButtonStyle(visualDensity: VisualDensity.compact),
                 segments: [
-                  for (final fame in famePower.keys)
+                  for (final fame in fameDirection.keys)
                     ButtonSegment(
                         value: fame, label: Text(context.t('discover.fame.$fame'), maxLines: 1, softWrap: false)),
                 ],
@@ -516,7 +516,7 @@ class _TrackRow extends StatelessWidget {
             padding: const EdgeInsets.all(6),
             child: Row(
               children: [
-                ArtworkImage.cover(artist: artist, album: '', name: title, size: 40),
+                ArtworkImage.cover(artist: artist, album: '', name: title, size: 40, artistFallback: true),
                 const SizedBox(width: 10),
                 Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis)),
                 _PreviewButton(artist: artist, title: title),
@@ -636,7 +636,12 @@ class _SongList extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   children: [
-                    ArtworkImage.cover(artist: song['artist'] as String, album: '', name: song['name'] as String, size: 48),
+                    ArtworkImage.cover(
+                        artist: song['artist'] as String,
+                        album: '',
+                        name: song['name'] as String,
+                        size: 48,
+                        artistFallback: true),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(

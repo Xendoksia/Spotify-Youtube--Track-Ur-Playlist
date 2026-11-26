@@ -316,9 +316,11 @@ class WrappedInboxButton extends StatelessWidget {
       );
 }
 
-/// Opening a summary waiting in the box takes it out
+/// Opening a summary waiting in the box takes it out. A month without plays has none (a notification of one is
+/// not sent, but one could still be asked for)
 void openWrapped(BuildContext context, DataStore store, DateRange month) {
   WrappedInbox.instance.seen(month);
+  if (!store.plays.any((p) => month.contains(p.playedAt))) return;
   Navigator.of(context)
       .push(MaterialPageRoute(
           // The slides on their colored stage in white, whatever the app's theme: set above the screen so that every
