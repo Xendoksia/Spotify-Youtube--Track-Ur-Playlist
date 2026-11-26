@@ -370,23 +370,32 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
   /// period, unless the sound is turned off
   var _sound = true;
 
-  /// An artist's song played most in the period
-  (String, String)? _songBy(Ranked artist) {
-    final theirs = playsIn(widget.store.plays, widget.month).where((p) => artistKeysOf(p).contains(artist.key)).toList();
-    final top = topTracks(theirs, limit: 1);
-    return top.isEmpty ? null : (top.first.artist, top.first.title);
-  }
-
-  /// The song of each slide with one, by the slide's place: the song of the period, the artist's song, the second
-  /// song on the top songs and the second artist's song on the top artists, in the order build lays them out
+  /// The song of each slide with one, by the slide's place, in the order build lays them out: the song of the
+  /// period, the artist's song played most, the highest of the top songs and the second artist's song played most,
+  /// each one the slides before did not play
   late final _songs = () {
     final data = _data;
+    final played = <(String, String)>{};
+    (String, String)? first(Iterable<Ranked> tracks) {
+      for (final track in tracks) {
+        if (played.add((track.artist, track.title))) return (track.artist, track.title);
+      }
+      return null;
+    }
+
+    final plays = playsIn(widget.store.plays, widget.month);
+    (String, String)? by(Ranked artist) =>
+        first(topTracks(plays.where((p) => artistKeysOf(p).contains(artist.key)).toList(), limit: 10));
     final songs = <int, (String, String)?>{};
     var index = 1;
-    if (data.tracks.isNotEmpty) songs[index++] = (data.tracks.first.artist, data.tracks.first.title);
-    if (data.artists.isNotEmpty) songs[index++] = _songBy(data.artists.first);
-    if (data.tracks.length > 1) songs[index++] = (data.tracks[1].artist, data.tracks[1].title);
-    if (data.artists.length > 1) songs[index++] = _songBy(data.artists[1]);
+    if (data.tracks.isNotEmpty) songs[index++] = first([data.tracks.first]);
+    if (data.artists.isNotEmpty) songs[index++] = by(data.artists.first);
+    if (data.tracks.length > 1) songs[index++] = first(data.tracks);
+    if (data.artists.length > 1) songs[index++] = data.artists.skip(1).map(by).nonNulls.firstOrNull;
+    // Looked up ahead, so each starts as its slide comes
+    for (final song in songs.values.nonNulls) {
+      Preview.instance.prefetch(song.$1, song.$2);
+    }
     return songs;
   }();
 
@@ -407,6 +416,7 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
+    _songs;
     _timer.forward();
     _readColors();
   }
@@ -511,6 +521,8 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
 
   void _pause(bool paused) {
     _paused.value = paused;
+    // Held, the song waits too
+    Preview.instance.hold(paused);
     if (paused) {
       _timer.stop();
     } else if (!_timer.isCompleted) {

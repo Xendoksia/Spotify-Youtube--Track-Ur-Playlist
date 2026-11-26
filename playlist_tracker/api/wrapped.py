@@ -164,6 +164,19 @@ def summary(value: str) -> dict:
     def text(value: str, muted: bool = True, gap: bool = False) -> dict:
         return {"type": "text", "text": value, "muted": muted, "gap": gap}
 
+    # Each slide with a song plays one the slides before did not
+    played: set[tuple[str, str]] = set()
+
+    def song_of(rows: list[dict]) -> dict | None:
+        for row in rows:
+            if (row["artist"], row["name"]) not in played:
+                played.add((row["artist"], row["name"]))
+                return {"artist": row["artist"], "title": row["name"]}
+        return None
+
+    def song_by(artist: dict) -> dict | None:
+        return song_of(listening.top_tracks(start, end, 10, artist_key=artist["key"]))
+
     slides = []
     # Intro, over a wall of the month's covers (one per album)
     caption = (t("wrapped.intro.caption.year", year=start.year) if year
@@ -214,7 +227,7 @@ def summary(value: str) -> dict:
         slides.append({"caption": t(of_period("wrapped.track.caption")), "parts": parts,
                        "open": {"column": "track_key", "key": track["key"]},
                        # Its 30 second preview plays while the slide shows
-                       "song": {"artist": track["artist"], "title": track["name"]},
+                       "song": song_of([track]),
                        "mood": artwork.mood(artwork.fetch_cover(track["artist"], track["album"], track["name"]))})
     if artists:
         artist = artists[0]
@@ -229,24 +242,22 @@ def summary(value: str) -> dict:
         if facts:
             parts.append(text(artist_info.describe(facts), gap=True))
         # The artist's song played most in the period plays while the slide shows
-        [song] = listening.top_tracks(start, end, 1, artist_key=artist["key"]) or [None]
+        song = song_by(artist)
         slides.append({"caption": t(of_period("wrapped.artist.caption")), "parts": parts,
                        "open": {"column": "artist_key", "key": artist["key"]},
-                       "song": {"artist": song["artist"], "title": song["name"]} if song else None,
+                       "song": song,
                        "mood": artwork.mood(artwork.fetch_artist(artist["name"]))})
     if len(tracks) > 1:
-        # The second song plays, the first having its own slide
-        slides.append({"caption": t("wrapped.tracks.caption"),
-                       "song": {"artist": tracks[1]["artist"], "title": tracks[1]["name"]},
+        # The highest song not played on a slide before
+        slides.append({"caption": t("wrapped.tracks.caption"), "song": song_of(tracks),
                        "parts": [{"type": "podium", "round": False, "rows": [{
             "key": r["key"], "column": "track_key", "title": r["name"], "subtitle": r["artist"],
             "value_text": plays_text(r["plays"]), "image": cover_url(r["artist"], r["album"], r["name"]),
         } for r in tracks]}]})
     if len(artists) > 1:
         # The second artist's song played most, the first artist having its own slide
-        [second] = listening.top_tracks(start, end, 1, artist_key=artists[1]["key"]) or [None]
         slides.append({"caption": t("wrapped.artists.caption"),
-                       "song": {"artist": second["artist"], "title": second["name"]} if second else None,
+                       "song": next(filter(None, (song_by(a) for a in artists[1:])), None),
                        "parts": [{"type": "podium", "round": True, "rows": [{
             "key": r["key"], "column": "artist_key", "title": r["name"], "subtitle": "",
             "value_text": plays_text(r["plays"]), "image": artist_url(r["name"]),

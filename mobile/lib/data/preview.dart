@@ -89,6 +89,33 @@ class Preview extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Look up a preview's address ahead, so it starts sooner when played (the summary's songs)
+  Future<void> prefetch(String artist, String title) async {
+    final key = _keyOf(artist, title);
+    final kept = _urls[key];
+    if (kept != null && DateTime.now().difference(kept.$2) < keep) return;
+    try {
+      final url = await Artwork.instance.preview(artist, title);
+      if (url == null) {
+        _missing.add(key);
+      } else {
+        _urls[key] = (url, DateTime.now());
+      }
+    } catch (_) {
+      // Asked again when played
+    }
+  }
+
+  /// Hold the preview playing, or go on with it (the summary held)
+  void hold(bool hold) {
+    if (_state != PreviewState.playing) return;
+    if (hold) {
+      _player?.pause();
+    } else {
+      _player?.resume();
+    }
+  }
+
   /// Play a song's preview unless it is the one playing already (as a slide of the summary does)
   Future<void> play(String artist, String title) async {
     if (_keyOf(artist, title) != _key) await toggle(artist, title);

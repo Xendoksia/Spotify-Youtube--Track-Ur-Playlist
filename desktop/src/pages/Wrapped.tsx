@@ -13,7 +13,7 @@ import Sigil from "../components/Sigil";
 import { AppInfo, makeTexts, TextsContext, useTexts } from "../i18n";
 import type { Mood } from "../mood";
 import { Column, useOpenDetail } from "../navigation";
-import { playPreview, stopPreview } from "../preview";
+import { holdPreview, playPreview, preloadPreview, stopPreview } from "../preview";
 
 type Part =
   | { type: "big"; value: number; kind: "minutes" | "plays" | "new_tracks" | "times" }
@@ -562,6 +562,8 @@ export default function Wrapped({ id, active, onClose, onSeen }: {
     get<SummaryData>("/api/wrapped", { id }).then((result) => {
       setData(result);
       onSeen();
+      // The slides' songs are loaded ahead, so each starts as its slide comes
+      result.slides.forEach((slide) => slide.song && preloadPreview(slide.song.artist, slide.song.title));
     }, () => onClose());
   }, [id, onClose, onSeen]);
 
@@ -572,6 +574,8 @@ export default function Wrapped({ id, active, onClose, onSeen }: {
     else stopPreview();
   }, [song?.artist, song?.title, sound, active]);
   useEffect(() => stopPreview, []);
+  // Paused, the song waits too
+  useEffect(() => holdPreview(paused || shareOpen), [paused, shareOpen]);
 
   const count = data?.slides.length ?? 0;
   const step = (direction: number) => {
