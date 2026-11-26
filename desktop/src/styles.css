@@ -7008,11 +7008,6 @@ a.trk-list-name:hover {
   gap: 6px;
 }
 
-.report-more {
-  display: block;
-  margin: 8px auto 0;
-}
-
 /* Hiding a suggestion and the fame setting (pages/Discover.tsx) */
 
 .discover-head-side {

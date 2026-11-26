@@ -599,28 +599,19 @@ class _SongList extends StatelessWidget {
   }
 }
 
-/// Which of the artists suggested in the last 30 days were played since, and the suggestions by day
-/// The report's first rows, the played ones first, the rest a tap away
+/// The report's rows, the played ones first
 const _reportRows = 5;
 
-class _ReportCard extends StatefulWidget {
+/// Which of the artists suggested in the last 30 days were played since
+class _ReportCard extends StatelessWidget {
   final Report report;
   final void Function(String artist) onArtist;
 
   const _ReportCard({required this.report, required this.onArtist});
 
   @override
-  State<_ReportCard> createState() => _ReportCardState();
-}
-
-class _ReportCardState extends State<_ReportCard> {
-  var _all = false;
-
-  @override
   Widget build(BuildContext context) {
-    final report = widget.report;
-    final onArtist = widget.onArtist;
-    final rows = _all ? report.rows : report.rows.take(_reportRows).toList();
+    final rows = report.rows.take(_reportRows).toList();
     final palette = Palette.of(context);
     final theme = Theme.of(context);
     final accent = palette.chart;
@@ -708,13 +699,6 @@ class _ReportCardState extends State<_ReportCard> {
                     ),
                   ],
                 ),
-              ),
-            ),
-          if (rows.length < report.rows.length)
-            Center(
-              child: OutlinedButton(
-                onPressed: () => setState(() => _all = true),
-                child: Text(context.t('track.more', {'count': context.number(report.rows.length - rows.length)})),
               ),
             ),
         ],

@@ -215,13 +215,12 @@ function SongList({ title, summary, songs, openArtist, onHide }: {
 }
 
 /** Which of the artists suggested in the last 30 days were played since */
-// The report's first rows, the played ones first, the rest a click away
+// The report's rows, the played ones first
 const REPORT_ROWS = 5;
 
 function DiscoveryReport({ report, openArtist }: { report: Report; openArtist: (key: string) => void }) {
   const { t } = useTexts();
-  const [all, setAll] = useState(false);
-  const rows = all ? report.rows : report.rows.slice(0, REPORT_ROWS);
+  const rows = report.rows.slice(0, REPORT_ROWS);
   return (
     <Card icon="star" title={report.title}>
       <div className="report-score">
@@ -248,11 +247,6 @@ function DiscoveryReport({ report, openArtist }: { report: Report; openArtist: (
           </li>
         ))}
       </ol>
-      {rows.length < report.rows.length && (
-        <button className="button report-more" onClick={() => setAll(true)}>
-          {t("track.more", { count: report.rows.length - rows.length })}
-        </button>
-      )}
     </Card>
   );
 }
