@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/discover.dart';
 import '../l10n/strings.dart';
 import '../data/now_playing.dart';
 import '../state/app_controller.dart';
@@ -22,7 +23,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final DataStore _store;
   final _nowPlaying = NowPlaying();
 
@@ -30,6 +31,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Timer? _sending;
   var _recorded = false;
   var _page = 0;
+
+  /// The Discover suggestions and the alike-songs models, readied a little after the app opens
+  Timer? _ahead;
 
   /// The page chosen along the bottom fades in, rising a little
   late final _shown = AnimationController(vsync: this, duration: const Duration(milliseconds: 250), value: 1);
@@ -43,8 +47,29 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _store = DataStore(controller.repository);
     _sending = Timer.periodic(const Duration(minutes: 1), (_) => _sendPlays());
     _nowPlaying.addListener(_songChanged);
-    refresh();
+    WidgetsBinding.instance.addObserver(this);
+    refresh().whenComplete(_readySoon);
     _askAccess();
+  }
+
+  /// A few seconds after the app opens, once the first page is drawn, the day's Discover suggestions are worked
+  /// out on a background isolate and then the models of the track pages loaded, one after the other not to hold
+  /// both at once, so that neither the Discover page nor a page's alike songs keep anyone waiting
+  void _readySoon() {
+    _ahead?.cancel();
+    _ahead = Timer(const Duration(seconds: 4), () async {
+      if (!mounted || !_store.loaded) return;
+      await discover(_store.plays).then((_) {}, onError: (_) {});
+      if (mounted) await ModelWorker.instance.warm().catchError((_) {});
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final inFront = state == AppLifecycleState.resumed;
+    ModelWorker.instance.inFront(inFront);
+    // Back after a while: a new day's suggestions, or the models let go in the background
+    if (inFront) _readySoon();
   }
 
   /// After logging in, offer Android's notification access page, without which nothing played on the phone is
@@ -91,6 +116,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _ahead?.cancel();
     _store.dispose();
     _sending?.cancel();
     _nowPlaying.removeListener(_songChanged);

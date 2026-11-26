@@ -40,12 +40,13 @@ String _because(BuildContext context, List<String> names, {bool songs = false}) 
 List<String> _names(Item item) => (item['because'] as List).cast<String>();
 
 /// The Discover page, as the desktop app's: artists and songs not played yet, picked by the models from what is
-/// played. Worked out once a day, when the page is first shown, and what is played since is taken out at once.
+/// played. Worked out once a day, ahead a little after the app opens (HomeScreen), and what is played since is
+/// taken out at once.
 class DiscoverScreen extends StatefulWidget {
   final DataStore store;
   final Future<void> Function() onRefresh;
 
-  /// Whether the page is the one on display: the suggestions are first worked out then, not at the app's start
+  /// Whether the page is the one on display: the page asks for the suggestions then
   final bool active;
 
   const DiscoverScreen({super.key, required this.store, required this.onRefresh, required this.active});

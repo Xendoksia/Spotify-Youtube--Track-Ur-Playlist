@@ -493,11 +493,22 @@ class Suggestions {
 List<PlayRow> playRows(List<Play> plays) =>
     [for (final p in plays) (artist: p.artist, name: p.name, at: p.playedAt.millisecondsSinceEpoch)];
 
+/// The model files, read here and handed to an isolate: an isolate cannot read the app's assets itself
+Future<List<Uint8List>> _readModels(Iterable<String> paths) async =>
+    [for (final path in paths) (await rootBundle.load(path)).buffer.asUint8List()];
+
 const _savedKey = 'DISCOVER';
 const _historyKey = 'DISCOVER_HISTORY';
 
-/// The suggestions: the saved ones while they are fresh, else worked out again on a background isolate
-Future<Suggestions> discover(List<Play> plays, {DateTime? now}) async {
+Future<Suggestions>? _working;
+
+/// The suggestions: the saved ones while they are fresh, else worked out again on a background isolate. Asked
+/// again while they are being worked out, as when the page opens just after the app's start began them, the same
+/// answer is waited for
+Future<Suggestions> discover(List<Play> plays, {DateTime? now}) =>
+    _working ??= _discover(plays, now).whenComplete(() => _working = null);
+
+Future<Suggestions> _discover(List<Play> plays, DateTime? now) async {
   final rows = playRows(plays);
   final moment = (now ?? DateTime.now()).millisecondsSinceEpoch;
   final prefs = await SharedPreferences.getInstance();
@@ -519,7 +530,7 @@ Future<Suggestions> discover(List<Play> plays, {DateTime? now}) async {
   List<String> names(Map<String, Object?> found) =>
       [for (final artist in (found['artists'] as List).cast<Map>()) artist['name'] as String];
   if (stale && rows.isNotEmpty) {
-    final files = [for (final path in modelAssets) (await rootBundle.load(path)).buffer.asUint8List()];
+    final files = await _readModels(modelAssets);
     saved = await Isolate.run(() => workOut(files, rows, moment));
     await prefs.setString(_savedKey, jsonEncode(saved));
     history = remember(history, names(saved!), DateTime.fromMillisecondsSinceEpoch(moment));
@@ -619,8 +630,9 @@ void _serveModels((SendPort, List<Uint8List>) start) {
   });
 }
 
-/// The two models on a background isolate for the track and artist pages, loaded on first use and let go after
-/// a while unused, as they take some 80 MB
+/// The two models on a background isolate for the track and artist pages, loaded ahead a little after the app
+/// opens so that a page's first alike songs come at once, kept while the app is in front and let go after a while
+/// in the background, as they take some 80 MB
 class ModelWorker {
   /// The alike songs use the knn table alone, so the RP3beta one is not loaded here
   static final instance = ModelWorker();
@@ -629,14 +641,41 @@ class ModelWorker {
   Future<SendPort>? _port;
   Isolate? _isolate;
   Timer? _idle;
+  var _inFront = true;
 
   Future<SendPort> _start() async {
-    final files = [for (final path in modelAssets.take(4)) (await rootBundle.load(path)).buffer.asUint8List()];
+    final files = await _readModels(modelAssets.take(4));
     final ready = ReceivePort();
     _isolate = await Isolate.spawn(_serveModels, (ready.sendPort, files));
     final port = await ready.first as SendPort;
     ready.close();
     return port;
+  }
+
+  /// Load the models ahead, before a page asks
+  Future<void> warm() async {
+    _idle?.cancel();
+    await (_port ??= _start());
+    if (!_inFront) _letGoLater();
+  }
+
+  /// The app went to the background or came back: the models are let go after [idle] in the background
+  void inFront(bool value) {
+    _inFront = value;
+    if (value) {
+      _idle?.cancel();
+    } else if (_port != null) {
+      _letGoLater();
+    }
+  }
+
+  void _letGoLater() {
+    _idle?.cancel();
+    _idle = Timer(idle, () {
+      _isolate?.kill();
+      _isolate = null;
+      _port = null;
+    });
   }
 
   Future<List<Alike>> _ask(String artist, String title, Set<String> played, int limit) async {
@@ -649,11 +688,7 @@ class ModelWorker {
       answer.close();
       return found;
     } finally {
-      _idle = Timer(idle, () {
-        _isolate?.kill();
-        _isolate = null;
-        _port = null;
-      });
+      if (!_inFront) _letGoLater();
     }
   }
 
