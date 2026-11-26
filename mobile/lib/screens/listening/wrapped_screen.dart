@@ -340,7 +340,7 @@ class WrappedScreen extends StatefulWidget {
 
 class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProviderStateMixin {
   /// How long a slide shows before the next comes by itself, unless held
-  static const _slideTime = Duration(seconds: 9);
+  static const _slideTime = Duration(seconds: 15);
 
   final _pages = PageController();
 
@@ -370,20 +370,27 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
   /// period, unless the sound is turned off
   var _sound = true;
 
-  late final _artistSong = () {
-    if (_data.artists.isEmpty) return null;
-    final key = _data.artists.first.key;
-    final theirs = playsIn(widget.store.plays, widget.month).where((p) => artistKeysOf(p).contains(key)).toList();
+  /// An artist's song played most in the period
+  (String, String)? _songBy(Ranked artist) {
+    final theirs = playsIn(widget.store.plays, widget.month).where((p) => artistKeysOf(p).contains(artist.key)).toList();
     final top = topTracks(theirs, limit: 1);
     return top.isEmpty ? null : (top.first.artist, top.first.title);
+  }
+
+  /// The song of each slide with one, by the slide's place: the song of the period, the artist's song, the second
+  /// song on the top songs and the second artist's song on the top artists, in the order build lays them out
+  late final _songs = () {
+    final data = _data;
+    final songs = <int, (String, String)?>{};
+    var index = 1;
+    if (data.tracks.isNotEmpty) songs[index++] = (data.tracks.first.artist, data.tracks.first.title);
+    if (data.artists.isNotEmpty) songs[index++] = _songBy(data.artists.first);
+    if (data.tracks.length > 1) songs[index++] = (data.tracks[1].artist, data.tracks[1].title);
+    if (data.artists.length > 1) songs[index++] = _songBy(data.artists[1]);
+    return songs;
   }();
 
-  (String, String)? _songOf(int index) {
-    final track = _data.tracks.isEmpty ? null : _data.tracks.first;
-    if (track != null && index == 1) return (track.artist, track.title);
-    if (_data.artists.isNotEmpty && index == (track == null ? 1 : 2)) return _artistSong;
-    return null;
-  }
+  (String, String)? _songOf(int index) => _songs[index];
 
   void _playFor(int index) {
     final song = _sound ? _songOf(index) : null;
@@ -615,8 +622,9 @@ class _WrappedScreenState extends State<WrappedScreen> with SingleTickerProvider
                             onPageChanged: (index) {
                               _index.value = index;
                               _playFor(index);
+                              // The new slide runs again, even when the one before was held
+                              _paused.value = false;
                               _timer.forward(from: 0);
-                              if (_paused.value) _timer.stop();
                             },
                             // A slide shrinks and fades a little while it is swiped away
                             itemBuilder: (context, index) => AnimatedBuilder(

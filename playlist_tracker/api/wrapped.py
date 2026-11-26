@@ -235,12 +235,19 @@ def summary(value: str) -> dict:
                        "song": {"artist": song["artist"], "title": song["name"]} if song else None,
                        "mood": artwork.mood(artwork.fetch_artist(artist["name"]))})
     if len(tracks) > 1:
-        slides.append({"caption": t("wrapped.tracks.caption"), "parts": [{"type": "podium", "round": False, "rows": [{
+        # The second song plays, the first having its own slide
+        slides.append({"caption": t("wrapped.tracks.caption"),
+                       "song": {"artist": tracks[1]["artist"], "title": tracks[1]["name"]},
+                       "parts": [{"type": "podium", "round": False, "rows": [{
             "key": r["key"], "column": "track_key", "title": r["name"], "subtitle": r["artist"],
             "value_text": plays_text(r["plays"]), "image": cover_url(r["artist"], r["album"], r["name"]),
         } for r in tracks]}]})
     if len(artists) > 1:
-        slides.append({"caption": t("wrapped.artists.caption"), "parts": [{"type": "podium", "round": True, "rows": [{
+        # The second artist's song played most, the first artist having its own slide
+        [second] = listening.top_tracks(start, end, 1, artist_key=artists[1]["key"]) or [None]
+        slides.append({"caption": t("wrapped.artists.caption"),
+                       "song": {"artist": second["artist"], "title": second["name"]} if second else None,
+                       "parts": [{"type": "podium", "round": True, "rows": [{
             "key": r["key"], "column": "artist_key", "title": r["name"], "subtitle": "",
             "value_text": plays_text(r["plays"]), "image": artist_url(r["name"]),
         } for r in artists]}]})

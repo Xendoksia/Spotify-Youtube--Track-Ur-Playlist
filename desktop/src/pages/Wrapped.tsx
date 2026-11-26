@@ -63,7 +63,7 @@ interface SummaryData {
 }
 
 /** How long a slide shows before the next comes by itself (as on the phone) */
-const SLIDE_MS = 9000;
+const SLIDE_MS = 15000;
 
 /** A deep violet when the month has no colored cover */
 const DEFAULT_HUE = 285;
@@ -457,7 +457,9 @@ function StageLayer({ hue, fade }: { hue: number; fade: boolean }) {
   );
 }
 
-/** The month's covers as a tilted wall behind the first slide, darker in the middle under its text */
+/** The month's covers as a tilted wall behind the first slide, darker in the middle under its text. Its rows glide
+ * slowly sideways, every other one the other way, as on the phone: each row is its covers twice, moved by one
+ * set's width before it starts over, by transform alone so the graphics card moves it without painting */
 function CoverWall({ covers }: { covers: string[] }) {
   // Enough to reach the corners of the tall story picture too (WrappedStory)
   const rows = 9;
@@ -466,10 +468,13 @@ function CoverWall({ covers }: { covers: string[] }) {
     <div className="wrapped-wall" aria-hidden="true">
       <div className="wall-tilt">
         {Array.from({ length: rows }, (_, row) => (
-          <div key={row} className="wall-row" style={{ marginLeft: row % 2 ? -60 : 0 }}>
-            {Array.from({ length: perRow }, (_, column) => (
-              <Picture key={column} src={covers[(row * 3 + column) % covers.length]} alt="" className="wall-cover" />
-            ))}
+          <div key={row} className="wall-row-frame" style={{ marginLeft: row % 2 ? -60 : 0 }}>
+            <div className={`wall-row${row % 2 ? " back" : ""}`}>
+              {Array.from({ length: perRow * 2 }, (_, column) => (
+                <Picture key={column} src={covers[(row * 3 + (column % perRow)) % covers.length]} alt=""
+                         className="wall-cover" />
+              ))}
+            </div>
           </div>
         ))}
       </div>
@@ -576,6 +581,8 @@ export default function Wrapped({ id, active, onClose, onSeen }: {
     window.setTimeout(() => {
       setIndex(next);
       setLeaving(false);
+      // The new slide runs again, even when the one before was paused
+      setPaused(false);
     }, FADE_OUT_MS);
   };
 

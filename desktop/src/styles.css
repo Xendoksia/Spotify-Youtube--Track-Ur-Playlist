@@ -4501,9 +4501,38 @@ select.field {
   transform: translate(-50%, -50%) rotate(-11deg);
 }
 
+.wall-row-frame {
+  width: calc(9 * 164px - 14px);
+}
+
+/* A row moves by one set of its covers (9 of 150 px and their gaps) and starts over, slower than the phone's */
 .wall-row {
   display: flex;
   gap: 14px;
+  width: max-content;
+  will-change: transform;
+  animation: wall-glide 120s linear infinite;
+}
+
+.wall-row.back {
+  animation-direction: reverse;
+}
+
+@keyframes wall-glide {
+  to {
+    transform: translateX(-1476px);
+  }
+}
+
+/* The story picture is still */
+.page.wrapped.story .wall-row {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-row {
+    animation: none;
+  }
 }
 
 .wall-cover {
